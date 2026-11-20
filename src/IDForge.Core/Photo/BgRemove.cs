@@ -60,8 +60,10 @@ public sealed class BgRemover : IDisposable
         int mh = dims.Length >= 4 ? dims[2] : dims[^2];
         int mw = dims.Length >= 4 ? dims[3] : dims[^1];
 
-        // Build RGBA output at original resolution
-        var output = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Premul);
+        // Build RGBA output at original resolution. RGB values copied below are
+        // STRAIGHT (unpremultiplied) alpha — the bitmap must be Unpremul or
+        // semi-transparent edge pixels render too dark / color-shifted.
+        var output = new SKBitmap(w, h, SKColorType.Bgra8888, SKAlphaType.Unpremul);
         var outSpan = output.GetPixelSpan();
         var srcSpan = source.GetPixelSpan();
 

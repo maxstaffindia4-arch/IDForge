@@ -177,9 +177,24 @@ public sealed class PhotoPipeline : IDisposable
     /// </summary>
     public PhotoPipelineResult Process(SKBitmap image, BgMode mode = BgMode.PlainWhite)
     {
-        // 1. Background removal
-        SKBitmap cutout;
+        // 1. Face detection on original (needed by post-processing to pick the
+        //    subject component, and by auto-fit below).
+        SKRect? face = null;
+        int faceCount = 0;
         string? warning = null;
+        if (_faceDetector != null)
+        {
+            var faces = _faceDetector.Detect(image);
+            faceCount = faces.Count;
+            face = faces.Count > 0
+                ? faces.OrderByDescending(b => b.Width * b.Height).First()
+                : null;
+            if (faces.Count == 0) warning = "No face detected; photo centered automatically.";
+            else if (faces.Count > 1) warning = "Multiple faces found; largest used.";
+        }
+
+        // 2. Background removal
+        SKBitmap cutout;
         string bgMethod;
         bool alreadyTransparent = TransparentFraction(image) > Config.TransparentSkipThreshold;
         if (alreadyTransparent)
@@ -215,21 +230,16 @@ public sealed class PhotoPipeline : IDisposable
             }
         }
 
-        // 2. Face detection on original
-        SKRect? face = null;
-        int faceCount = 0;
-        if (_faceDetector != null)
+        // 3. Edge cleanup for model-produced and flood-fill cutouts: border
+        //    suppression, component filter, erosion/feather, color decontamination.
+        if (bgMethod is "u2net" or "plain-white")
         {
-            var faces = _faceDetector.Detect(image);
-            faceCount = faces.Count;
-            face = faces.Count > 0
-                ? faces.OrderByDescending(b => b.Width * b.Height).First()
-                : null;
-            if (faces.Count == 0) warning = "No face detected; photo centered automatically.";
-            else if (faces.Count > 1) warning = "Multiple faces found; largest used.";
+            var cleaned = CutoutPostProcess.Process(cutout, face);
+            cutout.Dispose();
+            cutout = cleaned;
         }
 
-        // 3. Auto-fit
+        // 4. Auto-fit
         var transform = face.HasValue
             ? WindowComposer.AutoFit(cutout, face.Value)
             : WindowComposer.CenterCover(cutout);
