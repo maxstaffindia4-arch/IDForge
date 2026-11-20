@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.2.1 — 2026-11-21
+
+### Fixed
+- **Window opened off-screen** — the main window now sizes itself to the
+  primary work area (taskbar excluded, max 95%), restores the previous
+  position only when it is still on a connected screen, and falls back to
+  centered otherwise. Bounds are saved on close.
+
+### Added
+- **About dialog** — `?` button at the top-right of the main window shows the
+  app name, version, and creator credit.
+
 ## v1.2.0 — 2026-11-21
 
 ### Fixed
