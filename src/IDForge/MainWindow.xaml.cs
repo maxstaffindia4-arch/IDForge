@@ -614,6 +614,43 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show(ex.Message, "Error"); }
     }
 
+    private void About_Click(object sender, RoutedEventArgs e)
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly()
+            .GetName().Version?.ToString(3) ?? "?";
+        var panel = new StackPanel { Margin = new Thickness(28, 20, 28, 16) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "IDForge", FontSize = 20, FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Version {version}", Margin = new Thickness(0, 6, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Created by {AppInfo.CreatorName}", Margin = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        panel.Children.Add(new Button
+        {
+            Content = "Close", IsCancel = true, Width = 90,
+            Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Center
+        });
+        var dlg = new Window
+        {
+            Title = "About IDForge",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = panel
+        };
+        dlg.Owner = this;
+        dlg.ShowDialog();
+    }
+
     /// <summary>
     /// Sizes the window to the primary work area (taskbar excluded) and restores
     /// the saved bounds only when they still land on a connected screen.

@@ -6,7 +6,8 @@
         Icon="pack://application:,,,/app.ico"
         MinWidth="860" MinHeight="620"
         WindowStartupLocation="CenterScreen">
-    <TabControl Margin="8">
+    <Grid Margin="8">
+    <TabControl>
         <!-- ============ NEW CARD ============ -->
         <TabItem Header="New Card">
             <Grid>
@@ -244,4 +245,8 @@
             </Grid>
         </TabItem>
     </TabControl>
+    <Button x:Name="BtnAbout" Content="?" Width="30" Height="26"
+            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,4,0"
+            FontWeight="Bold" Click="About_Click" ToolTip="About IDForge"/>
+    </Grid>
 </Window>
