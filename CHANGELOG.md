@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.2.0 — 2026-11-21
+
+### Fixed
+- **Re-issue did nothing** — the dialog's Re-issue button had no click handler,
+  so `ShowDialog()` never returned true and the handler exited silently. The
+  date is now a plain text field parsed strictly as `dd/MM/yyyy` (en-GB; `1/7/2027`
+  = 1 July 2027) with inline validation and a format hint; empty/unparseable
+  dates and dates before the last print date are rejected with a message.
+  Re-issue now always asks for confirmation (name, UID, print date, valid-until)
+  and runs through the same `CardIssuer` transaction as Approve & Issue —
+  render, verify files, one DB transaction, audit entry; failures save nothing
+  and are logged.
+- **Photo edge artifacts in Model mode** — the u2net cutout was written into a
+  premultiplied-alpha bitmap with straight-alpha colors, producing dark/cyan
+  fringes on hair and head edges, plus border-leak arcs in the photo window
+  corners. The matte is now straight alpha, and a new post-process keeps only
+  the face's connected component, erodes + feathers the edge, clamps the outer
+  4 px border, and decontaminates edge colors from the original background.
+  Plain-white mode gets the same cleanup.
+
+### Changed
+- **Batch Review** — window title and status line now show the current person's
+  name + UID. Approve marks a row ready without issuing; "Issue card" remains
+  the optional single-card path; "Batch Issue (N)" appears only after all rows
+  are approved/skipped and issues them sequentially.
+
 ## v1.1.0 — 2026-11-20
 
 ### Fixed
