@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
         _svc = new CardService();
         _previewDebounce.Tick += (_, _) => { _previewDebounce.Stop(); _ = UpdatePreviewAsync(); };
 
