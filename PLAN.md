@@ -1,4 +1,4 @@
-# Staff ID Card Generator — C# Build Plan
+# IDForge — Staff ID Card Generator Build Plan
 
 **Target:** single-machine Windows desktop app (`.exe`), one office PC, front side only.
 **Source template:** `F:\Max Files\Other\New ID Card.psd` — 637×1012 px, 300 DPI, Staff UK branding.

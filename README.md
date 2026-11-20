@@ -1,4 +1,4 @@
-# Staff ID Card Generator
+# IDForge — Staff ID Card Generator
 
 Windows desktop tool (C# / .NET 8 / WPF) that generates print-ready staff ID cards
 from `New_ID_Card.psd` (637×1012 px, 300 DPI, CR80 output).
