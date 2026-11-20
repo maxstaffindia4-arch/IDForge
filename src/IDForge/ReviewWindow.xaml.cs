@@ -56,6 +56,7 @@ public partial class ReviewWindow : Window
         var idx = startAt != null ? rows.IndexOf(startAt) : rows.ToList().FindIndex(r => r.Status == "NeedsReview");
         if (idx >= 0) SelectRow(rows[idx]);
         else TxtStatus.Text = rows.Count == 0 ? "No rows." : "No rows need review.";
+        UpdateBatchIssueButton();
     }
 
     private bool FilterRow(object obj)
@@ -119,10 +120,14 @@ public partial class ReviewWindow : Window
             };
             SyncNudgeFromRow();
             ValidateRowInline();
-            TxtStatus.Text = $"Row {row.Uid} — {row.StatusText}";
+            TxtStatus.Text = $"{row.Name} ({row.Uid}) — {row.StatusText}";
+            Title = string.IsNullOrWhiteSpace(row.Name)
+                ? $"Batch Review — {row.Uid}"
+                : $"Batch Review — {row.Name} ({row.Uid})";
         }
         finally { _loading = false; }
         _ = EnsureRowPhotoAsync(row);
+        UpdateBatchIssueButton();
     }
 
     private void SyncNudgeFromRow()
@@ -354,6 +359,7 @@ public partial class ReviewWindow : Window
             if (row.Status is "Draft" or "NeedsPhoto" or "Failed") row.Status = "NeedsReview";
             row.Error = "";
             _owner.PersistBatchRow(row);
+            UpdateBatchIssueButton();
             SchedulePreview();
         }
         catch (Exception ex)
@@ -361,6 +367,7 @@ public partial class ReviewWindow : Window
             row.Status = "Failed"; row.Error = ex.Message;
             TxtPhotoStatus.Text = $"Photo failed: {ex.Message}";
             _owner.PersistBatchRow(row);
+            UpdateBatchIssueButton();
         }
     }
 
@@ -483,6 +490,89 @@ public partial class ReviewWindow : Window
         _current.Status = "Skipped";
         _owner.PersistBatchRow(_current);
         TxtStatus.Text = $"Skipped {rowLabel(_current)}.";
+        UpdateBatchIssueButton();
+        Move(1);
+    }
+
+    /// <summary>Shared pre-issue checks for one row. Returns an error message or null.</summary>
+    private string? ValidateRowForIssue(BatchRow row)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in _rows)
+            if (!ReferenceEquals(r, row) && Core.Uid.Normalize(r.Uid) is { } nu) seen.Add(nu);
+        var err = BatchValidator.Validate(
+            new BatchRowData(row.Uid, row.Name, row.Blood, row.Position, row.Contract,
+                row.PrintDateText, row.PhotoPath),
+            seen, uid => _owner.Svc.Store.FindEmployeeByUid(uid) != null);
+        if (err != null) return $"Cannot issue: {err}.";
+        if (row.Cutout == null)
+            return "Photo not processed yet — wait for processing or use Replace.";
+        return null;
+    }
+
+    /// <summary>
+    /// Issues one row through the owner's single issue path. confirm=false skips
+    /// the per-row dialog (batch issue confirms once up front); quiet=true
+    /// suppresses per-row result dialogs (batch shows a summary instead).
+    /// </summary>
+    private async Task<IDForge.Core.Issuing.IssueOutcome?> IssueRowAsync(BatchRow row, bool confirm, bool quiet)
+    {
+        var problem = ValidateRowForIssue(row);
+        if (problem != null) { TxtStatus.Text = problem; return null; }
+
+        var validUntil = Validity.CalculateValidUntil(row.PrintDate, row.Contract);
+        if (confirm && !Dialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue: false))
+            return null;
+
+        row.AttemptCount++;
+        _owner.PersistBatchRow(row);           // persist attempt so RowId/key are stable
+        var key = $"batchrow:{row.RowId}:attempt:{row.AttemptCount}";
+        var outcome = await _owner.IssueBatchRowAsync(row, key);
+        if (outcome.Success)
+        {
+            row.Status = "Issued";
+            row.Error = "";
+            row.CardIssueId = outcome.Issue?.Id;
+            _owner.PersistBatchRow(row);
+            if (!quiet)
+            {
+                Dialogs.ShowIssued(this, row.Uid, outcome.Issue?.ValidUntil ?? validUntil,
+                    outcome.PngPath, outcome.PdfPath);
+                TxtStatus.Text = $"Issued {rowLabel(row)}.";
+            }
+            _owner.RefreshRecordsPublic();
+        }
+        else
+        {
+            row.Status = "Failed";
+            row.Error = outcome.Error ?? "unknown";
+            _owner.PersistBatchRow(row);
+            if (!quiet)
+            {
+                Dialogs.ShowIssueFailed(this, outcome.Step ?? "issue", outcome.Error ?? "unknown");
+                TxtStatus.Text = $"Issue failed ({outcome.Step}): {outcome.Error}";
+            }
+        }
+        return outcome;
+    }
+
+    /// <summary>Marks the current row approved (ready to issue) — no card is written.</summary>
+    private void Approve_Click(object sender, RoutedEventArgs e)
+    {
+        if (_current == null) return;
+        SyncFormToRow();
+        ValidateRowInline();
+        var row = _current;
+        if (row.Status == "Issued") { TxtStatus.Text = $"{rowLabel(row)} already issued."; return; }
+        var problem = ValidateRowForIssue(row);
+        if (problem != null) { TxtStatus.Text = problem; return; }
+
+        row.Approved = true;
+        row.Status = "Approved";
+        row.Error = "";
+        _owner.PersistBatchRow(row);
+        TxtStatus.Text = $"Approved {rowLabel(row)}.";
+        UpdateBatchIssueButton();
         Move(1);
     }
 
@@ -494,54 +584,60 @@ public partial class ReviewWindow : Window
         var row = _current;
         if (row.Status == "Issued") { TxtStatus.Text = $"{rowLabel(row)} already issued."; return; }
 
-        // inline validation (photo presence enforced too)
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var r in _rows)
-            if (!ReferenceEquals(r, row) && Core.Uid.Normalize(r.Uid) is { } nu) seen.Add(nu);
-        var err = BatchValidator.Validate(
-            new BatchRowData(row.Uid, row.Name, row.Blood, row.Position, row.Contract,
-                row.PrintDateText, row.PhotoPath),
-            seen, uid => _owner.Svc.Store.FindEmployeeByUid(uid) != null);
-        if (err != null) { TxtStatus.Text = $"Cannot issue: {err}."; return; }
-        if (row.Cutout == null)
-        {
-            TxtStatus.Text = "Photo not processed yet — wait for processing or use Replace.";
-            return;
-        }
-
-        var validUntil = Validity.CalculateValidUntil(row.PrintDate, row.Contract);
-        if (!Dialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue: false))
-            return;
-
-        row.AttemptCount++;
-        _owner.PersistBatchRow(row);           // persist attempt so RowId/key are stable
-        var key = $"batchrow:{row.RowId}:attempt:{row.AttemptCount}";
         BtnIssue.IsEnabled = false;
         TxtStatus.Text = "Issuing...";
+        try { await IssueRowAsync(row, confirm: true, quiet: false); }
+        finally { BtnIssue.IsEnabled = true; UpdateBatchIssueButton(); }
+    }
+
+    /// <summary>Issues every Approved row sequentially; one confirm up front.</summary>
+    private async void BatchIssue_Click(object sender, RoutedEventArgs e)
+    {
+        var targets = _rows.Where(r => r.Status == "Approved").ToList();
+        if (targets.Count == 0) { UpdateBatchIssueButton(); return; }
+        var r = MessageBox.Show(this,
+            $"Issue {targets.Count} approved card(s) to the selected output folder?",
+            "Batch issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (r != MessageBoxResult.Yes) return;
+
+        BtnBatchIssue.IsEnabled = false;
+        BtnIssue.IsEnabled = false;
+        int ok = 0, fail = 0;
+        var failures = new List<string>();
         try
         {
-            var outcome = await _owner.IssueBatchRowAsync(row, key);
-            if (outcome.Success)
+            foreach (var row in targets)
             {
-                row.Status = "Issued";
-                row.Error = "";
-                row.CardIssueId = outcome.Issue?.Id;
-                _owner.PersistBatchRow(row);
-                Dialogs.ShowIssued(this, row.Uid, outcome.Issue?.ValidUntil ?? validUntil,
-                    outcome.PngPath, outcome.PdfPath);
-                _owner.RefreshRecordsPublic();
-                TxtStatus.Text = $"Issued {rowLabel(row)}.";
-            }
-            else
-            {
-                row.Status = "Failed";
-                row.Error = outcome.Error ?? "unknown";
-                _owner.PersistBatchRow(row);
-                Dialogs.ShowIssueFailed(this, outcome.Step ?? "issue", outcome.Error ?? "unknown");
-                TxtStatus.Text = $"Issue failed ({outcome.Step}): {outcome.Error}";
+                if (row.Status != "Approved") continue;   // may have been issued/skipped meanwhile
+                TxtStatus.Text = $"Issuing {rowLabel(row)} ({ok + fail + 1}/{targets.Count})...";
+                var outcome = await IssueRowAsync(row, confirm: false, quiet: true);
+                if (outcome?.Success == true) ok++;
+                else { fail++; failures.Add($"{rowLabel(row)}: {outcome?.Error ?? "cancelled"}"); }
+                UpdateBatchIssueButton();
             }
         }
-        finally { BtnIssue.IsEnabled = true; }
+        finally
+        {
+            BtnBatchIssue.IsEnabled = true;
+            BtnIssue.IsEnabled = true;
+            UpdateBatchIssueButton();
+        }
+        TxtStatus.Text = $"Batch issue done: {ok} issued, {fail} failed.";
+        if (failures.Count > 0)
+            MessageBox.Show(this, "Some cards failed:\n\n" + string.Join("\n", failures),
+                "Batch issue", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>Shows Batch Issue only when nothing is left pending review.</summary>
+    private void UpdateBatchIssueButton()
+    {
+        var pending = _rows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto"
+            or "Failed" or "Processing");
+        var approved = _rows.Count(r => r.Status == "Approved");
+        BtnBatchIssue.Visibility = pending == 0 && approved > 0
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (BtnBatchIssue.Visibility == Visibility.Visible)
+            BtnBatchIssue.Content = $"Batch Issue ({approved})";
     }
 
     private void ConfirmIssue_Changed(object sender, RoutedEventArgs e)
