@@ -63,8 +63,9 @@ Print Date (optional, default today), Photo Path (optional but required to issue
 
 - `FACE_HEIGHT_RATIO` (0.72), window geometry, and model paths live in
   `src/IDForge.Core/Config.cs` — calibrate with real staff photos.
-- Models are NOT in git (too large for GitHub). After cloning, run
-  `tools\fetch-models.ps1` to download them into `assets/models/`
-  (u2net ~176 MB, YuNet ~230 KB). No third-party uploads; everything runs locally.
+- Models are NOT in git (too large for GitHub). They download automatically
+  on the first `dotnet build` (see the `EnsureOnnxModels` target in
+  `src/IDForge.Core/IDForge.Core.csproj`), or manually via `tools\fetch-models.ps1`
+  into `assets/models/` (u2net ~176 MB, YuNet ~230 KB). No third-party uploads; everything runs locally.
 - If the ONNX model is missing, the app falls back to using the photo as-is
   with a warning.
