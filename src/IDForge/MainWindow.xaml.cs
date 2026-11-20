@@ -612,50 +612,130 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show(ex.Message, "Error"); }
     }
 
-    private void Reissue_Click(object sender, RoutedEventArgs e)
+    private async void Reissue_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedEmployee == null) return;
-        var printDate = Validity.TodayInDhaka();
+        var emp = _selectedEmployee;
+        if (emp == null) return;
+        var today = Validity.TodayInDhaka();
+        var lastIssue = _svc.Store.LatestIssue(emp.Id);
+
+        // Date is a plain TextBox so typed text is always what we parse —
+        // a DatePicker can hold uncommitted text and report SelectedDate=null.
+        var txtDate = new TextBox
+        {
+            Text = today.ToString("d/M/yyyy"),
+            Width = 140,
+            Margin = new Thickness(0, 0, 0, 4),
+            ToolTip = "Format: dd/MM/yyyy"
+        };
+        var errText = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0xA1, 0x2A, 0x26)),
+            FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) };
+        var btnReissue = new Button { Content = "Re-issue", IsDefault = true, Padding = new Thickness(14, 4, 14, 4) };
+        var panel = new StackPanel { Margin = new Thickness(14) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"New print date for {emp.Name} (UID {emp.Uid}):",
+            Margin = new Thickness(0, 0, 0, 6), TextWrapping = TextWrapping.Wrap
+        });
+        var dateRow = new StackPanel { Orientation = Orientation.Horizontal };
+        dateRow.Children.Add(txtDate);
+        dateRow.Children.Add(new TextBlock
+        {
+            Text = "  dd/MM/yyyy", VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brushes.Gray, FontSize = 11
+        });
+        panel.Children.Add(dateRow);
+        panel.Children.Add(errText);
+        var btnRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right
+        };
+        btnRow.Children.Add(new Button { Content = "Cancel", Margin = new Thickness(0, 0, 8, 0), IsCancel = true });
+        btnRow.Children.Add(btnReissue);
+        panel.Children.Add(btnRow);
         var dlg = new Window
         {
             Title = "Re-issue card",
-            Width = 320, Height = 160, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new StackPanel
-            {
-                Margin = new Thickness(12),
-                Children =
-                {
-                    new TextBlock { Text = $"New print date for {_selectedEmployee.Name}:", Margin = new Thickness(0,0,0,6) },
-                    new DatePicker { Name = "DpReissue", SelectedDate = printDate.ToDateTime(TimeOnly.MinValue), Margin = new Thickness(0,0,0,10) },
-                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                        Children =
-                        {
-                            new Button { Content = "Cancel", Margin = new Thickness(0,0,8,0), IsCancel = true },
-                            new Button { Content = "Re-issue", IsDefault = true }
-                        } }
-                }
-            }
+            Width = 380, SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = panel
         };
-        // wire default button
-        if (dlg.ShowDialog() != true) return;
-        var dp = (DatePicker)((StackPanel)dlg.Content).Children[1];
-        var newPrint = dp.SelectedDate is DateTime dt ? DateOnly.FromDateTime(dt) : printDate;
-        var validUntil = Validity.CalculateValidUntil(newPrint, _selectedEmployee.ContractType);
-        var nextVer = _svc.Store.NextIssueVersion(_selectedEmployee.Id);
-        var path = PickCardImagePath(
-            $"{Core.Uid.FileToken(_selectedEmployee.Uid)}_v{nextVer}.png");
-        if (path == null) return;
-        var issue = new CardIssue
+        dlg.Owner = this;
+
+        btnReissue.Click += (_, _) =>
         {
-            EmployeeId = _selectedEmployee.Id,
-            Version = nextVer,
-            PrintDate = newPrint,
-            ValidUntil = validUntil
+            if (!Core.DateInput.TryParse(txtDate.Text, out var newPrint))
+            {
+                errText.Text = "Enter a valid date as dd/MM/yyyy (e.g. 1/7/2027).";
+                return;   // keep dialog open
+            }
+            var guard = Core.DateInput.ValidateReissue(newPrint, lastIssue?.PrintDate);
+            if (guard != null) { errText.Text = guard; return; }
+            dlg.DialogResult = true;
         };
-        issue.Id = _svc.Store.InsertIssue(issue);
-        var (pdf, png) = _svc.ExportCard(_selectedEmployee, issue, pngPath: path);
-        MessageBox.Show($"Re-issued v{issue.Version}, valid until {validUntil:MMMM yyyy}.\n{pdf}", "Re-issue");
-        RefreshRecords();
+        txtDate.KeyDown += (_, ke) =>
+        {
+            if (ke.Key == Key.Enter) { btnReissue.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); ke.Handled = true; }
+        };
+
+        if (dlg.ShowDialog() != true) return;
+        Core.DateInput.TryParse(txtDate.Text, out var printDate);   // validated above
+        var validUntil = Validity.CalculateValidUntil(printDate, emp.ContractType);
+
+        // Re-issue always confirms — name, UID, new print date, new valid-until.
+        var ok = MessageBox.Show(this,
+            $"Re-issue card for {emp.Name}, UID {emp.Uid}?\n" +
+            $"New print date: {printDate:dd/MM/yyyy}\nValid until: {validUntil:MMMM yyyy}",
+            "Confirm re-issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (ok != MessageBoxResult.Yes) return;
+
+        var nextVer = _svc.Store.NextIssueVersion(emp.Id);
+        var path = PickCardImagePath(
+            $"{Core.Uid.FileToken(emp.Uid)}_v{nextVer}.png");
+        if (path == null) return;
+
+        // Same issue transaction as Approve & Issue: render -> verify -> one DB
+        // transaction (employee upsert + new CardIssue version + audit).
+        var cutout = CardService.LoadCachedPhoto(emp.PhotoPath);
+        if (cutout == null)
+        {
+            MessageBox.Show("No cached photo found for this record — cannot re-issue.",
+                "Re-issue", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var req = new IDForge.Core.Issuing.IssueRequest(
+            emp.Uid, emp.Name, emp.BloodGroup, emp.Position, emp.ContractType,
+            printDate, cutout, null,
+            IssueKey: $"reissue:{emp.Id}:{DateTime.UtcNow.Ticks}",
+            Detail: $"Re-issue of employee {emp.Id}",
+            RequireNewUid: false,
+            IncludePdf: AppSettings.IncludePdf,
+            OutputFile: path);
+        try
+        {
+            var outcome = await Task.Run(() =>
+                new IDForge.Core.Issuing.CardIssuer(_svc.Store, OutputDir).Issue(req));
+            if (!outcome.Success)
+            {
+                App.LogCrash(new InvalidOperationException($"Re-issue failed ({outcome.Step}): {outcome.Error}"), notify: false);
+                MessageBox.Show($"Re-issue failed ({outcome.Step}): {outcome.Error}\n\nNothing was saved.",
+                    "Re-issue", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            var issue = outcome.Issue!;
+            var files = outcome.PdfPath != null
+                ? $"{outcome.PngPath}\n{outcome.PdfPath}" : outcome.PngPath;
+            MessageBox.Show($"Re-issued v{issue.Version}, valid until {issue.ValidUntil:MMMM yyyy}.\n{files}",
+                "Re-issue", MessageBoxButton.OK, MessageBoxImage.Information);
+            RefreshRecords();
+        }
+        catch (Exception ex)
+        {
+            App.LogCrash(ex, notify: false);
+            MessageBox.Show($"Re-issue failed: {ex.Message}", "Re-issue",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally { cutout.Dispose(); }
     }
 
     private void ExportRecord_Click(object sender, RoutedEventArgs e)
