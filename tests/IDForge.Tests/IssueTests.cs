@@ -39,10 +39,11 @@ public class IssueTests : IDisposable
         return bmp;
     }
 
-    private IssueRequest Req(string uid = "UID20250101", string key = "k1", bool requireNew = true)
+    private IssueRequest Req(string uid = "UID20250101", string key = "k1",
+        bool requireNew = true, bool pdf = true)
         => new(uid, "Test User", "O+", "Manager", "Permanent",
             new DateOnly(2026, 1, 15), Cutout(), null, key,
-            RequireNewUid: requireNew, IncludePdf: true);
+            RequireNewUid: requireNew, IncludePdf: pdf);
 
     [Fact]
     public void Issue_Valid_Row_Creates_Employee_Issue_And_Files()
@@ -110,6 +111,28 @@ public class IssueTests : IDisposable
         Assert.Equal("render", outcome.Step);
         Assert.Empty(_store.AllEmployees());
         Assert.Empty(_store.RecentAudit(10));
+    }
+
+    [Fact]
+    public void Issue_Default_Writes_Png_Only()
+    {
+        var issuer = new CardIssuer(_store, _out, Path.Combine(_dir, "photos"));
+        var outcome = issuer.Issue(Req(pdf: false));
+        Assert.True(outcome.Success, $"failed at {outcome.Step}: {outcome.Error}");
+        Assert.NotNull(outcome.PngPath);
+        Assert.True(File.Exists(outcome.PngPath!) && new FileInfo(outcome.PngPath!).Length > 1000);
+        Assert.Null(outcome.PdfPath);
+        Assert.Empty(Directory.GetFiles(_out, "*.pdf"));
+    }
+
+    [Fact]
+    public void Issue_IncludePdf_Writes_Png_And_Pdf()
+    {
+        var issuer = new CardIssuer(_store, _out, Path.Combine(_dir, "photos"));
+        var outcome = issuer.Issue(Req(pdf: true));
+        Assert.True(outcome.Success, $"failed at {outcome.Step}: {outcome.Error}");
+        Assert.True(File.Exists(outcome.PngPath) && new FileInfo(outcome.PngPath!).Length > 1000);
+        Assert.True(File.Exists(outcome.PdfPath) && new FileInfo(outcome.PdfPath!).Length > 1000);
     }
 
     [Fact]

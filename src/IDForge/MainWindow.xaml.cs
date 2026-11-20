@@ -516,7 +516,9 @@ public partial class MainWindow : Window
                 return;
             }
             var issue = outcome.Issue!;
-            SetStatus($"Issued v{issue.Version} — valid until {issue.ValidUntil:MMMM yyyy}.\nSaved: {outcome.PdfPath}\n{outcome.PngPath}");
+            var savedFiles = outcome.PdfPath != null
+                ? $"{outcome.PngPath}\n{outcome.PdfPath}" : outcome.PngPath;
+            SetStatus($"Issued v{issue.Version} — valid until {issue.ValidUntil:MMMM yyyy}.\nSaved: {savedFiles}");
             Dialogs.ShowIssued(this, f.uid, issue.ValidUntil, outcome.PngPath, outcome.PdfPath);
 
             // reset form
