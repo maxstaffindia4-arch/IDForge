@@ -19,4 +19,12 @@
     <None Include="..\..\assets\**\*" Link="assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- ONNX models are not in git (too large). Download them on first build. -->
+  <Target Name="EnsureOnnxModels" BeforeTargets="BeforeBuild"
+          Condition="'$(OS)' == 'Windows_NT' And (!Exists('$(MSBuildProjectDirectory)\..\..\assets\models\u2net.onnx') Or !Exists('$(MSBuildProjectDirectory)\..\..\assets\models\face_detection_yunet_2023mar.onnx'))">
+    <Message Text="ONNX models missing — downloading to assets\models (one-time, ~176 MB)..." Importance="high" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\tools\fetch-models.ps1&quot;"
+          ContinueOnError="WarnAndContinue" />
+  </Target>
+
 </Project>
