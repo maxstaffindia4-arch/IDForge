@@ -53,6 +53,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        FitWindowToWorkArea();
+        Closed += (_, _) => AppSettings.WindowBounds = (Left, Top, Width, Height);
         Title = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
         _svc = new CardService();
         _previewDebounce.Tick += (_, _) => { _previewDebounce.Stop(); _ = UpdatePreviewAsync(); };
@@ -610,6 +612,38 @@ public partial class MainWindow : Window
             MessageBox.Show($"Reprinted v{_selectedIssue.Version}:\n{pdf}\n{png}", "Reprint");
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Error"); }
+    }
+
+    /// <summary>
+    /// Sizes the window to the primary work area (taskbar excluded) and restores
+    /// the saved bounds only when they still land on a connected screen.
+    /// </summary>
+    private void FitWindowToWorkArea()
+    {
+        var wa = SystemParameters.WorkArea;
+        MaxWidth = wa.Width;
+        MaxHeight = wa.Height;
+        double maxW = wa.Width * 0.95, maxH = wa.Height * 0.95;
+        Width = Math.Max(MinWidth, Math.Min(1080, maxW));
+        Height = Math.Max(MinHeight, Math.Min(750, maxH));
+
+        if (AppSettings.WindowBounds is { } bb)
+        {
+            double w = Math.Min(Math.Max(bb.Width, MinWidth), maxW);
+            double h = Math.Min(Math.Max(bb.Height, MinHeight), maxH);
+            var vs = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+                              SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+            var inter = Rect.Intersect(new Rect(bb.Left, bb.Top, w, h), vs);
+            // Restore only when a usable chunk (>=100x40 px, enough for the title
+            // bar) is still on a connected screen; otherwise fall back to center.
+            if (!inter.IsEmpty && inter.Width >= 100 && inter.Height >= 40)
+            {
+                Left = bb.Left; Top = bb.Top; Width = w; Height = h;
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                return;
+            }
+        }
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
     }
 
     private async void Reissue_Click(object sender, RoutedEventArgs e)

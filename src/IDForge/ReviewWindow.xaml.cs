@@ -683,6 +683,7 @@ public static class AppSettings
     private static readonly string Path0 = IDForge.Core.AppPaths.SettingsPath;
     private static bool _confirm = true;
     private static bool _includePdf;
+    private static double? _winLeft, _winTop, _winWidth, _winHeight;
     static AppSettings() => Load();
 
     public static bool ConfirmBeforeIssue
@@ -698,16 +699,47 @@ public static class AppSettings
         set { _includePdf = value; Save(); }
     }
 
+    /// <summary>Last main-window bounds, or null when never saved / incomplete.</summary>
+    public static (double Left, double Top, double Width, double Height)? WindowBounds
+    {
+        get => _winLeft.HasValue && _winTop.HasValue && _winWidth.HasValue && _winHeight.HasValue
+            ? (_winLeft.Value, _winTop.Value, _winWidth.Value, _winHeight.Value)
+            : null;
+        set
+        {
+            _winLeft = value?.Left; _winTop = value?.Top;
+            _winWidth = value?.Width; _winHeight = value?.Height;
+            Save();
+        }
+    }
+
+    private sealed class SettingsFile
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("confirmBeforeIssue")]
+        public bool ConfirmBeforeIssue { get; set; } = true;
+        [System.Text.Json.Serialization.JsonPropertyName("includePdf")]
+        public bool IncludePdf { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("winLeft")] public double? WinLeft { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("winTop")] public double? WinTop { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("winWidth")] public double? WinWidth { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("winHeight")] public double? WinHeight { get; set; }
+    }
+
     private static void Load()
     {
         try
         {
             if (File.Exists(Path0))
             {
-                var d = System.Text.Json.JsonSerializer
-                    .Deserialize<Dictionary<string, bool>>(File.ReadAllText(Path0));
-                _confirm = d?.GetValueOrDefault("confirmBeforeIssue", true) ?? true;
-                _includePdf = d?.GetValueOrDefault("includePdf", false) ?? false;
+                var s = System.Text.Json.JsonSerializer
+                    .Deserialize<SettingsFile>(File.ReadAllText(Path0));
+                if (s != null)
+                {
+                    _confirm = s.ConfirmBeforeIssue;
+                    _includePdf = s.IncludePdf;
+                    _winLeft = s.WinLeft; _winTop = s.WinTop;
+                    _winWidth = s.WinWidth; _winHeight = s.WinHeight;
+                }
             }
         }
         catch { }
@@ -717,12 +749,12 @@ public static class AppSettings
     {
         try
         {
-            File.WriteAllText(Path0,
-                System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, bool>
-                {
-                    ["confirmBeforeIssue"] = _confirm,
-                    ["includePdf"] = _includePdf
-                }));
+            File.WriteAllText(Path0, System.Text.Json.JsonSerializer.Serialize(new SettingsFile
+            {
+                ConfirmBeforeIssue = _confirm,
+                IncludePdf = _includePdf,
+                WinLeft = _winLeft, WinTop = _winTop, WinWidth = _winWidth, WinHeight = _winHeight
+            }));
         }
         catch { }
     }
