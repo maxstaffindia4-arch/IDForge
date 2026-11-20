@@ -4,6 +4,7 @@ output/
 photos/
 publish/
 dist/
+assets/models/*.onnx
 backups/
 idcard.db*
 *.db-journal
