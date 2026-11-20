@@ -113,6 +113,47 @@ public class IssueTests : IDisposable
     }
 
     [Fact]
+    public void BatchRow_Lifecycle_Leaves_Records_Unchanged()
+    {
+        // "Process photos" only persists BatchRows rows — Records
+        // (Employees / CardIssues / issue audit) must stay untouched
+        // until a card is actually issued via CardIssuer.
+        var sid = _store.CreateBatchSession("batch");
+        var e = new BatchRowEntry
+        {
+            SessionId = sid, Uid = "UID20250318", Name = "Batch Person",
+            BloodGroup = "O+", Position = "Manager", ContractType = "Permanent",
+            PrintDate = "2026-01-15", PhotoPath = "C:\\photos\\p.png",
+            CutoutPath = "C:\\photos\\c.png", Status = "Processing"
+        };
+        e.Id = _store.SaveBatchRow(e);
+        foreach (var st in new[] { "NeedsReview", "Approved", "Failed" })
+        {
+            e.Status = st;
+            _store.SaveBatchRow(e);
+        }
+        Assert.Empty(_store.AllEmployees());
+        Assert.DoesNotContain(_store.RecentAudit(20), a => a.Action == "issue");
+    }
+
+    [Fact]
+    public void Approve_And_Issue_Creates_Exactly_One_Record()
+    {
+        var issuer = new CardIssuer(_store, _out, Path.Combine(_dir, "photos"));
+        var first = issuer.Issue(Req());
+        Assert.True(first.Success, $"failed at {first.Step}: {first.Error}");
+        var emp = Assert.Single(_store.AllEmployees());
+        Assert.Single(_store.IssuesForEmployee(emp.Id));
+        Assert.Equal("issue", _store.RecentAudit(10)[0].Action);
+
+        // Idempotent replay of the same issue must not create a second record.
+        var replay = issuer.Issue(Req());
+        Assert.True(replay.AlreadyIssued);
+        Assert.Single(_store.AllEmployees());
+        Assert.Single(_store.IssuesForEmployee(emp.Id));
+    }
+
+    [Fact]
     public void BatchSession_RoundTrips_And_Resume_Works()
     {
         var sid = _store.CreateBatchSession("Test batch");

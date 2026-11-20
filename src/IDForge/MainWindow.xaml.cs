@@ -95,6 +95,7 @@ public partial class MainWindow : Window
             EnsureBatchSession();
             row.SessionId = _batchSessionId;
             row.RowId = _svc.Store.SaveBatchRow(row.ToEntry());
+            UpdateBatchSummary();
         }
         catch (Exception ex)
         {
