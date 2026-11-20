@@ -993,13 +993,25 @@ public partial class MainWindow : Window
 
     private void DgBatch_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
     {
-        // Normalize the UID column to digits as soon as the cell loses focus.
-        if (e.Column.Header as string != "UID" || e.EditAction != DataGridEditAction.Commit) return;
-        if (e.Row.Item is not BatchRow row) return;
-        var tb = e.EditingElement as TextBox;
-        var n = Core.Uid.Normalize(tb?.Text ?? row.Uid);
-        if (n != null) row.Uid = n;
-        DgBatch.Items.Refresh();
+        try
+        {
+            // Normalize the UID column to digits as soon as the cell loses focus.
+            if (e.Column.Header as string != "UID" || e.EditAction != DataGridEditAction.Commit) return;
+            if (e.Row.Item is not BatchRow row) return;
+            var tb = e.EditingElement as TextBox;
+            var n = Core.Uid.Normalize(tb?.Text ?? row.Uid);
+            if (n != null) row.Uid = n;
+            // Refresh must run after the cell's edit transaction commits —
+            // calling it here throws "Refresh is not allowed during an
+            // AddNew or EditItem transaction" (this fired on Review clicks too,
+            // since moving focus commits the edit first).
+            Dispatcher.BeginInvoke(() =>
+            {
+                try { DgBatch.Items.Refresh(); }
+                catch (Exception ex) { App.LogCrash(ex, notify: false); }
+            });
+        }
+        catch (Exception ex) { App.LogCrash(ex, notify: false); }
     }
 
     // ---- review ----
@@ -1033,7 +1045,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            App.LogCrash(ex);
+            App.LogCrash(ex, notify: false);
             MessageBox.Show($"Could not open review: {ex.Message}", "Review",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }

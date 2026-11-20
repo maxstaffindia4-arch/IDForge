@@ -30,15 +30,16 @@ public partial class App : Application
         base.OnStartup(e);
     }
 
-    internal static void LogCrash(Exception ex)
+    internal static void LogCrash(Exception ex, bool notify = true)
     {
         try
         {
             var path = IDForge.Core.AppPaths.CrashLogPath;
             File.AppendAllText(path,
                 $"{DateTime.Now:O}\n{ex}\n\n");
-            MessageBox.Show($"Error: {ex.Message}\n\nDetails in crash.log", "IDForge",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            if (notify)
+                MessageBox.Show($"Error: {ex.Message}\n\nDetails in crash.log", "IDForge",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch { }
     }
