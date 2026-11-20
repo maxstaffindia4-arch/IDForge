@@ -27,23 +27,23 @@ from `New_ID_Card.psd` (637×1012 px, 300 DPI, CR80 output).
 # one-time: install SDK if missing
 # winget install Microsoft.DotNet.SDK.8   (or use dotnet-install.ps1)
 
-dotnet build IdCardTool.sln
-dotnet run --project src/IdCardTool
+dotnet build IDForge.sln
+dotnet run --project src/IDForge
 # or run the exe:
-src/IdCardTool/bin/Debug/net8.0-windows/IdCardTool.exe
+src/IDForge/bin/Debug/net8.0-windows/IDForge.exe
 ```
 
 Tests:
 
 ```powershell
-dotnet test tests/IdCardTool.Tests
+dotnet test tests/IDForge.Tests
 ```
 
 ## Layout
 
 - `assets/` — background.png, logo.png, signature.png, fonts, ONNX models (copied to output).
-- `src/IdCardTool.Core` — rendering, barcode, validity, photo pipeline, SQLite store, export.
-- `src/IdCardTool` — WPF UI.
+- `src/IDForge.Core` — rendering, barcode, validity, photo pipeline, SQLite store, export.
+- `src/IDForge` — WPF UI.
 - `output/` (under app dir) — generated PNG/PDF cards.
 - `photos/` (under app dir) — cached cutouts per employee.
 - `idcard.db` (under app dir) — SQLite database.
@@ -62,7 +62,7 @@ Print Date (optional, default today), Photo Path (optional but required to issue
 ## Photo pipeline notes
 
 - `FACE_HEIGHT_RATIO` (0.72), window geometry, and model paths live in
-  `src/IdCardTool.Core/Config.cs` — calibrate with real staff photos.
+  `src/IDForge.Core/Config.cs` — calibrate with real staff photos.
 - Models are already downloaded into `assets/models/` (u2net ~176 MB,
   YuNet ~230 KB). No third-party uploads; everything runs locally.
 - If the ONNX model is missing, the app falls back to using the photo as-is

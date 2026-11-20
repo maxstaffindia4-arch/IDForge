@@ -162,8 +162,8 @@ Fallback note: the plan's MediaPipe fallback has no good C# binding. Fallback in
 ID-Card-Tool/
 ├── PLAN.md                  # this file
 ├── src/
-│   └── IdCardTool/
-│       ├── IdCardTool.csproj
+│   └── IDForge/
+│       ├── IDForge.csproj
 │       ├── App.xaml / MainWindow.xaml
 │       ├── Views/           # NewCard, RecordList, RecordDetail, PhotoReview, Done
 │       ├── ViewModels/
@@ -185,7 +185,7 @@ ID-Card-Tool/
 │           ├── fonts/  models/   # ONNX models (gitignored or bundled per size)
 │           └── photos/           # cached cutouts per employee
 ├── tests/
-│   └── IdCardTool.Tests/      # xUnit: validity, barcode round-trip, render golden
+│   └── IDForge.Tests/      # xUnit: validity, barcode round-trip, render golden
 └── output/                    # generated cards (gitignored)
 ```
 

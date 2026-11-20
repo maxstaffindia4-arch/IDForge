@@ -16,8 +16,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageFont, ImageDraw
 
-BG = Path(r"F:\Web Design\ID Card Tool\assets\background.png")
-FONT = Path(r"F:\Web Design\ID Card Tool\assets\fonts\SourceSans3-SemiBold.ttf")
+BG = Path(r"F:\Web Design\IDForge\assets\background.png")
+FONT = Path(r"F:\Web Design\IDForge\assets\fonts\SourceSans3-SemiBold.ttf")
 TEXT = "Contact: 01712-109-683, 07103-790-950"
 SIZE = 25
 

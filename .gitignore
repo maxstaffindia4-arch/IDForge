@@ -3,6 +3,7 @@ obj/
 output/
 photos/
 publish/
+dist/
 backups/
 idcard.db*
 *.db-journal
