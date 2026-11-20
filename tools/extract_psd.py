@@ -48,10 +48,11 @@ def main():
     print("background.png", bg.size)
     edit.visible = True
 
-    # NOTE: the PSD 'Contact' text layer still contains the old number
-    # '07103-790-950'. After re-exporting background.png, run
-    #   python tools/fix_contact.py --apply
-    # to patch it to '01703-790-950' (glyph-swap, pixel-exact).
+    # NOTE: the PSD 'Contact' text layer was corrected to
+    # 'Contact: 01712-109-683, 01703-790-950' and background.png is
+    # regenerated from it directly — no pixel patching needed.
+    # (tools/fix_contact.py is kept for reference only; do not run it
+    # on the corrected background.)
 
     # Logo layer
     if logo is not None:
