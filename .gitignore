@@ -1,0 +1,15 @@
+bin/
+obj/
+output/
+photos/
+publish/
+backups/
+idcard.db*
+*.db-journal
+*.db-wal
+*.db-shm
+*.user
+.vs/
+*.log
+settings.json
+dbg_decode.txt
