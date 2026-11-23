@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     private string? _photoPath;
     private DateTime? _photoAddedAt;
     private float _nudgeZoom = 1f, _nudgeX, _nudgeY;
-    private bool _photoApproved;
+    internal bool _photoApproved;   // internal for tests
     private Employee? _editingEmployee;
     private bool _restoringDraft;
     private int _previewZoomMode; // 0=Fit, 1=100%, 2=200%
@@ -237,31 +237,60 @@ public partial class MainWindow : Window
         UpdateUidStatus();
     }
 
-    /// <summary>Catalogue wording: length error, existing-card warning, or "new employee".</summary>
+    /// <summary>Catalogue wording: length error, existing-card error, or "new employee".</summary>
     private void UpdateUidStatus()
     {
         var digits = new string(TxtUid.Text.Where(char.IsDigit).ToArray());
-        if (digits.Length == 0) { ErrUid.Text = ""; ErrUid.Foreground = Brushes.Gray; return; }
-        if (!Core.Uid.IsValid(digits))
+        string msg = "";
+        Brush? color = null;
+        Employee? dup = null;
+        if (digits.Length > 0)
         {
-            ErrUid.Text = $"Employee ID must be {Core.Uid.MinLength} to {Core.Uid.MaxLength} digits. " +
-                          $"You've entered {digits.Length}.";
-            ErrUid.Foreground = FindResource("ErrorBrush") as Brush ?? Brushes.Red;
-            return;
+            if (!Core.Uid.IsValid(digits))
+            {
+                msg = $"Employee ID must be {Core.Uid.MinLength} to {Core.Uid.MaxLength} digits. " +
+                      $"You've entered {digits.Length}.";
+                color = FindResource("ErrorBrush") as Brush ?? Brushes.Red;
+            }
+            else
+            {
+                var existing = _svc?.Store.FindEmployeeByUid(digits);
+                if (existing != null)
+                {
+                    dup = existing;
+                    var issue = _svc.Store.LatestIssue(existing.Id);
+                    var when = issue?.IssuedAt.LocalDateTime.ToString("dd/MM/yyyy")
+                               ?? existing.CreatedAt.LocalDateTime.ToString("dd/MM/yyyy");
+                    msg = $"UID already exists — issued to {existing.Name} on {when}.";
+                    color = FindResource("ErrorBrush") as Brush ?? Brushes.Red;
+                }
+                else
+                {
+                    msg = "New employee — no existing card with this ID";
+                    color = FindResource("SuccessBrush") as Brush ?? Brushes.Green;
+                }
+            }
         }
-        var existing = _svc?.Store.FindEmployeeByUid(digits);
-        if (existing != null)
+        _uidDuplicate = dup;
+        ErrUid.Text = msg;
+        ErrUid.Foreground = color ?? Brushes.Gray;
+        if (LnkOpenRecord != null)
+            LnkOpenRecord.Visibility = dup != null ? Visibility.Visible : Visibility.Collapsed;
+        if (_shellReady) UpdateApproveButton();   // refresh Issue enabled + blocked note
+    }
+
+    /// <summary>Opens Records with the duplicate employee's row selected.</summary>
+    internal void OpenRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (_uidDuplicate == null) return;
+        ShowArea("records");
+        RefreshRecords();
+        var row = LstRecords.Items.OfType<RecordRow>()
+            .FirstOrDefault(r => r.Emp.Id == _uidDuplicate.Id);
+        if (row != null)
         {
-            var issue = _svc.Store.LatestIssue(existing.Id);
-            var when = issue?.IssuedAt.LocalDateTime.ToString("dd/MM/yyyy")
-                       ?? existing.CreatedAt.LocalDateTime.ToString("dd/MM/yyyy");
-            ErrUid.Text = $"UID already exists — issued to {existing.Name} on {when}.";
-            ErrUid.Foreground = FindResource("WarningBrush") as Brush ?? Brushes.DarkOrange;
-        }
-        else
-        {
-            ErrUid.Text = "New employee — no existing card with this ID";
-            ErrUid.Foreground = FindResource("SuccessBrush") as Brush ?? Brushes.Green;
+            LstRecords.SelectedItem = row;
+            LstRecords.ScrollIntoView(row);
         }
     }
 
@@ -549,6 +578,8 @@ public partial class MainWindow : Window
         PosPanel.SetState(1, 0, 0);
     }
 
+    private Employee? _uidDuplicate;
+
     private void UpdateApproveButton()
     {
         if (_photoApproved)
@@ -562,13 +593,16 @@ public partial class MainWindow : Window
             BtnApprove.Style = null;
         }
         ChkPhoto.Visibility = _photoApproved ? Visibility.Visible : Visibility.Collapsed;
+        // Issue stays blocked on a duplicate UID even after photo approval.
+        BtnSave.IsEnabled = _photoApproved && _uidDuplicate == null;
+        if (TxtIssueBlocked != null)
+            TxtIssueBlocked.Visibility = _uidDuplicate != null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ApprovePhoto_Click(object sender, RoutedEventArgs e)
     {
         if (_windowImage == null) { SetStatus("Process a photo first."); return; }
         _photoApproved = true;
-        BtnSave.IsEnabled = true;
         UpdateApproveButton();
         UpdateFooterChips();
         SetStatus("Photo approved.");
@@ -1058,6 +1092,7 @@ public partial class MainWindow : Window
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         if (!_photoApproved) { SetStatus("Approve the photo first."); return; }
+        if (_uidDuplicate != null) { SetStatus("Employee ID already exists — open the record to re-issue."); return; }
         if (!FormValid(out var err)) { SetStatus(err); return; }
         var f = GetForm();
 
@@ -1157,7 +1192,7 @@ public partial class MainWindow : Window
         {
             SetStatus($"Save failed: {ex.Message}");
         }
-        finally { BtnSave.IsEnabled = _photoApproved; }
+        finally { BtnSave.IsEnabled = _photoApproved && _uidDuplicate == null; }
     }
 
     // ---------------- records ----------------

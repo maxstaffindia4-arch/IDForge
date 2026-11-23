@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="IDForge.Tests" />
     <ProjectReference Include="..\IDForge.Core\IDForge.Core.csproj" />
   </ItemGroup>
 

@@ -300,6 +300,11 @@
                                                HorizontalAlignment="Right" Margin="0,2,0,0"/>
                                     <TextBlock x:Name="ErrUid" FontSize="11" TextWrapping="Wrap"
                                                Margin="0,2,0,0"/>
+                                    <TextBlock x:Name="LnkOpenRecord" FontSize="11" Margin="0,2,0,0"
+                                               Visibility="Collapsed">
+                                        <Hyperlink Click="OpenRecord_Click"
+                                                   Foreground="{StaticResource PrimaryBrush}">Open record</Hyperlink>
+                                    </TextBlock>
 
                                     <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">Blood group</TextBlock>
                                     <ComboBox x:Name="CmbBlood" SelectionChanged="Field_Changed"/>
@@ -495,6 +500,11 @@
                                             Padding="4,0" FontSize="11" Click="GoSettings_Click"
                                             Visibility="Collapsed"/>
                                 </StackPanel>
+                                <TextBlock x:Name="TxtIssueBlocked"
+                                           Text="Employee ID already exists. Open the record to re-issue."
+                                           FontSize="11" Foreground="{StaticResource ErrorBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,10,0"
+                                           TextWrapping="Wrap" MaxWidth="280" Visibility="Collapsed"/>
                                 <Button x:Name="BtnSave" Content="Issue card" Click="Save_Click"
                                         Style="{StaticResource PrimaryButton}" Height="40"
                                         Margin="14,0,0,0" IsEnabled="False" ToolTip="Ctrl+Enter"/>
