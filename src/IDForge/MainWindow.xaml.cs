@@ -497,6 +497,11 @@ public partial class MainWindow : Window
             ? $"{t2:dd/MM/yyyy} at {t2:HH:mm}" : "Never";
         TxtStatusVersion.Text = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · About (F1)";
         UpdateBatchBadge();
+        var backupTip = AppSettings.LastBackupAt is { } bt
+            ? $"Last backup {bt:dd/MM/yyyy} at {bt:HH:mm}\nClick to back up now (Ctrl+B)"
+            : "Never backed up\nClick to back up now (Ctrl+B)";
+        PnlBackupFull.ToolTip = backupTip;
+        PnlBackupCompact.ToolTip = backupTip;
     }
 
     private void UpdateBatchBadge()
@@ -520,6 +525,8 @@ public partial class MainWindow : Window
         }
         NavBatchBadge.Visibility = _batchRows.Count > 0 && !collapsed ? Visibility.Visible : Visibility.Collapsed;
         if (collapsed) { TxtNavBatchCount.Text = _batchRows.Count.ToString(); }
+        PnlBackupFull.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        PnlBackupCompact.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Window_KeyDown(object sender, KeyEventArgs e)

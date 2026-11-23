@@ -79,7 +79,7 @@
             <Border Grid.Column="0" Background="{StaticResource PanelBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
-                    <Border DockPanel.Dock="Bottom" Margin="8" Padding="10" CornerRadius="6"
+                    <Border x:Name="PnlBackupFull" DockPanel.Dock="Bottom" Margin="8" Padding="10" CornerRadius="6"
                             Background="{StaticResource WhiteBrush}" BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1">
                         <StackPanel>
@@ -88,6 +88,17 @@
                                        Foreground="{StaticResource MutedBrush}" Margin="0,2,0,6"/>
                             <Button Content="Back up now" Style="{StaticResource CompactButton}"
                                     Click="NavBackup_Click" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="PnlBackupCompact" DockPanel.Dock="Bottom" Margin="8" Padding="10,8" CornerRadius="6"
+                            Background="{StaticResource WhiteBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" Cursor="Hand" Visibility="Collapsed"
+                            MouseLeftButtonUp="NavBackup_Click">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" FontSize="15"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="Backed up" FontSize="11" Margin="6,0,0,0"
+                                       VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                     <StackPanel Margin="8">
