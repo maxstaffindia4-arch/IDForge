@@ -12,7 +12,7 @@
         <TabItem Header="New Card">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="420"/>
+                    <ColumnDefinition Width="380"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
