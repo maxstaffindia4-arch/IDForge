@@ -135,14 +135,9 @@
                             Margin="12,4,4,4" FontWeight="SemiBold" Style="{StaticResource PrimaryButton}"
                             Visibility="Collapsed"/>
                     <Button Content="Next ►" Click="Next_Click" Margin="4"/>
-                    <CheckBox x:Name="ChkConfirmIssue" Content="Confirm before issue"
-                              Checked="ConfirmIssue_Changed" Unchecked="ConfirmIssue_Changed"
-                              VerticalAlignment="Center" Margin="16,0,0,0"
-                              ToolTip="Ask for confirmation before issuing (re-issue always asks)."/>
-                    <CheckBox x:Name="ChkIncludePdf" Content="Also create PDF"
-                              Checked="IncludePdf_Changed" Unchecked="IncludePdf_Changed"
-                              VerticalAlignment="Center" Margin="14,0,0,0"
-                              ToolTip="Write a PDF next to the PNG when issuing."/>
+                    <TextBlock Text="Issue options (confirm before issue, PDF) are set in Settings on the main window."
+                               FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
+                               Margin="16,0,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtStatus" VerticalAlignment="Center" Margin="12,0,0,0"
                            TextWrapping="Wrap" Foreground="{StaticResource TextBrush}"/>

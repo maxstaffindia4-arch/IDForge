@@ -70,8 +70,7 @@ public partial class MainWindow : Window
         // Batch grid combo columns are DataGridTemplateColumns now (ItemsSource
         // bound in XAML); nothing to wire here.
         DgBatch.ItemsSource = _batchRows;
-        ChkConfirmIssue.IsChecked = AppSettings.ConfirmBeforeIssue;
-        ChkIncludePdf.IsChecked = AppSettings.IncludePdf;
+        InitShell();
 
         RefreshRecords();
         MaybeOfferResume();
@@ -106,8 +105,12 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Test hook: skip the modal "resume batch?" prompt (headless tests).</summary>
+    public static bool SkipResumePrompt;
+
     private void MaybeOfferResume()
     {
+        if (SkipResumePrompt) return;
         var sess = _svc.Store.LatestOpenSession();
         if (sess == null) return;
         var entries = _svc.Store.BatchRows(sess.Id);
@@ -169,13 +172,14 @@ public partial class MainWindow : Window
         _previewDebounce.Start();
     }
 
-    private void Field_Changed(object sender, SelectionChangedEventArgs e) => SchedulePreview();
+    private void Field_Changed(object sender, SelectionChangedEventArgs e) { MarkDirty(); SchedulePreview(); }
     private void Field_Changed(object sender, TextChangedEventArgs e)
     {
         if (sender == TxtUid) UpdateUidError();
+        MarkDirty();
         SchedulePreview();
     }
-    private void Field_Changed(object sender, RoutedEventArgs e) => SchedulePreview();
+    private void Field_Changed(object sender, RoutedEventArgs e) { MarkDirty(); SchedulePreview(); }
 
     private (string name, string blood, string position, string uid, string contract, DateOnly printDate) GetForm()
     {
@@ -424,11 +428,160 @@ public partial class MainWindow : Window
         SetStatus("Photo approved.");
     }
 
-    private void ConfirmIssue_Changed(object sender, RoutedEventArgs e)
-        => AppSettings.ConfirmBeforeIssue = ChkConfirmIssue.IsChecked == true;
+    // ---------------- shell: nav, menu, status bar, settings (Phase 2) ----------------
 
-    private void IncludePdf_Changed(object sender, RoutedEventArgs e)
-        => AppSettings.IncludePdf = ChkIncludePdf.IsChecked == true;
+    private string _area = "newcard";
+    private bool _dirty;
+    private bool _navCollapsed;
+    private bool _shellReady;
+
+    /// <summary>Area the operator is currently looking at.</summary>
+    public string CurrentArea => _area;
+
+    private void InitShell()
+    {
+        // Settings page initial values
+        SetConfirm.IsChecked = AppSettings.ConfirmBeforeIssue;
+        SetPdf.IsChecked = AppSettings.IncludePdf;
+        TxtSaveFolder.Text = AppSettings.SaveFolder;
+        SetContract.ItemsSource = Config.ContractTypes;
+        SetContract.SelectedItem = AppSettings.DefaultContract;
+        SetPrintDate.SelectedIndex = 0;
+        SetBg.SelectedIndex = AppSettings.DefaultBgMode switch
+        {
+            "Model" => 1, "Keep" => 2, _ => 0
+        };
+        UpdateStatusBar();
+        UpdateTitle();
+        ShowArea("newcard");
+        _shellReady = true;
+    }
+
+    /// <summary>Switches the visible page + nav highlight. State is kept per page.</summary>
+    public void ShowArea(string area)
+    {
+        _area = area;
+        PageNewCard.Visibility = area == "newcard" ? Visibility.Visible : Visibility.Collapsed;
+        PageBatch.Visibility = area == "batch" ? Visibility.Visible : Visibility.Collapsed;
+        PageRecords.Visibility = area == "records" ? Visibility.Visible : Visibility.Collapsed;
+        PageSettings.Visibility = area == "settings" ? Visibility.Visible : Visibility.Collapsed;
+        NavNewCard.IsChecked = area == "newcard";
+        NavBatch.IsChecked = area == "batch";
+        NavRecords.IsChecked = area == "records";
+        NavSettings.IsChecked = area == "settings";
+        UpdateTitle();
+        if (area == "records") RefreshRecords();
+    }
+
+    private void UpdateTitle()
+        => Title = $"IDForge — {AreaLabel(_area)}" + (_dirty ? " • unsaved changes" : "");
+
+    private static string AreaLabel(string a) => a switch
+    {
+        "batch" => "Batch", "records" => "Records", "settings" => "Settings", _ => "New card"
+    };
+
+    private void MarkDirty()
+    {
+        if (!_dirty) { _dirty = true; UpdateTitle(); }
+    }
+
+    private void UpdateStatusBar()
+    {
+        var count = _svc?.Store.AllEmployees().Count ?? 0;
+        TxtStatusCount.Text = $"{count} record{(count == 1 ? "" : "s")}";
+        TxtStatusBackup.Text = AppSettings.LastBackupAt is { } t
+            ? $"Last backup {t:dd/MM/yyyy}" : "No backup yet";
+        TxtLastBackup.Text = AppSettings.LastBackupAt is { } t2
+            ? $"{t2:dd/MM/yyyy} at {t2:HH:mm}" : "Never";
+        TxtStatusVersion.Text = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · About (F1)";
+        UpdateBatchBadge();
+    }
+
+    private void UpdateBatchBadge()
+    {
+        var n = _batchRows.Count;
+        TxtNavBatchCount.Text = n.ToString();
+        NavBatchBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var collapsed = ActualWidth < 1100;
+        if (collapsed == _navCollapsed) return;
+        _navCollapsed = collapsed;
+        NavCol.Width = new GridLength(collapsed ? 56 : 208);
+        foreach (var name in new[] { "NavLblNewCard", "NavKeyNewCard", "NavLblBatch", "NavKeyBatch",
+                     "NavLblRecords", "NavKeyRecords", "NavLblSettings", "NavKeySettings",
+                     "LblIssueCards", "LblManage" })
+        {
+            if (FindName(name) is FrameworkElement fe) fe.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        }
+        NavBatchBadge.Visibility = _batchRows.Count > 0 && !collapsed ? Visibility.Visible : Visibility.Collapsed;
+        if (collapsed) { TxtNavBatchCount.Text = _batchRows.Count.ToString(); }
+    }
+
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+        switch (e.Key)
+        {
+            case Key.D1: ShowArea("newcard"); break;
+            case Key.D2: ShowArea("batch"); break;
+            case Key.D3: ShowArea("records"); break;
+            case Key.OemComma: ShowArea("settings"); break;
+            default: return;
+        }
+        e.Handled = true;
+    }
+
+    private void NavNewCard_Click(object sender, RoutedEventArgs e) => ShowArea("newcard");
+    private void NavBatch_Click(object sender, RoutedEventArgs e) => ShowArea("batch");
+    private void NavRecords_Click(object sender, RoutedEventArgs e) => ShowArea("records");
+    private void NavSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
+    private void GoSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
+    private void MenuToggleNav_Click(object sender, RoutedEventArgs e)
+        => NavCol.Width = new GridLength(NavCol.Width.Value > 100 ? 56 : 208);
+    private void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void NavBackup_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = _svc.BackupDatabase();
+            AppSettings.LastBackupAt = DateTime.Now;
+            UpdateStatusBar();
+            if (sender is MenuItem) MessageBox.Show($"Database backed up to:\n{path}", "Backup");
+        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Backup failed"); }
+    }
+
+    private void Setting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_shellReady) return;   // events can fire during InitializeComponent
+        if (SetConfirm.IsChecked != null) AppSettings.ConfirmBeforeIssue = SetConfirm.IsChecked == true;
+        if (SetPdf.IsChecked != null) AppSettings.IncludePdf = SetPdf.IsChecked == true;
+        if (SetContract.SelectedItem is string c) AppSettings.DefaultContract = c;
+        if (SetBg.SelectedItem is ComboBoxItem bg && bg.Tag is string tag) AppSettings.DefaultBgMode = tag;
+        TxtSettingsStatus.Text = "Setting saved";
+        var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        t.Tick += (_, _) => { TxtSettingsStatus.Text = ""; t.Stop(); };
+        t.Start();
+    }
+
+    private void BrowseSaveFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Choose where new cards are saved",
+            FolderName = AppSettings.SaveFolder
+        };
+        if (dlg.ShowDialog(this) == true)
+        {
+            AppSettings.SaveFolder = dlg.FolderName;
+            TxtSaveFolder.Text = dlg.FolderName;
+        }
+    }
 
     // ---------------- save / issue ----------------
 
@@ -995,6 +1148,8 @@ public partial class MainWindow : Window
         try
         {
             var path = _svc.BackupDatabase();
+            AppSettings.LastBackupAt = DateTime.Now;
+            UpdateStatusBar();
             MessageBox.Show($"Database backed up to:\n{path}", "Backup");
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Backup failed"); }
@@ -1226,6 +1381,7 @@ public partial class MainWindow : Window
         {
             try { _svc.Store.CompleteBatchSession(_batchSessionId); _batchSessionId = 0; } catch { }
         }
+        UpdateBatchBadge();
     }
 
     // ---- process photos stage (no approval, no issuing) ----
