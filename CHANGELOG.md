@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.2.2 — 2026-11-23
+
+### Fixed
+- **Stale photo cutouts** — cache filenames are now pipeline-versioned
+  (`v{N}_….png`); files from older versions are deleted on startup and their
+  DB references cleared so photos regenerate.
+- **Batch grid edits lost** — dropdown/text edits in the batch grid now save
+  to the database immediately and re-validate the row's Status column.
+- **Preview at small screens** — form column narrowed and a letterbox-fit
+  calculation guarantees the whole card stays visible at 1366×768 and up.
+
+### Changed
+- **Auto-fit ratios configurable** — `faceHeightRatio`, `headTopRatio`,
+  `hairAboveFaceRatio` moved to `%LOCALAPPDATA%\IDForge\config.json`
+  (created on first run, `//` comments allowed). `faceHeightRatio` default
+  lowered 0.58 → **0.48 (PROVISIONAL — pending owner calibration)**.
+
 ## v1.2.1 — 2026-11-21
 
 ### Fixed
