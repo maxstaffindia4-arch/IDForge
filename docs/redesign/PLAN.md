@@ -113,6 +113,8 @@ The owner reviews each phase by running the app. No installer is needed.
 
 **Owner checklist:** switch between all areas with the menu, the nav list, and shortcuts. Change each setting, restart the app, and confirm the value is kept. Resize the window to 1366×768 and to 860×620, and confirm nothing is cut off.
 
+**Visual checkpoint:** the owner compares the app with the UX Pilot layout screenshot. The IDE lists every visible difference it can find, in the report.
+
 **Commit:** `Phase 2: add navigation shell and Settings page`
 
 ---
@@ -139,6 +141,10 @@ The owner reviews each phase by running the app. No installer is needed.
 - A draft comes back after restart.
 
 **Owner checklist:** enter a new card with a photo, adjust it, approve, and issue. Check the files and the Records entry. Close the app mid-entry, reopen it, and confirm the draft is restored. Try an invalid ID and a missing name, and check the messages.
+
+**Visual checkpoint:** the owner compares the app with the UX Pilot layout screenshot. The IDE lists every visible difference it can find, in the report.
+
+**Divergence V1:** Position stays a dropdown (see DIVERGENCES.md), not a free-text field.
 
 **Commit:** `Phase 3: redesign New Card screen`
 
