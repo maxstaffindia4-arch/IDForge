@@ -300,4 +300,47 @@ public class FixPassTests
             return true;
         });
     }
+
+    [Fact]
+    public void Footer_Approve_Mirrors_Photo_Panel_And_Runs_Same_Action()
+    {
+        OnSta(() =>
+        {
+            var main = NewWindow();
+            var cutout = new SkiaSharp.SKBitmap(4, 4);
+            var window = new SkiaSharp.SKBitmap(4, 4);
+            try
+            {
+                // Fresh UID so the duplicate-block doesn't mask the approve result.
+                ((TextBox)main.FindName("TxtUid")!).Text = FreshUid(main.Svc.Store);
+                var footer = (Button)main.FindName("BtnApproveFooter")!;
+                var panelBtn = (Button)main.FindName("BtnApprove")!;
+                var issue = (Button)main.FindName("BtnSave")!;
+
+                // No photo → both approve buttons disabled.
+                Assert.False(footer.IsEnabled);
+                Assert.False(panelBtn.IsEnabled);
+
+                // Photo loaded → footer approve enabled, same state as panel.
+                main._cutout = cutout;
+                main._windowImage = window;
+                panelBtn.IsEnabled = true;
+                main.UpdateApproveButton();
+                Assert.True(footer.IsEnabled);
+                Assert.Equal(panelBtn.Content, footer.Content);
+
+                // Clicking the footer runs the same approve action.
+                footer.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.True(main._photoApproved);
+                Assert.True(issue.IsEnabled);   // no duplicate UID in the form
+            }
+            finally
+            {
+                cutout.Dispose(); window.Dispose();
+                NewCardDraft.Clear();
+                main.Close();
+            }
+            return true;
+        });
+    }
 }

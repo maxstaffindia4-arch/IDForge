@@ -21,8 +21,8 @@ public partial class MainWindow : Window
     private readonly CardService _svc;
 
     // New-card state
-    private SKBitmap? _cutout;
-    private SKBitmap? _windowImage;
+    internal SKBitmap? _cutout;      // internal for tests
+    internal SKBitmap? _windowImage; // internal for tests
     private WindowTransform _autoTransform = WindowTransform.Identity;
     private string? _photoPath;
     private DateTime? _photoAddedAt;
@@ -477,6 +477,7 @@ public partial class MainWindow : Window
                 .Where(s => s != null));
             PosPanel.IsEnabled = job.Cutout != null;
             BtnApprove.IsEnabled = job.Cutout != null;
+            UpdateApproveButton();
             UpdatePhotoThumb();
             UpdateFooterChips();
             SchedulePreview();
@@ -511,8 +512,8 @@ public partial class MainWindow : Window
     {
         PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
         _photoApproved = false;
-        UpdateApproveButton();
         BtnApprove.IsEnabled = _cutout != null;
+        UpdateApproveButton();
         UpdateFooterChips();
         SchedulePreview();
         ScheduleDraftSave();
@@ -580,7 +581,7 @@ public partial class MainWindow : Window
 
     private Employee? _uidDuplicate;
 
-    private void UpdateApproveButton()
+    internal void UpdateApproveButton()
     {
         if (_photoApproved)
         {
@@ -593,13 +594,17 @@ public partial class MainWindow : Window
             BtnApprove.Style = null;
         }
         ChkPhoto.Visibility = _photoApproved ? Visibility.Visible : Visibility.Collapsed;
+        // Footer approve mirrors the photo-panel button exactly.
+        BtnApproveFooter.Content = BtnApprove.Content;
+        BtnApproveFooter.Style = BtnApprove.Style;
+        BtnApproveFooter.IsEnabled = BtnApprove.IsEnabled;
         // Issue stays blocked on a duplicate UID even after photo approval.
         BtnSave.IsEnabled = _photoApproved && _uidDuplicate == null;
         if (TxtIssueBlocked != null)
             TxtIssueBlocked.Visibility = _uidDuplicate != null ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void ApprovePhoto_Click(object sender, RoutedEventArgs e)
+    internal void ApprovePhoto_Click(object sender, RoutedEventArgs e)
     {
         if (_windowImage == null) { SetStatus("Process a photo first."); return; }
         _photoApproved = true;
@@ -763,8 +768,8 @@ public partial class MainWindow : Window
                 _cutout = _windowImage = null;
             }
             _photoApproved = false;
-            UpdateApproveButton();
             BtnApprove.IsEnabled = false;
+            UpdateApproveButton();
             PosPanel.IsEnabled = false;
             PosPanel.SetState(1, 0, 0);
             _nudgeZoom = 1f; _nudgeX = _nudgeY = 0;
@@ -883,6 +888,7 @@ public partial class MainWindow : Window
         RadContractContract.IsChecked = AppSettings.DefaultContract == "Contractual";
         SetBgModeFromTag(AppSettings.DefaultBgMode);
         WirePhotoPanel();
+        UpdateApproveButton();
         UpdateOutputLine();
         UpdateStatusBar();
         UpdateTitle();
@@ -1192,8 +1198,8 @@ public partial class MainWindow : Window
                 _cutout = _windowImage = null;
             }
             _photoApproved = false;
-            UpdateApproveButton();
             BtnApprove.IsEnabled = false;
+            UpdateApproveButton();
             PosPanel.IsEnabled = false;
             PosPanel.SetState(1, 0, 0);
             _nudgeZoom = 1f; _nudgeX = _nudgeY = 0;

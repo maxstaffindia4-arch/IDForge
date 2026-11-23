@@ -445,7 +445,7 @@
                                                        FontSize="12" TextWrapping="Wrap"/>
                                             <Button x:Name="BtnApprove" Content="Approve photo"
                                                     Click="ApprovePhoto_Click" Margin="0,8,0,0"
-                                                    HorizontalAlignment="Left"/>
+                                                    HorizontalAlignment="Left" IsEnabled="False"/>
                                         </StackPanel>
                                     </Border>
                                     <TextBlock x:Name="TxtPhotoStatus"
@@ -500,6 +500,9 @@
                                             Padding="4,0" FontSize="11" Click="GoSettings_Click"
                                             Visibility="Collapsed"/>
                                 </StackPanel>
+                                <Button x:Name="BtnApproveFooter" Content="Approve photo"
+                                        Click="ApprovePhoto_Click" Margin="14,0,0,0" IsEnabled="False"
+                                        ToolTip="Approve the photo to issue the card."/>
                                 <TextBlock x:Name="TxtIssueBlocked"
                                            Text="Employee ID already exists. Open the record to re-issue."
                                            FontSize="11" Foreground="{StaticResource ErrorBrush}"
