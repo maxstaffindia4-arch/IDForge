@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using IDForge;
 using Xunit;
@@ -25,6 +26,7 @@ public class StartupTests
             {
                 var app = new App();
                 app.InitializeComponent();           // merges all theme dictionaries
+                MainWindow.SkipResumePrompt = true;  // no modal dialogs headless
                 var main = new MainWindow();          // InitializeComponent inside ctor
                 var rows = new ObservableCollection<BatchRow>
                 {
@@ -33,6 +35,15 @@ public class StartupTests
                 };
                 var review = new ReviewWindow(main, rows);
                 review.Close();
+
+                // Phase 2: area switching keeps per-page state
+                main.ShowArea("batch");
+                Assert.Equal("batch", main.CurrentArea);
+                Assert.Equal(Visibility.Collapsed, main.FindName("PageNewCard") is Grid g1 ? g1.Visibility : Visibility.Visible);
+                main.ShowArea("settings");
+                Assert.Equal("settings", main.CurrentArea);
+                main.ShowArea("newcard");
+                Assert.Equal("newcard", main.CurrentArea);
                 main.Close();
                 Dispatcher.CurrentDispatcher.InvokeShutdown();
             }
