@@ -460,15 +460,25 @@
         <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
                 Background="{StaticResource PanelLightBrush}">
             <DockPanel Margin="10,4">
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center"/>
-                    <TextBlock Text="  Offline — all data stays on this PC" VerticalAlignment="Center"
+                <StackPanel x:Name="PnlStatusLeft" Orientation="Horizontal" DockPanel.Dock="Left"
+                            VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center"/>
+                        <TextBlock Text="  Offline — all data stays on this PC" VerticalAlignment="Center"
+                                   Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    </StackPanel>
+                    <TextBlock Text=" | " Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <TextBlock x:Name="TxtStatusCount" VerticalAlignment="Center"
                                Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <TextBlock Text=" | " Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <TextBlock x:Name="TxtStatusBackup" VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <StackPanel x:Name="PnlStatusMsg" Orientation="Horizontal" Visibility="Collapsed">
+                        <TextBlock Text=" | " Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                        <TextBlock x:Name="TxtStatusMsg" VerticalAlignment="Center" FontSize="11"
+                                   Foreground="{StaticResource SuccessBrush}"/>
+                    </StackPanel>
                 </StackPanel>
-                <TextBlock x:Name="TxtStatusCount" VerticalAlignment="Center" Margin="24,0,0,0"
-                           Foreground="{StaticResource MutedBrush}" FontSize="11"/>
-                <TextBlock x:Name="TxtStatusBackup" VerticalAlignment="Center" Margin="24,0,0,0"
-                           Foreground="{StaticResource MutedBrush}" FontSize="11"/>
                 <TextBlock x:Name="TxtStatusVersion" DockPanel.Dock="Right" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}" FontSize="11"
                            Text="IDForge · About (F1)"/>
