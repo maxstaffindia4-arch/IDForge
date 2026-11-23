@@ -121,6 +121,7 @@ public partial class MainWindow : Window
         foreach (var e in entries)
         {
             var row = BatchRow.FromEntry(e);
+            HookRow(row);
             _batchRows.Add(row);
         }
         TxtBatchStatus.Text = $"Resumed batch: {_batchRows.Count} rows.";
@@ -1065,6 +1066,7 @@ public partial class MainWindow : Window
     private void BatchAddRow_Click(object sender, RoutedEventArgs e)
     {
         var row = new BatchRow();
+        HookRow(row);
         _batchRows.Add(row);
         PersistBatchRow(row);
     }
@@ -1121,7 +1123,7 @@ public partial class MainWindow : Window
         var text = Clipboard.GetText();
         if (string.IsNullOrWhiteSpace(text)) { MessageBox.Show("Clipboard is empty."); return; }
         var rows = ParseRows(text);
-        foreach (var r in rows) { _batchRows.Add(r); PersistBatchRow(r); }
+        foreach (var r in rows) { HookRow(r); _batchRows.Add(r); PersistBatchRow(r); }
         TxtBatchStatus.Text = $"Pasted {rows.Count} row(s).";
     }
 
@@ -1130,7 +1132,7 @@ public partial class MainWindow : Window
         var dlg = new OpenFileDialog { Filter = "CSV files|*.csv;*.txt|All files|*.*", Title = "Import batch CSV" };
         if (dlg.ShowDialog() != true) return;
         var rows = ParseRows(File.ReadAllText(dlg.FileName));
-        foreach (var r in rows) { _batchRows.Add(r); PersistBatchRow(r); }
+        foreach (var r in rows) { HookRow(r); _batchRows.Add(r); PersistBatchRow(r); }
         TxtBatchStatus.Text = $"Imported {rows.Count} row(s) from {Path.GetFileName(dlg.FileName)}.";
     }
 
@@ -1223,6 +1225,28 @@ public partial class MainWindow : Window
     }
 
     // ---- process photos stage (no approval, no issuing) ----
+
+    /// <summary>
+    /// Persists grid edits (dropdowns, text cells) immediately and re-validates
+    /// the row so the Status column reflects the change. ComboBoxes in the grid
+    /// update the row in-memory via TwoWay binding; this hook saves them.
+    /// </summary>
+    private void HookRow(BatchRow row)
+    {
+        row.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is not ("Uid" or "Name" or "Blood" or "Position"
+                or "Contract" or "PrintDateText" or "PhotoPath")) return;
+            if (row.RowId == 0) return;   // not yet persisted — PersistBatchRow assigns RowId
+            if (row.Status is "Draft" or "Failed" or "NeedsPhoto")
+            {
+                var err = ValidateBatchRow(row, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                row.Status = err == null ? "Draft" : "Failed";
+                row.Error = err ?? "";
+            }
+            PersistBatchRow(row);
+        };
+    }
 
     private string? ValidateBatchRow(BatchRow row, HashSet<string> seenUids)
         => BatchValidator.Validate(
