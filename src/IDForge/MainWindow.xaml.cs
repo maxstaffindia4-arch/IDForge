@@ -474,7 +474,8 @@ public partial class MainWindow : Window
     }
 
     private void UpdateTitle()
-        => Title = $"IDForge — {AreaLabel(_area)}" + (_dirty ? " • unsaved changes" : "");
+        => Title = $"IDForge — {AreaLabel(_area)}" +
+           (_area == "newcard" && _dirty ? " • unsaved changes" : "");
 
     private static string AreaLabel(string a) => a switch
     {
@@ -687,6 +688,7 @@ public partial class MainWindow : Window
             }
             _photoPath = null;
             _photoApproved = false; BtnSave.IsEnabled = false; BtnApprove.IsEnabled = false;
+            _dirty = false;
             GrpNudge.IsEnabled = false;
             SchedulePreview();
             RefreshRecords();
