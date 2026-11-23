@@ -28,7 +28,14 @@
                 </ComboBox>
             </StackPanel>
             <ListBox x:Name="LstRows" MouseDoubleClick="Row_DoubleClick"
-                     SelectionChanged="Row_Selected"/>
+                     SelectionChanged="Row_Selected">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding ReviewLabel}" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding ReviewLabel}"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
         </DockPanel>
 
         <!-- Center: full card preview -->

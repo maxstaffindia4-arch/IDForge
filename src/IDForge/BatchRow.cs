@@ -27,8 +27,8 @@ public sealed class BatchRow : INotifyPropertyChanged
     private double _zoom = 1, _offsetX, _offsetY;
     private double _autoScale = 1, _autoOffsetX, _autoOffsetY;
 
-    public string Uid { get => _uid; set { Set(ref _uid, value); OnPropertyChanged(nameof(DisplayText)); } }
-    public string Name { get => _name; set { Set(ref _name, value); OnPropertyChanged(nameof(DisplayText)); } }
+    public string Uid { get => _uid; set { Set(ref _uid, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); } }
+    public string Name { get => _name; set { Set(ref _name, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); } }
     public string Blood { get => _blood; set => Set(ref _blood, value); }
     public string Position { get => _position; set => Set(ref _position, value); }
     public string Contract { get => _contract; set => Set(ref _contract, value); }
@@ -64,6 +64,9 @@ public sealed class BatchRow : INotifyPropertyChanged
         "Approved" => "✓",
         _ => "·"
     };
+
+    /// <summary>Review-list label: "Name — UID<digits>" (see Core.RowLabels).</summary>
+    public string ReviewLabel => Core.RowLabels.For(_name, _uid);
 
     /// <summary>Row list display: icon + uid + name + status.</summary>
     public string DisplayText => $"{StatusIcon}  {Uid} — {Name}   [{StatusText}]";
