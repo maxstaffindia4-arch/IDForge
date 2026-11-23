@@ -4,12 +4,17 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$branch = (& git rev-parse --abbrev-ref HEAD 2>$null)
-$hash = (& git rev-parse --short HEAD 2>$null)
+$gitExe = (Get-Command git -ErrorAction SilentlyContinue).Source
+if (-not $gitExe) { $gitExe = "C:\Tools\MinGit\cmd\git.exe" }
+$dotnetExe = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+if (-not $dotnetExe) { $dotnetExe = "C:\Users\Max\.dotnet\dotnet.exe" }
+
+$branch = (& $gitExe rev-parse --abbrev-ref HEAD 2>$null)
+$hash = (& $gitExe rev-parse --short HEAD 2>$null)
 Write-Host "Branch: $branch  Commit: $hash" -ForegroundColor Cyan
 
 Write-Host "Publishing..." -ForegroundColor Cyan
-& dotnet publish src\IDForge -c Release -r win-x64 --self-contained true -o publish\idforge
+& $dotnetExe publish src\IDForge -c Release -r win-x64 --self-contained true -o publish\idforge
 if ($LASTEXITCODE -ne 0) {
     Write-Host "PUBLISH FAILED (exit $LASTEXITCODE) - app not launched." -ForegroundColor Red
     exit $LASTEXITCODE
