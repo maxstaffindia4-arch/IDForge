@@ -31,18 +31,161 @@
         </Setter>
     </Style>
 
-    <!-- ComboBox/DatePicker cannot BasedOn the TextBox style (target-type rule)
-         and must keep their own control templates — setters only. -->
+    <!-- ComboBox/DatePicker cannot BasedOn the TextBox style (target-type rule),
+         so each carries its own control template with the same 6 px radius,
+         border colour, and blue focus ring. Dropdown and calendar behaviour
+         is preserved via the standard template parts. -->
     <Style x:Key="InputComboBox" TargetType="ComboBox">
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="Height" Value="32"/>
+        <Setter Property="Padding" Value="10,3,28,3"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ToggleButton x:Name="ToggleButton"
+                                      Focusable="False" ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                          RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="bd" CornerRadius="6"
+                                            Background="{StaticResource WhiteBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1"
+                                            SnapsToDevicePixels="True">
+                                        <Grid>
+                                            <Path Data="M 0 0 L 4 4 L 8 0 Z"
+                                                  Fill="{StaticResource MutedBrush}"
+                                                  Width="8" Height="4" Stretch="Fill"
+                                                  HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="bd" Property="BorderBrush"
+                                                    Value="{StaticResource MutedBrush}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="bd" Property="BorderBrush"
+                                                    Value="{StaticResource FocusRingBrush}"/>
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding IsKeyboardFocused,
+                                                RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                     Value="True">
+                                            <Setter TargetName="bd" Property="BorderBrush"
+                                                    Value="{StaticResource FocusRingBrush}"/>
+                                            <Setter TargetName="bd" Property="BorderThickness" Value="2"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsEnabled,
+                                                RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                     Value="False">
+                                            <Setter TargetName="bd" Property="Background"
+                                                    Value="{StaticResource PanelBrush}"/>
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                          Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        <Popup x:Name="Popup" Placement="Bottom" AllowsTransparency="True"
+                               Focusable="False" PopupAnimation="Slide"
+                               IsOpen="{TemplateBinding IsDropDownOpen}">
+                            <Border CornerRadius="6" Margin="0,2,0,0"
+                                    Background="{StaticResource WhiteBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                    MinWidth="{Binding ActualWidth,
+                                        RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <ScrollViewer CanContentScroll="True" SnapsToDevicePixels="True">
+                                    <ItemsPresenter
+                                        KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="InputDatePicker" TargetType="DatePicker">
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="Height" Value="32"/>
+        <Setter Property="Padding" Value="8,0,0,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DatePicker">
+                    <Border x:Name="bd" CornerRadius="6"
+                            Background="{StaticResource WhiteBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" SnapsToDevicePixels="True">
+                        <Grid x:Name="PART_Root">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <DatePickerTextBox x:Name="PART_TextBox" Grid.Column="0"
+                                               BorderThickness="0" Background="Transparent"
+                                               Padding="8,4"
+                                               VerticalContentAlignment="Center"/>
+                            <Button x:Name="PART_Button" Grid.Column="1" Width="30"
+                                    Focusable="False" Cursor="Hand"
+                                    Background="Transparent" BorderThickness="0">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="bbd" Background="Transparent">
+                                            <TextBlock Text="&#xE787;"
+                                                       FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="bbd" Property="Background"
+                                                        Value="{StaticResource PanelBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="bbd" Property="Background"
+                                                        Value="{StaticResource PrimaryTintBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Popup x:Name="PART_Popup" Placement="Bottom"
+                                   PlacementTarget="{Binding ElementName=PART_Root}"
+                                   AllowsTransparency="True" StaysOpen="False"/>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush"
+                                    Value="{StaticResource FocusRingBrush}"/>
+                            <Setter TargetName="bd" Property="BorderThickness" Value="2"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Background"
+                                    Value="{StaticResource PanelBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 <Style TargetType="TextBox" BasedOn="{StaticResource InputTextBox}"/>
     <Style TargetType="ComboBox" BasedOn="{StaticResource InputComboBox}"/>

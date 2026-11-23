@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using IDForge;
@@ -197,6 +198,46 @@ public class FixPassTests
                     store.SoftDeleteEmployee(dupEmp.Id);
                     NewCardDraft.Clear();
                 }
+            }
+            finally { main.Close(); }
+            return true;
+        });
+    }
+
+    [Fact]
+    public void ComboBox_And_DatePicker_Use_Theme_Template()
+    {
+        OnSta(() =>
+        {
+            var main = NewWindow();
+            try
+            {
+                var borderColor = ((SolidColorBrush)main.FindResource("BorderBrush")!).Color;
+
+                // ComboBox: themed border inside the toggle template.
+                var cmb = (ComboBox)main.FindName("CmbPosition")!;
+                cmb.ApplyTemplate();
+                var toggle = cmb.Template!.FindName("ToggleButton", cmb) as ToggleButton;
+                Assert.NotNull(toggle);
+                toggle!.ApplyTemplate();
+                var bd = toggle.Template!.FindName("bd", toggle) as Border;
+                Assert.NotNull(bd);
+                Assert.Equal(new CornerRadius(6), bd!.CornerRadius);
+                Assert.Equal(borderColor, ((SolidColorBrush)bd.BorderBrush!).Color);
+                // Dropdown part preserved.
+                Assert.NotNull(cmb.Template.FindName("Popup", cmb));
+                Assert.Equal(7, cmb.Items.Count);   // V1: still a dropdown
+
+                // DatePicker: themed outer border + calendar button + popup part.
+                var dp = (DatePicker)main.FindName("DpPrintDate")!;
+                dp.ApplyTemplate();
+                var outer = dp.Template!.FindName("bd", dp) as Border;
+                Assert.NotNull(outer);
+                Assert.Equal(new CornerRadius(6), outer!.CornerRadius);
+                Assert.Equal(borderColor, ((SolidColorBrush)outer.BorderBrush!).Color);
+                Assert.NotNull(dp.Template.FindName("PART_TextBox", dp));
+                Assert.NotNull(dp.Template.FindName("PART_Button", dp));
+                Assert.NotNull(dp.Template.FindName("PART_Popup", dp));
             }
             finally { main.Close(); }
             return true;
