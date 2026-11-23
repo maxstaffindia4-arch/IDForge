@@ -216,4 +216,22 @@ public class BatchTests
         var second = BatchValidator.Validate(ok, seen, UidExists, checkPhoto: false);
         Assert.Equal("duplicate UID in batch", second);
     }
+
+    [Fact]
+    public void ResolvePaths_Resolves_Relative_Photos_Against_Csv_Folder()
+    {
+        // Simulates importing from a different working directory: resolution must
+        // depend only on the CSV folder, never on Environment.CurrentDirectory.
+        var csvDir = Path.Combine(Path.GetTempPath(), "csvdir-" + Guid.NewGuid().ToString("N")[..8]);
+        var rows = BatchValidator.Parse(
+            "20250101,Alice,A+,Nurse,Permanent,2026-01-01,photos\\p1.png\n" +
+            "20250102,Bob,B+,Doctor,Permanent,2026-01-01," + csvDir + "\\abs.png");
+        BatchValidator.ResolvePaths(rows, csvDir);
+
+        Assert.Equal(Path.GetFullPath(Path.Combine(csvDir, "photos", "p1.png")), rows[0].PhotoPath);
+        Assert.True(Path.IsPathRooted(rows[0].PhotoPath));
+        Assert.Equal(Path.Combine(csvDir, "abs.png"), rows[1].PhotoPath); // rooted untouched
+        Assert.Null(BatchValidator.Parse("20250103,C,,Nurse,,,,").First().PhotoPath); // empty stays empty
+        try { Directory.Delete(csvDir, true); } catch { }
+    }
 }

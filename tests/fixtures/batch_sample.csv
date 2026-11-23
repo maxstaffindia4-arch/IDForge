@@ -1,7 +1,7 @@
 uid,name,blood,position,contract,printdate,photo
-20250318,Mehdi Hasan Sakib,A+,Manager,Permanent,2026-11-23,F:\Web Design\ID Card Tool\tests\fixtures\photos\portrait_a.png
-20260101,Ayesha Rahman,B+,Supervisor,Contractual,2026-11-23,F:\Web Design\ID Card Tool\tests\fixtures\photos\portrait_b.png
+20250318,Mehdi Hasan Sakib,A+,Manager,Permanent,2026-11-23,photos\portrait_a.png
+20260101,Ayesha Rahman,B+,Supervisor,Contractual,2026-11-23,photos\portrait_b.png
 20260102,Karim Uddin,O+,General Executive,Permanent,2026-11-23,
-ID-XX-99,Salma Khatun,AB+,HR Manager,Contractual,2026-11-23,F:\Web Design\ID Card Tool\tests\fixtures\photos\portrait_c.png
-20260104,Tanvir Ahmed,A-,Technical Executive,Permanent,2026-11-24,F:\Web Design\ID Card Tool\tests\fixtures\photos\portrait_d.png
+ID-XX-99,Salma Khatun,AB+,HR Manager,Contractual,2026-11-23,photos\portrait_c.png
+20260104,Tanvir Ahmed,A-,Technical Executive,Permanent,2026-11-24,photos\portrait_d.png
 20260105,New Hire,N/A,Intern,Contractual,,

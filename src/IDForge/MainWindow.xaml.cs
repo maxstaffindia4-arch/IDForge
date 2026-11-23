@@ -1108,8 +1108,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Parses pasted/imported text into rows. TSV or CSV, optional header.</summary>
-    private static List<BatchRow> ParseRows(string text)
-        => BatchValidator.Parse(text).Select(d => new BatchRow
+    private static List<BatchRow> ParseRows(string text, string? baseDir = null)
+    {
+        var data = BatchValidator.Parse(text);
+        if (baseDir != null) BatchValidator.ResolvePaths(data, baseDir);
+        return data.Select(d => new BatchRow
         {
             Uid = Core.Uid.Normalize(d.Uid) ?? d.Uid.Trim(), Name = d.Name, Blood = d.Blood, Position = d.Position,
             Contract = d.Contract,
@@ -1131,7 +1134,7 @@ public partial class MainWindow : Window
     {
         var dlg = new OpenFileDialog { Filter = "CSV files|*.csv;*.txt|All files|*.*", Title = "Import batch CSV" };
         if (dlg.ShowDialog() != true) return;
-        var rows = ParseRows(File.ReadAllText(dlg.FileName));
+        var rows = ParseRows(File.ReadAllText(dlg.FileName), Path.GetDirectoryName(dlg.FileName));
         foreach (var r in rows) { HookRow(r); _batchRows.Add(r); PersistBatchRow(r); }
         TxtBatchStatus.Text = $"Imported {rows.Count} row(s) from {Path.GetFileName(dlg.FileName)}.";
     }

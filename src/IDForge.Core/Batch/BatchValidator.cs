@@ -33,6 +33,21 @@ public static class BatchValidator
     }
 
     /// <summary>
+    /// Resolves relative photo paths against the folder containing the CSV file,
+    /// so sample/import files work from any working directory. Rooted paths and
+    /// empty paths are left unchanged.
+    /// </summary>
+    public static void ResolvePaths(List<BatchRowData> rows, string baseDir)
+    {
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var p = rows[i].PhotoPath;
+            if (string.IsNullOrWhiteSpace(p) || Path.IsPathRooted(p)) continue;
+            rows[i] = rows[i] with { PhotoPath = Path.GetFullPath(Path.Combine(baseDir, p)) };
+        }
+    }
+
+    /// <summary>
     /// Validates one row. seenUids accumulates UIDs for intra-batch duplicate
     /// detection; uidExists checks the database. Returns null when valid.
     /// </summary>
