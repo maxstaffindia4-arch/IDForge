@@ -135,6 +135,16 @@ public class FixPassTests
         });
     }
 
+    private static IEnumerable<TextBlock> FindTextBlocks(DependencyObject root)
+    {
+        foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is TextBlock tb) yield return tb;
+            if (child is DependencyObject d)
+                foreach (var t in FindTextBlocks(d)) yield return t;
+        }
+    }
+
     private static Color ChipColor(MainWindow w, string name)
         => ((SolidColorBrush)((TextBlock)w.FindName(name)!).Foreground).Color;
 
@@ -238,6 +248,53 @@ public class FixPassTests
                 Assert.NotNull(dp.Template.FindName("PART_TextBox", dp));
                 Assert.NotNull(dp.Template.FindName("PART_Button", dp));
                 Assert.NotNull(dp.Template.FindName("PART_Popup", dp));
+            }
+            finally { main.Close(); }
+            return true;
+        });
+    }
+
+    [Fact]
+    public void Zoom_Box_Shows_Percent_And_Matches_Transform()
+    {
+        OnSta(() =>
+        {
+            var main = NewWindow();
+            try
+            {
+                var panel = (IDForge.Controls.PhotoPositionPanel)main.FindName("PosPanel")!;
+                var pct = (TextBox)panel.FindName("TxtZoomPct")!;
+                var slider = (Slider)panel.FindName("SldZoom")!;
+                var xBox = (TextBox)panel.FindName("TxtX")!;
+                var yBox = (TextBox)panel.FindName("TxtY")!;
+
+                // "%" suffix shown next to the box.
+                var hasPctSign = FindTextBlocks(panel).Any(t => t.Text == "%");
+                Assert.True(hasPctSign, "expected a '%' label beside the zoom box");
+
+                // Scale labels exist under the slider.
+                var scale = panel.FindName("ZoomScale") as Canvas;
+                Assert.NotNull(scale);
+                var labels = System.Windows.LogicalTreeHelper.GetChildren(scale!)
+                    .OfType<TextBlock>().Select(t => t.Text).ToList();
+                Assert.Contains("40 %", labels);
+                Assert.Contains("100 %", labels);
+                Assert.Contains("300 %", labels);
+
+                // SetState pushes transform values into every control.
+                double? committed = null;
+                panel.ZoomChanged += z => committed = z;
+                panel.SetState(1.75, 12, -8);
+                Assert.Equal("175", pct.Text);
+                Assert.Equal(1.75, slider.Value, 3);
+                Assert.Equal("12", xBox.Text);
+                Assert.Equal("-8", yBox.Text);
+
+                // Typing a new % commits the matching zoom factor.
+                committed = null;
+                pct.Text = "150";
+                Assert.Equal(1.5, committed!.Value, 3);
+                Assert.Equal(1.5, slider.Value, 3);
             }
             finally { main.Close(); }
             return true;

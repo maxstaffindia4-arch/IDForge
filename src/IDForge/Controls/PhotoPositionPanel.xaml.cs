@@ -108,4 +108,22 @@ public partial class PhotoPositionPanel : UserControl
     }
 
     private void Reset_Click(object sender, RoutedEventArgs e) => ResetRequested?.Invoke();
+
+    /// <summary>Positions the "100 %" label under the slider position for zoom = 1.0
+    /// and the "300 %" label at the right end. Min label stays at x = 0.</summary>
+    private void ZoomScale_SizeChanged(object sender, SizeChangedEventArgs e) => LayoutZoomScale();
+
+    private void LayoutZoomScale()
+    {
+        if (SldZoom == null || ZoomScale == null || ZoomScale.ActualWidth <= 0) return;
+        var w = ZoomScale.ActualWidth;
+        if (LblZoomMax != null)
+            Canvas.SetLeft(LblZoomMax, Math.Max(0, w - LblZoomMax.ActualWidth));
+        if (LblZoomHundred != null)
+        {
+            var frac = (1.0 - SldZoom.Minimum) / (SldZoom.Maximum - SldZoom.Minimum);
+            var x = frac * w - LblZoomHundred.ActualWidth / 2;
+            Canvas.SetLeft(LblZoomHundred, Math.Max(0, Math.Min(w - LblZoomHundred.ActualWidth, x)));
+        }
+    }
 }
