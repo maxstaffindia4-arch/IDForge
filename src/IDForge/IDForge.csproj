@@ -19,6 +19,12 @@
 
   <ItemGroup>
     <Resource Include="app.ico" />
+    <Resource Include="..\..\assets\fonts\Inter-Regular.ttf" Link="Fonts\Inter-Regular.ttf" />
+    <Resource Include="..\..\assets\fonts\Inter-Medium.ttf" Link="Fonts\Inter-Medium.ttf" />
+    <Resource Include="..\..\assets\fonts\Inter-SemiBold.ttf" Link="Fonts\Inter-SemiBold.ttf" />
+    <Resource Include="..\..\assets\fonts\JetBrainsMono-Regular.ttf" Link="Fonts\JetBrainsMono-Regular.ttf" />
+    <None Include="..\..\assets\fonts\OFL-Inter.txt" Link="Fonts\OFL-Inter.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\fonts\OFL-JetBrainsMono.txt" Link="Fonts\OFL-JetBrainsMono.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

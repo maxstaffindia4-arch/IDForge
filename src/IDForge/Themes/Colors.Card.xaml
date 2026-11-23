@@ -1,0 +1,8 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Card render colours — documentation only; the card renderer (SkiaSharp)
+         owns these values and must stay pixel-identical. Not used by app UI. -->
+    <SolidColorBrush x:Key="CardNavyBrush" Color="#1A253C"/>
+    <SolidColorBrush x:Key="CardAccentBrush" Color="#A12A26"/>
+    <SolidColorBrush x:Key="CardTextLightBrush" Color="#F5F1E8"/>
+</ResourceDictionary>

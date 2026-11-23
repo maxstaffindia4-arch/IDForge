@@ -1120,6 +1120,7 @@ public partial class MainWindow : Window
                 ? Validity.TodayInDhaka().ToString("yyyy-MM-dd") : d.PrintDateText,
             PhotoPath = d.PhotoPath
         }).ToList();
+    }
 
     private void BatchPaste_Click(object sender, RoutedEventArgs e)
     {
