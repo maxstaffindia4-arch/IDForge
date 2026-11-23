@@ -2,7 +2,7 @@
 ; Build: ISCC.exe installer\idforge.iss
 
 #define MyAppName "IDForge"
-#define MyAppVersion "1.2.2"
+#define MyAppVersion "1.2.3"
 #define MyAppPublisher "IDForge"
 #define MyAppExeName "IDForge.exe"
 

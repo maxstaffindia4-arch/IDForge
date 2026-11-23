@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2.3 — 2026-11-23
+
+### Fixed
+- **Batch Review list showed class names** — rows now display
+  "Name — UID<digits>" (e.g. `Mehdi Hasan Sakib — UID20250318`) with
+  `(no name)`/`(no UID)` fallbacks, ellipsis truncation + tooltip, and live
+  updates when name/UID is edited in the review panel.
+
 ## v1.2.2 — 2026-11-23
 
 ### Fixed
