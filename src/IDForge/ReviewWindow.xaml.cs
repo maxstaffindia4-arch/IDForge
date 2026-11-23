@@ -50,8 +50,7 @@ public partial class ReviewWindow : Window
 
         CmbBlood.SelectedIndex = -1; // set per row
         DpPrintDate.SelectedDate = Validity.TodayInDhaka().ToDateTime(TimeOnly.MinValue);
-        ChkConfirmIssue.IsChecked = AppSettings.ConfirmBeforeIssue;
-        ChkIncludePdf.IsChecked = AppSettings.IncludePdf;
+        // Issue options (confirm/PDF) live in Settings on the main window now.
 
         var idx = startAt != null ? rows.IndexOf(startAt) : rows.ToList().FindIndex(r => r.Status == "NeedsReview");
         if (idx >= 0) SelectRow(rows[idx]);
@@ -640,11 +639,7 @@ public partial class ReviewWindow : Window
             BtnBatchIssue.Content = $"Batch Issue ({approved})";
     }
 
-    private void ConfirmIssue_Changed(object sender, RoutedEventArgs e)
-        => AppSettings.ConfirmBeforeIssue = ChkConfirmIssue.IsChecked == true;
-
-    private void IncludePdf_Changed(object sender, RoutedEventArgs e)
-        => AppSettings.IncludePdf = ChkIncludePdf.IsChecked == true;
+    // Issue-option checkboxes removed in Phase 2 — settings live on the main window.
 
     private static string rowLabel(BatchRow r) => string.IsNullOrWhiteSpace(r.Name) ? r.Uid : $"{r.Name} ({r.Uid})";
 }
@@ -677,85 +672,4 @@ public static class Dialogs
     }
 }
 
-/// <summary>Tiny persisted settings (app dir settings.json).</summary>
-public static class AppSettings
-{
-    private static readonly string Path0 = IDForge.Core.AppPaths.SettingsPath;
-    private static bool _confirm = true;
-    private static bool _includePdf;
-    private static double? _winLeft, _winTop, _winWidth, _winHeight;
-    static AppSettings() => Load();
-
-    public static bool ConfirmBeforeIssue
-    {
-        get => _confirm;
-        set { _confirm = value; Save(); }
-    }
-
-    /// <summary>Also write a PDF next to the PNG when issuing (default off).</summary>
-    public static bool IncludePdf
-    {
-        get => _includePdf;
-        set { _includePdf = value; Save(); }
-    }
-
-    /// <summary>Last main-window bounds, or null when never saved / incomplete.</summary>
-    public static (double Left, double Top, double Width, double Height)? WindowBounds
-    {
-        get => _winLeft.HasValue && _winTop.HasValue && _winWidth.HasValue && _winHeight.HasValue
-            ? (_winLeft.Value, _winTop.Value, _winWidth.Value, _winHeight.Value)
-            : null;
-        set
-        {
-            _winLeft = value?.Left; _winTop = value?.Top;
-            _winWidth = value?.Width; _winHeight = value?.Height;
-            Save();
-        }
-    }
-
-    private sealed class SettingsFile
-    {
-        [System.Text.Json.Serialization.JsonPropertyName("confirmBeforeIssue")]
-        public bool ConfirmBeforeIssue { get; set; } = true;
-        [System.Text.Json.Serialization.JsonPropertyName("includePdf")]
-        public bool IncludePdf { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("winLeft")] public double? WinLeft { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("winTop")] public double? WinTop { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("winWidth")] public double? WinWidth { get; set; }
-        [System.Text.Json.Serialization.JsonPropertyName("winHeight")] public double? WinHeight { get; set; }
-    }
-
-    private static void Load()
-    {
-        try
-        {
-            if (File.Exists(Path0))
-            {
-                var s = System.Text.Json.JsonSerializer
-                    .Deserialize<SettingsFile>(File.ReadAllText(Path0));
-                if (s != null)
-                {
-                    _confirm = s.ConfirmBeforeIssue;
-                    _includePdf = s.IncludePdf;
-                    _winLeft = s.WinLeft; _winTop = s.WinTop;
-                    _winWidth = s.WinWidth; _winHeight = s.WinHeight;
-                }
-            }
-        }
-        catch { }
-    }
-
-    private static void Save()
-    {
-        try
-        {
-            File.WriteAllText(Path0, System.Text.Json.JsonSerializer.Serialize(new SettingsFile
-            {
-                ConfirmBeforeIssue = _confirm,
-                IncludePdf = _includePdf,
-                WinLeft = _winLeft, WinTop = _winTop, WinWidth = _winWidth, WinHeight = _winHeight
-            }));
-        }
-        catch { }
-    }
-}
+// AppSettings moved to src/IDForge/AppSettings.cs (extended for Phase 2).
