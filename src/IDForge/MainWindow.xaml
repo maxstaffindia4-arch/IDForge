@@ -2,6 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="clr-namespace:IDForge.Core;assembly=IDForge.Core"
+        xmlns:controls="clr-namespace:IDForge.Controls"
+        Language="en-GB"
         Title="IDForge — New card" Width="1100" Height="760" FontFamily="{StaticResource AppFontFamily}"
         Icon="pack://application:,,,/IDForge;component/app.ico"
         MinWidth="860" MinHeight="620"
@@ -30,6 +32,59 @@
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
                                 <Setter TargetName="accent" Property="Fill" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Segmented contract-type choice (Permanent / Contractual) -->
+        <Style x:Key="SegmentedRadio" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="bd" CornerRadius="6" Padding="12,8"
+                                Background="{StaticResource WhiteBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Preview zoom selector (Fit / 100% / 200%) -->
+        <Style x:Key="ZoomButton" TargetType="RadioButton">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="bd" CornerRadius="6" Padding="{TemplateBinding Padding}"
+                                Background="Transparent" BorderThickness="1"
+                                BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
@@ -163,107 +218,289 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <DockPanel Margin="14,10,14,4">
+
+                    <!-- Page header -->
+                    <DockPanel Grid.Row="0" Margin="14,10,14,4">
                         <StackPanel>
                             <TextBlock Text="New card" FontSize="20" FontWeight="SemiBold"/>
-                            <TextBlock Text="Issue a single staff ID card" FontSize="12"
-                                       Foreground="{StaticResource MutedBrush}"/>
-                        </StackPanel>
-                        <Button Content="Issue options — change in Settings" Style="{StaticResource GhostButton}"
-                                DockPanel.Dock="Right" VerticalAlignment="Center" Click="GoSettings_Click"/>
-                    </DockPanel>
-                    <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="380"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Left: form -->
-                        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="12,0,12,12">
-                                <TextBlock Text="Full name" FontWeight="SemiBold"/>
-                                <TextBox x:Name="TxtName" TextChanged="Field_Changed" MaxLength="40"/>
-
-                                <TextBlock Text="Blood group" FontWeight="SemiBold" Margin="0,10,0,0"/>
-                                <ComboBox x:Name="CmbBlood" SelectionChanged="Field_Changed"/>
-
-                                <TextBlock Text="Position" FontWeight="SemiBold" Margin="0,10,0,0"/>
-                                <ComboBox x:Name="CmbPosition" SelectionChanged="Field_Changed"/>
-
-                                <TextBlock Text="UID (digits only, e.g. 20250318)" FontWeight="SemiBold" Margin="0,10,0,0"/>
-                                <TextBox x:Name="TxtUid" TextChanged="Field_Changed" LostFocus="Uid_LostFocus"/>
-                                <TextBlock x:Name="ErrUid" Foreground="{StaticResource ErrorBrush}" FontSize="11" TextWrapping="Wrap"/>
-
-                                <TextBlock Text="Contract type" FontWeight="SemiBold" Margin="0,10,0,0"/>
-                                <ComboBox x:Name="CmbContract" SelectionChanged="Field_Changed"/>
-
-                                <TextBlock Text="Print date" FontWeight="SemiBold" Margin="0,10,0,0"/>
-                                <DatePicker x:Name="DpPrintDate" SelectedDateChanged="Field_Changed"/>
-
-                                <TextBlock Text="Photo" FontWeight="SemiBold" Margin="0,10,0,0"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBox x:Name="TxtPhoto" IsReadOnly="True" Width="200"/>
-                                    <Button Content="Browse..." Margin="6,0,0,0" Click="BrowsePhoto_Click"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                    <TextBlock Text="Background:" VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="CmbBgMode" Width="210" Margin="8,0,0,0"
-                                              SelectionChanged="BgMode_Changed">
-                                        <ComboBoxItem Content="Plain white background" IsSelected="True"/>
-                                        <ComboBoxItem Content="Model (complex background)"/>
-                                        <ComboBoxItem Content="Keep as is"/>
-                                    </ComboBox>
-                                </StackPanel>
-                                <TextBlock x:Name="TxtPhotoStatus" Foreground="{StaticResource ErrorBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-
-                                <!-- Photo nudge controls (enabled after photo processed) -->
-                                <GroupBox Header="Photo position" Margin="0,10,0,0" IsEnabled="False" x:Name="GrpNudge">
-                                    <StackPanel Margin="6">
-                                        <TextBlock Text="Zoom (× auto)"/>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Slider x:Name="SldZoom" Width="170" Minimum="0.4" Maximum="3.0" Value="1"
-                                                    TickFrequency="0.05" ValueChanged="Nudge_Changed"/>
-                                            <TextBox x:Name="TxtZoom" Width="55" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                                                     Text="1" TextChanged="NudgeText_Changed" Tag="zoom"/>
-                                        </StackPanel>
-                                        <TextBlock Text="Horizontal (px)"/>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Slider x:Name="SldX" Width="170" Minimum="-320" Maximum="320" Value="0"
-                                                    TickFrequency="5" ValueChanged="Nudge_Changed"/>
-                                            <TextBox x:Name="TxtX" Width="55" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                                                     Text="0" TextChanged="NudgeText_Changed" Tag="x"/>
-                                        </StackPanel>
-                                        <TextBlock Text="Vertical (px)"/>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Slider x:Name="SldY" Width="170" Minimum="-400" Maximum="400" Value="0"
-                                                    TickFrequency="5" ValueChanged="Nudge_Changed"/>
-                                            <TextBox x:Name="TxtY" Width="55" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                                                     Text="0" TextChanged="NudgeText_Changed" Tag="y"/>
-                                        </StackPanel>
-                                        <Button Content="Reset to auto" Click="ResetNudge_Click" Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </GroupBox>
-
-                                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                                    <Button x:Name="BtnApprove" Content="Approve photo" Click="ApprovePhoto_Click" IsEnabled="False"/>
-                                    <Button x:Name="BtnSave" Content="Save &amp; Issue" Style="{StaticResource PrimaryButton}" Click="Save_Click" Margin="8,0,0,0" IsEnabled="False"/>
-                                </StackPanel>
-                                <TextBlock x:Name="TxtStatus" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextBrush}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Fill in the employee's details, adjust the photo, then issue the card."
+                                           FontSize="12" Foreground="{StaticResource MutedBrush}"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtDraftNote" FontSize="11"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           Margin="14,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </ScrollViewer>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                            <Button Content="Clear form" Click="ClearForm_Click"/>
+                            <Button Content="Save draft  Ctrl+S" Click="SaveDraft_Click" Margin="8,0,0,0"/>
+                        </StackPanel>
+                    </DockPanel>
 
-                        <!-- Right: preview -->
-                        <Border Grid.Column="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="8">
-                            <Grid ClipToBounds="True">
-                                <Image x:Name="ImgPreview" Stretch="Uniform"
-                                       RenderOptions.BitmapScalingMode="HighQuality"/>
-                                <TextBlock x:Name="TxtPreviewHint" Text="Preview appears here"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MutedBrush}" IsHitTestVisible="False"/>
+                    <!-- Three columns; scrolls horizontally on narrow windows -->
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled">
+                        <Grid MinWidth="960">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="400" MinWidth="340"/>
+                                <ColumnDefinition Width="*" MinWidth="240"/>
+                                <ColumnDefinition Width="360" MinWidth="300"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ===== 1 · EMPLOYEE DETAILS ===== -->
+                            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="12,0,12,12">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="1 · Employee details" FontSize="14" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="ChkDetails" Text="  ✓ complete" FontSize="11"
+                                                   Foreground="{StaticResource SuccessBrush}"
+                                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Visibility="Collapsed"/>
+                                    </StackPanel>
+
+                                    <TextBlock Margin="0,12,0,2" FontWeight="SemiBold">
+                                        <Run Text="Full name"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    </TextBlock>
+                                    <TextBox x:Name="TxtName" TextChanged="Field_Changed" MaxLength="40"/>
+
+                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
+                                        <Run Text="Position"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    </TextBlock>
+                                    <ComboBox x:Name="CmbPosition" SelectionChanged="Field_Changed"/>
+
+                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
+                                        <Run Text="Employee ID"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    </TextBlock>
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="6" Background="{StaticResource WhiteBrush}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Background="{StaticResource PanelBrush}" Padding="8,0"
+                                                    BorderThickness="0,0,1,0"
+                                                    BorderBrush="{StaticResource BorderBrush}">
+                                                <TextBlock Text="UID" FontSize="12"
+                                                           Foreground="{StaticResource MutedBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBox x:Name="TxtUid" Grid.Column="1" BorderThickness="0"
+                                                     Background="Transparent" MaxLength="15" Padding="6,4"
+                                                     PreviewTextInput="Uid_PreviewTextInput"
+                                                     TextChanged="Uid_TextChanged" LostFocus="Uid_LostFocus"
+                                                     ToolTip="Numbers only, 4–15 digits. Don't type UID — it's added to the card for you."/>
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock x:Name="TxtUidCount" Text="0 / 15" FontSize="11"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               HorizontalAlignment="Right" Margin="0,2,0,0"/>
+                                    <TextBlock x:Name="ErrUid" FontSize="11" TextWrapping="Wrap"
+                                               Margin="0,2,0,0"/>
+
+                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">Blood group</TextBlock>
+                                    <ComboBox x:Name="CmbBlood" SelectionChanged="Field_Changed"/>
+
+                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
+                                        <Run Text="Print date"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    </TextBlock>
+                                    <DatePicker x:Name="DpPrintDate" SelectedDateChanged="Field_Changed"/>
+
+                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
+                                        <Run Text="Contract type"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    </TextBlock>
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="RadContractPerm" GroupName="contract"
+                                                     Style="{StaticResource SegmentedRadio}" IsChecked="True"
+                                                     Checked="Field_Changed">
+                                            <StackPanel>
+                                                <TextBlock Text="Permanent" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Valid 12 months" FontSize="11"
+                                                           Foreground="{StaticResource MutedBrush}"/>
+                                            </StackPanel>
+                                        </RadioButton>
+                                        <RadioButton x:Name="RadContractContract" GroupName="contract"
+                                                     Style="{StaticResource SegmentedRadio}"
+                                                     Checked="Field_Changed">
+                                            <StackPanel>
+                                                <TextBlock Text="Contractual" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Valid 6 months" FontSize="11"
+                                                           Foreground="{StaticResource MutedBrush}"/>
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </StackPanel>
+
+                                    <TextBlock x:Name="TxtValidity" FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"/>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <!-- ===== LIVE PREVIEW ===== -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" Margin="12,0,12,4">
+                                    <TextBlock Text="Live preview" FontSize="14" FontWeight="SemiBold"/>
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                                        <RadioButton x:Name="RadZoomFit" Content="Fit" GroupName="pzoom"
+                                                     Style="{StaticResource ZoomButton}" IsChecked="True"
+                                                     Checked="ZoomMode_Changed"/>
+                                        <RadioButton x:Name="RadZoom100" Content="100%" GroupName="pzoom"
+                                                     Style="{StaticResource ZoomButton}"
+                                                     Checked="ZoomMode_Changed" Margin="4,0,0,0"/>
+                                        <RadioButton x:Name="RadZoom200" Content="200%" GroupName="pzoom"
+                                                     Style="{StaticResource ZoomButton}"
+                                                     Checked="ZoomMode_Changed" Margin="4,0,0,0"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <Border x:Name="PreviewArea" Grid.Row="1" Margin="12,0,12,4"
+                                        CornerRadius="6" Background="{StaticResource PanelLightBrush}"
+                                        Focusable="True" AllowDrop="True"
+                                        Drop="Preview_Drop" DragOver="Preview_DragOver"
+                                        PreviewKeyDown="Preview_KeyDown"
+                                        PreviewMouseWheel="Preview_MouseWheel"
+                                        SizeChanged="PreviewArea_SizeChanged">
+                                    <Grid>
+                                        <ScrollViewer x:Name="PreviewScroll"
+                                                      HorizontalScrollBarVisibility="Auto"
+                                                      VerticalScrollBarVisibility="Auto">
+                                            <Image x:Name="ImgPreview" Stretch="Uniform"/>
+                                        </ScrollViewer>
+                                        <TextBlock x:Name="TxtPreviewHint" Text="Preview appears here"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource MutedBrush}"
+                                                   IsHitTestVisible="False"/>
+                                    </Grid>
+                                </Border>
+                                <TextBlock Grid.Row="2" Margin="12,0,12,10" FontSize="11"
+                                           Foreground="{StaticResource MutedBrush}">
+                                    <Run Text="Printed size 54 × 86 mm"/>
+                                </TextBlock>
                             </Grid>
-                        </Border>
-                    </Grid>
+
+                            <!-- ===== 2 · PHOTO ===== -->
+                            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="12,0,12,12">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="2 · Photo" FontSize="14" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="ChkPhoto" Text="  ✓ approved" FontSize="11"
+                                                   Foreground="{StaticResource SuccessBrush}"
+                                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Visibility="Collapsed"/>
+                                    </StackPanel>
+
+                                    <Border Background="{StaticResource PanelLightBrush}" CornerRadius="6"
+                                            Padding="10" Margin="0,8,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="72" Height="90"
+                                                    Background="{StaticResource WhiteBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1" CornerRadius="4">
+                                                <Image x:Name="ImgPhotoThumb" Stretch="Uniform"/>
+                                            </Border>
+                                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock x:Name="TxtPhotoName" Text="No photo chosen"
+                                                           FontWeight="SemiBold" FontSize="12"
+                                                           TextTrimming="CharacterEllipsis" MaxWidth="180"/>
+                                                <TextBlock x:Name="TxtPhotoMeta" Text=""
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource MutedBrush}"/>
+                                                <Button Content="Change…" Click="BrowsePhoto_Click"
+                                                        Style="{StaticResource CompactButton}"
+                                                        Margin="0,6,0,0" HorizontalAlignment="Left"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Text="Ctrl+O to choose a photo, or drag one onto the preview."
+                                               FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Foreground="{StaticResource MutedBrush}"/>
+
+                                    <TextBlock FontWeight="SemiBold" Margin="0,12,0,4">Photo background</TextBlock>
+                                    <RadioButton x:Name="RadBgPlain" Content="Plain white" GroupName="bgmode"
+                                                 IsChecked="True" Checked="BgRadio_Changed"/>
+                                    <RadioButton x:Name="RadBgModel" Content="Model (complex background)"
+                                                 GroupName="bgmode" Checked="BgRadio_Changed"
+                                                 Margin="0,4,0,0"/>
+                                    <RadioButton x:Name="RadBgKeep" Content="Keep as is" GroupName="bgmode"
+                                                 Checked="BgRadio_Changed" Margin="0,4,0,0"/>
+
+                                    <controls:PhotoPositionPanel x:Name="PosPanel" Margin="0,12,0,0"/>
+
+                                    <Border Background="{StaticResource PanelLightBrush}" CornerRadius="6"
+                                            Padding="10" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtApproveHint"
+                                                       Text="Approve the photo to issue the card."
+                                                       FontSize="12" TextWrapping="Wrap"/>
+                                            <Button x:Name="BtnApprove" Content="Approve photo"
+                                                    Click="ApprovePhoto_Click" Margin="0,8,0,0"
+                                                    HorizontalAlignment="Left"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock x:Name="TxtPhotoStatus"
+                                               Foreground="{StaticResource ErrorBrush}"
+                                               TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </ScrollViewer>
+
+                    <!-- ===== FOOTER: check chips + output + issue ===== -->
+                    <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="0,1,0,0" Background="{StaticResource PanelLightBrush}"
+                            Padding="14,8">
+                        <DockPanel>
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
+                                        VerticalAlignment="Center">
+                                <Border x:Name="ChipDetails" CornerRadius="10" Padding="10,4"
+                                        Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock x:Name="TxtChipDetails" Text="Details complete"
+                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                </Border>
+                                <Border x:Name="ChipUidNew" CornerRadius="10" Padding="10,4"
+                                        Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock x:Name="TxtChipUidNew" Text="Employee ID is new"
+                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                </Border>
+                                <Border x:Name="ChipPhoto" CornerRadius="10" Padding="10,4"
+                                        Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock x:Name="TxtChipPhoto" Text="Photo approved"
+                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                </Border>
+                                <TextBlock x:Name="TxtStatus" VerticalAlignment="Center"
+                                           Margin="14,0,0,0" TextWrapping="Wrap" MaxWidth="380"
+                                           Foreground="{StaticResource TextBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TxtOutputText" Text="Saves image"
+                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock x:Name="TxtOutputPdf" Text=" + PDF" FontSize="11"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Visibility="Collapsed"/>
+                                    <TextBlock Text=" · " FontSize="11"
+                                               Foreground="{StaticResource MutedBrush}"/>
+                                    <Button x:Name="BtnOutputSettings" Content="change in Settings"
+                                            Style="{StaticResource GhostButton}" Height="24"
+                                            Padding="4,0" FontSize="11" Click="GoSettings_Click"
+                                            Visibility="Collapsed"/>
+                                </StackPanel>
+                                <Button x:Name="BtnSave" Content="Issue card" Click="Save_Click"
+                                        Style="{StaticResource PrimaryButton}" Height="40"
+                                        Margin="14,0,0,0" IsEnabled="False" ToolTip="Ctrl+Enter"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
                 </Grid>
 
                 <!-- ===== BATCH ===== -->

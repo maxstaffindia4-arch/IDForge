@@ -25,9 +25,13 @@ public partial class MainWindow : Window
     private SKBitmap? _windowImage;
     private WindowTransform _autoTransform = WindowTransform.Identity;
     private string? _photoPath;
+    private DateTime? _photoAddedAt;
     private float _nudgeZoom = 1f, _nudgeX, _nudgeY;
     private bool _photoApproved;
     private Employee? _editingEmployee;
+    private bool _restoringDraft;
+    private int _previewZoomMode; // 0=Fit, 1=100%, 2=200%
+    private readonly DispatcherTimer _draftTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
 
     // Records state
     private Employee? _selectedEmployee;
@@ -63,9 +67,8 @@ public partial class MainWindow : Window
         CmbBlood.SelectedItem = "N/A";
         CmbPosition.ItemsSource = Config.Positions;
         CmbPosition.SelectedIndex = 0;
-        CmbContract.ItemsSource = Config.ContractTypes;
-        CmbContract.SelectedIndex = 1; // Permanent
         DpPrintDate.SelectedDate = Validity.TodayInDhaka().ToDateTime(TimeOnly.MinValue);
+        _draftTimer.Tick += (_, _) => { _draftTimer.Stop(); SaveDraftNow(); };
 
         // Batch grid combo columns are DataGridTemplateColumns now (ItemsSource
         // bound in XAML); nothing to wire here.
@@ -172,14 +175,23 @@ public partial class MainWindow : Window
         _previewDebounce.Start();
     }
 
-    private void Field_Changed(object sender, SelectionChangedEventArgs e) { MarkDirty(); SchedulePreview(); }
+    private void Field_Changed(object sender, SelectionChangedEventArgs e) { MarkDirty(); NewCardUiChanged(); }
     private void Field_Changed(object sender, TextChangedEventArgs e)
     {
-        if (sender == TxtUid) UpdateUidError();
-        MarkDirty();
-        SchedulePreview();
+        if (sender == TxtUid) Uid_TextChanged(sender, e);
+        else { MarkDirty(); NewCardUiChanged(); }
     }
-    private void Field_Changed(object sender, RoutedEventArgs e) { MarkDirty(); SchedulePreview(); }
+    private void Field_Changed(object sender, RoutedEventArgs e) { MarkDirty(); NewCardUiChanged(); }
+
+    /// <summary>Side-effects of any New Card field change: preview, validity, chips, autosave.</summary>
+    private void NewCardUiChanged()
+    {
+        if (!_shellReady) return;   // Checked/SelectionChanged fire during InitializeComponent
+        SchedulePreview();
+        UpdateValidityLine();
+        UpdateFooterChips();
+        ScheduleDraftSave();
+    }
 
     private (string name, string blood, string position, string uid, string contract, DateOnly printDate) GetForm()
     {
@@ -187,10 +199,35 @@ public partial class MainWindow : Window
         var blood = CmbBlood.SelectedItem as string ?? "N/A";
         var position = CmbPosition.SelectedItem as string ?? "";
         var uid = Core.Uid.Normalize(TxtUid.Text) ?? "";
-        var contract = CmbContract.SelectedItem as string ?? "Permanent";
+        var contract = RadContractPerm.IsChecked == true ? "Permanent" : "Contractual";
         var printDate = DpPrintDate.SelectedDate is DateTime dt
             ? DateOnly.FromDateTime(dt) : Validity.TodayInDhaka();
         return (name, blood, position, uid, contract, printDate);
+    }
+
+    /// <summary>Digits only — letters and symbols never reach the field.</summary>
+    private void Uid_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        => e.Handled = e.Text.Any(c => !char.IsDigit(c));
+
+    /// <summary>
+    /// Keeps the field digits-only (covers paste, which bypasses
+    /// PreviewTextInput) and strips a pasted "UID" prefix — the prefix is
+    /// added to the card for the operator.
+    /// </summary>
+    private void Uid_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var digits = new string(TxtUid.Text.Where(char.IsDigit).ToArray());
+        if (digits.Length > Core.Uid.MaxLength) digits = digits[..Core.Uid.MaxLength];
+        if (digits != TxtUid.Text)
+        {
+            var caret = TxtUid.CaretIndex;
+            TxtUid.Text = digits;
+            TxtUid.CaretIndex = Math.Min(caret, digits.Length);
+        }
+        TxtUidCount.Text = $"{digits.Length} / {Core.Uid.MaxLength}";
+        UpdateUidStatus();
+        MarkDirty();
+        NewCardUiChanged();
     }
 
     /// <summary>Rewrites the UID field to its normalized digit form on focus loss.</summary>
@@ -198,17 +235,35 @@ public partial class MainWindow : Window
     {
         var n = Core.Uid.Normalize(TxtUid.Text);
         if (n != null && n != TxtUid.Text.Trim()) TxtUid.Text = n;
-        UpdateUidError();
+        UpdateUidStatus();
     }
 
-    private void UpdateUidError()
+    /// <summary>Catalogue wording: length error, existing-card warning, or "new employee".</summary>
+    private void UpdateUidStatus()
     {
-        var raw = TxtUid.Text.Trim();
-        if (raw.Length == 0) { ErrUid.Text = ""; return; }
-        var n = Core.Uid.Normalize(raw);
-        ErrUid.Text = Core.Uid.IsValid(n)
-            ? $"Saved as: {n}  (barcode: UID{n})"
-            : "UID must be digits only, 4-15 characters (e.g. 20250318).";
+        var digits = new string(TxtUid.Text.Where(char.IsDigit).ToArray());
+        if (digits.Length == 0) { ErrUid.Text = ""; ErrUid.Foreground = Brushes.Gray; return; }
+        if (!Core.Uid.IsValid(digits))
+        {
+            ErrUid.Text = $"Employee ID must be {Core.Uid.MinLength} to {Core.Uid.MaxLength} digits. " +
+                          $"You've entered {digits.Length}.";
+            ErrUid.Foreground = FindResource("ErrorBrush") as Brush ?? Brushes.Red;
+            return;
+        }
+        var existing = _svc?.Store.FindEmployeeByUid(digits);
+        if (existing != null)
+        {
+            var issue = _svc.Store.LatestIssue(existing.Id);
+            var when = issue?.IssuedAt.LocalDateTime.ToString("dd/MM/yyyy")
+                       ?? existing.CreatedAt.LocalDateTime.ToString("dd/MM/yyyy");
+            ErrUid.Text = $"UID already exists — issued to {existing.Name} on {when}.";
+            ErrUid.Foreground = FindResource("WarningBrush") as Brush ?? Brushes.DarkOrange;
+        }
+        else
+        {
+            ErrUid.Text = "New employee — no existing card with this ID";
+            ErrUid.Foreground = FindResource("SuccessBrush") as Brush ?? Brushes.Green;
+        }
     }
 
     private bool FormValid(out string error)
@@ -266,6 +321,7 @@ public partial class MainWindow : Window
         if (req != _previewRequest || pixels == null) return; // stale render
         ImgPreview.Source = ToWriteableBitmap(pixels, pw, ph);
         TxtPreviewHint.Visibility = Visibility.Collapsed;
+        ApplyPreviewZoom();
     }
 
     // ---------------- photo ----------------
@@ -278,27 +334,79 @@ public partial class MainWindow : Window
             Title = "Select staff photo"
         };
         if (dlg.ShowDialog() != true) return;
-        TxtPhoto.Text = dlg.FileName;
         _photoPath = dlg.FileName;
+        _photoAddedAt = DateTime.Now;
+        UpdatePhotoMeta();
         ProcessPhotoAsync(dlg.FileName);
+        ScheduleDraftSave();
     }
 
-    private BgMode CurrentBgMode => (CmbBgMode.SelectedIndex) switch
+    private void UpdatePhotoMeta()
     {
-        1 => BgMode.Model,
-        2 => BgMode.Keep,
-        _ => BgMode.PlainWhite
+        if (_photoPath == null) { TxtPhotoName.Text = "No photo chosen"; TxtPhotoMeta.Text = ""; return; }
+        TxtPhotoName.Text = Path.GetFileName(_photoPath);
+        try
+        {
+            var size = new FileInfo(_photoPath).Length;
+            var sizeText = size > 1024 * 1024 ? $"{size / 1048576.0:0.0} MB" : $"{size / 1024.0:0.0} KB";
+            TxtPhotoMeta.Text = _photoAddedAt is { } t ? $"{sizeText} · added {t:HH:mm}" : sizeText;
+        }
+        catch { TxtPhotoMeta.Text = ""; }
+    }
+
+    private void UpdatePhotoThumb()
+    {
+        SKBitmap? bmp;
+        lock (_photoLock) bmp = _windowImage;
+        if (bmp == null) { ImgPhotoThumb.Source = null; return; }
+        try
+        {
+            using var img = SKImage.FromBitmap(bmp);
+            using var data = img.Encode(SKEncodedImageFormat.Png, 80);
+            using var ms = new MemoryStream();
+            data.SaveTo(ms);
+            ms.Position = 0;
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.StreamSource = ms;
+            bi.EndInit();
+            bi.Freeze();
+            ImgPhotoThumb.Source = bi;
+        }
+        catch { ImgPhotoThumb.Source = null; }
+    }
+
+    private BgMode CurrentBgMode
+    {
+        get
+        {
+            if (RadBgModel.IsChecked == true) return BgMode.Model;
+            if (RadBgKeep.IsChecked == true) return BgMode.Keep;
+            return BgMode.PlainWhite;
+        }
+    }
+
+    private string CurrentBgModeTag => CurrentBgMode switch
+    {
+        BgMode.Model => "Model", BgMode.Keep => "Keep", _ => "PlainWhite"
     };
 
-    private void BgMode_Changed(object sender, SelectionChangedEventArgs e)
+    private void BgRadio_Changed(object sender, RoutedEventArgs e)
     {
         // Mode change reprocesses from the original file (cache makes repeat
-        // modes cheap) and keeps the current nudge values.
-        if (_photoPath != null && IsLoaded)
-            ProcessPhotoAsync(_photoPath, keepNudge: true);
+        // modes cheap) and keeps the current nudge values. Checked also fires
+        // for programmatic IsChecked sets — IsLoaded + _photoPath guard those.
+        if (_restoringDraft || _photoPath == null || !IsLoaded) return;
+        ProcessPhotoAsync(_photoPath, keepNudge: true);
     }
 
-    private bool _syncingNudge;
+    private void SetBgModeFromTag(string tag)
+    {
+        RadBgPlain.IsChecked = tag == "PlainWhite";
+        RadBgModel.IsChecked = tag == "Model";
+        RadBgKeep.IsChecked = tag == "Keep";
+    }
 
     private async void ProcessPhotoAsync(string path, bool keepNudge = false)
     {
@@ -306,8 +414,9 @@ public partial class MainWindow : Window
         TxtPhotoStatus.Text = "Processing photo (background removal)...";
         BtnApprove.IsEnabled = false;
         _photoApproved = false;
+        UpdateApproveButton();
         BtnSave.IsEnabled = false;
-        GrpNudge.IsEnabled = false;
+        PosPanel.IsEnabled = false;
         try
         {
             var mode = CurrentBgMode;
@@ -322,13 +431,12 @@ public partial class MainWindow : Window
             if (keepNudge)
             {
                 _nudgeZoom = keepZoom; _nudgeX = keepX; _nudgeY = keepY;
-                SldZoom.Value = keepZoom; SldX.Value = keepX; SldY.Value = keepY;
             }
             else
             {
                 _nudgeZoom = 1f; _nudgeX = 0; _nudgeY = 0;
-                SldZoom.Value = 1; SldX.Value = 0; SldY.Value = 0;
             }
+            PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
             var bgNote = job.BgMethod switch
             {
                 "skipped-transparent" => "Background already transparent — removal skipped.",
@@ -339,9 +447,12 @@ public partial class MainWindow : Window
             };
             TxtPhotoStatus.Text = string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — check preview, then Approve." }
                 .Where(s => s != null));
-            GrpNudge.IsEnabled = job.Cutout != null;
+            PosPanel.IsEnabled = job.Cutout != null;
             BtnApprove.IsEnabled = job.Cutout != null;
+            UpdatePhotoThumb();
+            UpdateFooterChips();
             SchedulePreview();
+            ScheduleDraftSave();
         }
         catch (Exception ex)
         {
@@ -349,24 +460,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SyncNudgeText()
-    {
-        // XAML parse fires ValueChanged before the text boxes exist.
-        if (_syncingNudge || TxtZoom == null) return;
-        _syncingNudge = true;
-        TxtZoom.Text = SldZoom.Value.ToString("0.##");
-        TxtX.Text = ((int)SldX.Value).ToString();
-        TxtY.Text = ((int)SldY.Value).ToString();
-        _syncingNudge = false;
-    }
+    // ---------------- photo position (PhotoPositionPanel + preview keys) ----------------
 
-    private void Nudge_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    /// <summary>Rebuilds the window image from auto-transform + nudge values.</summary>
+    private void RebuildPhotoWindow()
     {
-        SyncNudgeText();
-        if (TxtZoom == null || _cutout == null || _autoTransform == null) return;
-        _nudgeZoom = (float)SldZoom.Value;
-        _nudgeX = (float)SldX.Value;
-        _nudgeY = (float)SldY.Value;
+        if (_cutout == null || _autoTransform == null) return;
         lock (_photoLock)
         {
             if (_cutout == null) return;
@@ -377,33 +476,60 @@ public partial class MainWindow : Window
             _windowImage?.Dispose();
             _windowImage = CardService.ComposeWindow(_cutout, t);
         }
+    }
+
+    /// <summary>Shared tail for every nudge/zoom/offset change.</summary>
+    private void PhotoAdjusted()
+    {
+        PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
         _photoApproved = false;
-        BtnApprove.IsEnabled = true;
+        UpdateApproveButton();
+        BtnApprove.IsEnabled = _cutout != null;
+        UpdateFooterChips();
         SchedulePreview();
+        ScheduleDraftSave();
     }
 
-    private void NudgeText_Changed(object sender, TextChangedEventArgs e)
+    /// <summary>Nudge the photo by (dx, dy) px — arrows call with 1, Shift+arrows with 10.</summary>
+    public void NudgePhoto(int dx, int dy)
     {
-        if (_syncingNudge || _cutout == null) return;
-        if (sender is not TextBox tb || !double.TryParse(tb.Text, out var v)) return;
-        _syncingNudge = true;
-        switch (tb.Tag as string)
-        {
-            case "zoom": SldZoom.Value = Math.Clamp(v, SldZoom.Minimum, SldZoom.Maximum); break;
-            case "x": SldX.Value = Math.Clamp(v, SldX.Minimum, SldX.Maximum); break;
-            case "y": SldY.Value = Math.Clamp(v, SldY.Minimum, SldY.Maximum); break;
-        }
-        _syncingNudge = false;
-        SyncNudgeText();
+        _nudgeX = Math.Clamp(_nudgeX + dx, -320, 320);
+        _nudgeY = Math.Clamp(_nudgeY + dy, -400, 400);
+        RebuildPhotoWindow();
+        PhotoAdjusted();
     }
 
-    private void ResetNudge_Click(object sender, RoutedEventArgs e)
+    /// <summary>Absolute offset commit from the numeric boxes (px).</summary>
+    public void SetPhotoOffset(double x, double y)
     {
-        _syncingNudge = true;
-        SldZoom.Value = 1; SldX.Value = 0; SldY.Value = 0;
-        TxtZoom.Text = "1"; TxtX.Text = "0"; TxtY.Text = "0";
-        _syncingNudge = false;
-        _nudgeZoom = 1; _nudgeX = 0; _nudgeY = 0;
+        _nudgeX = Math.Clamp((float)x, -320, 320);
+        _nudgeY = Math.Clamp((float)y, -400, 400);
+        RebuildPhotoWindow();
+        PhotoAdjusted();
+    }
+
+    /// <summary>Zoom factor commit (existing slider range 0.4–3.0).</summary>
+    public void SetPhotoZoom(double factor)
+    {
+        _nudgeZoom = Math.Clamp((float)factor, 0.4f, 3.0f);
+        RebuildPhotoWindow();
+        PhotoAdjusted();
+    }
+
+    /// <summary>Current nudge transform (zoom factor, x px, y px).</summary>
+    public void GetNudge(out double zoom, out double x, out double y)
+    {
+        zoom = _nudgeZoom; x = _nudgeX; y = _nudgeY;
+    }
+
+    /// <summary>Arrow-key step: 1 px, or 10 px with Shift.</summary>
+    public static int PhotoNudgeStep(ModifierKeys m)
+        => (m & ModifierKeys.Shift) != 0 ? 10 : 1;
+
+    /// <summary>Ctrl+0 / Reset: back to the auto-fit transform.</summary>
+    public void ResetPhotoPosition()
+    {
+        _nudgeZoom = 1f; _nudgeX = 0; _nudgeY = 0;
         lock (_photoLock)
         {
             if (_cutout != null)
@@ -412,12 +538,31 @@ public partial class MainWindow : Window
                 _windowImage = CardService.ComposeWindow(_cutout, _autoTransform);
             }
         }
-        if (_cutout != null)
+        PhotoAdjusted();
+    }
+
+    private void WirePhotoPanel()
+    {
+        PosPanel.NudgeRequested += (dx, dy) => NudgePhoto(dx, dy);
+        PosPanel.OffsetCommitted += SetPhotoOffset;
+        PosPanel.ZoomChanged += SetPhotoZoom;
+        PosPanel.ResetRequested += ResetPhotoPosition;
+        PosPanel.SetState(1, 0, 0);
+    }
+
+    private void UpdateApproveButton()
+    {
+        if (_photoApproved)
         {
-            _photoApproved = false;
-            BtnApprove.IsEnabled = true;
-            SchedulePreview();
+            BtnApprove.Content = "✓ Photo approved";
+            BtnApprove.Style = FindResource("SuccessButton") as Style;
         }
+        else
+        {
+            BtnApprove.Content = "Approve photo";
+            BtnApprove.Style = null;
+        }
+        ChkPhoto.Visibility = _photoApproved ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ApprovePhoto_Click(object sender, RoutedEventArgs e)
@@ -425,7 +570,235 @@ public partial class MainWindow : Window
         if (_windowImage == null) { SetStatus("Process a photo first."); return; }
         _photoApproved = true;
         BtnSave.IsEnabled = true;
+        UpdateApproveButton();
+        UpdateFooterChips();
         SetStatus("Photo approved.");
+    }
+
+    // ---------------- New Card: validity, chips, output line ----------------
+
+    /// <summary>"Card will be valid until dd/MM/yyyy · N months from print date".</summary>
+    private void UpdateValidityLine()
+    {
+        if (DpPrintDate.SelectedDate is not DateTime dt)
+        {
+            TxtValidity.Text = "";
+            return;
+        }
+        var printDate = DateOnly.FromDateTime(dt);
+        var contract = RadContractPerm.IsChecked == true ? "Permanent" : "Contractual";
+        var months = contract == "Permanent" ? Config.PermanentMonths : Config.ContractualMonths;
+        var until = Validity.CalculateValidUntil(printDate, contract);
+        TxtValidity.Text = $"Card will be valid until {until:dd/MM/yyyy} · {months} months from print date";
+    }
+
+    private void SetChip(Border chip, TextBlock text, bool on)
+    {
+        if (on)
+        {
+            chip.Background = FindResource("SuccessTintBrush") as Brush;
+            chip.BorderBrush = FindResource("SuccessBrush") as Brush;
+            text.Foreground = FindResource("SuccessBrush") as Brush;
+        }
+        else
+        {
+            chip.ClearValue(Border.BackgroundProperty);
+            chip.BorderBrush = FindResource("BorderBrush") as Brush;
+            text.Foreground = FindResource("MutedBrush") as Brush;
+        }
+    }
+
+    private void UpdateFooterChips()
+    {
+        var f = GetForm();
+        bool detailsDone = f.name.Length >= 2 && Core.Uid.IsValid(f.uid)
+            && Config.Positions.Contains(f.position) && Config.BloodGroups.Contains(f.blood);
+        bool uidNew = Core.Uid.IsValid(f.uid) && _svc.Store.FindEmployeeByUid(f.uid) == null;
+        SetChip(ChipDetails, TxtChipDetails, detailsDone);
+        SetChip(ChipUidNew, TxtChipUidNew, uidNew);
+        SetChip(ChipPhoto, TxtChipPhoto, _photoApproved);
+    }
+
+    /// <summary>"Saves image + PDF" when PDF is on in Settings, else "Saves image · change in Settings".</summary>
+    private void UpdateOutputLine()
+    {
+        TxtOutputPdf.Visibility = AppSettings.IncludePdf ? Visibility.Visible : Visibility.Collapsed;
+        BtnOutputSettings.Visibility = AppSettings.IncludePdf ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ---------------- New Card: draft ----------------
+
+    private void SaveDraftNow()
+    {
+        if (!_shellReady) return;
+        var f = GetForm();
+        NewCardDraft.Save(new NewCardDraft
+        {
+            Name = TxtName.Text.Trim(),
+            Blood = f.blood,
+            Position = f.position,
+            Uid = new string(TxtUid.Text.Where(char.IsDigit).ToArray()),
+            Contract = f.contract,
+            PrintDate = DpPrintDate.SelectedDate?.ToString("yyyy-MM-dd") ?? "",
+            BgMode = CurrentBgModeTag,
+            PhotoPath = _photoPath,
+            Zoom = _nudgeZoom,
+            OffsetX = _nudgeX,
+            OffsetY = _nudgeY,
+            SavedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm")
+        });
+        TxtDraftNote.Text = $"Draft saved automatically {DateTime.Now:HH:mm}";
+    }
+
+    private void SaveDraft_Click(object sender, RoutedEventArgs e) => SaveDraftNow();
+
+    /// <summary>Restores the autosaved draft after restart (fields + photo + nudges).</summary>
+    private void RestoreDraft()
+    {
+        var d = NewCardDraft.Load();
+        if (d == null) return;
+        _restoringDraft = true;
+        try
+        {
+            TxtName.Text = d.Name;
+            if (Config.BloodGroups.Contains(d.Blood)) CmbBlood.SelectedItem = d.Blood;
+            if (Config.Positions.Contains(d.Position)) CmbPosition.SelectedItem = d.Position;
+            TxtUid.Text = d.Uid;
+            RadContractPerm.IsChecked = d.Contract != "Contractual";
+            RadContractContract.IsChecked = d.Contract == "Contractual";
+            if (DateOnly.TryParse(d.PrintDate, out var pd))
+                DpPrintDate.SelectedDate = pd.ToDateTime(TimeOnly.MinValue);
+            SetBgModeFromTag(d.BgMode);
+            _nudgeZoom = (float)d.Zoom; _nudgeX = (float)d.OffsetX; _nudgeY = (float)d.OffsetY;
+            PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
+
+            if (!string.IsNullOrWhiteSpace(d.PhotoPath) && File.Exists(d.PhotoPath))
+            {
+                _photoPath = d.PhotoPath;
+                _photoAddedAt = null;
+                UpdatePhotoMeta();
+                ProcessPhotoAsync(d.PhotoPath, keepNudge: true);
+            }
+            else if (!string.IsNullOrWhiteSpace(d.PhotoPath))
+            {
+                TxtPhotoStatus.Text = "Draft photo file is missing — choose the photo again.";
+            }
+            TxtDraftNote.Text = $"Draft restored — saved {d.SavedAt}";
+        }
+        finally { _restoringDraft = false; }
+    }
+
+    /// <summary>Clear form: back to defaults and remove the saved draft.</summary>
+    private void ClearForm_Click(object sender, RoutedEventArgs e)
+    {
+        _restoringDraft = true;
+        try
+        {
+            TxtName.Clear(); TxtUid.Clear();
+            CmbBlood.SelectedItem = "N/A";
+            CmbPosition.SelectedIndex = 0;
+            RadContractPerm.IsChecked = AppSettings.DefaultContract != "Contractual";
+            RadContractContract.IsChecked = AppSettings.DefaultContract == "Contractual";
+            DpPrintDate.SelectedDate = Validity.TodayInDhaka().ToDateTime(TimeOnly.MinValue);
+            SetBgModeFromTag(AppSettings.DefaultBgMode);
+            _photoPath = null; _photoAddedAt = null;
+            TxtPhotoName.Text = "No photo chosen"; TxtPhotoMeta.Text = "";
+            ImgPhotoThumb.Source = null;
+            lock (_photoLock)
+            {
+                _cutout?.Dispose(); _windowImage?.Dispose();
+                _cutout = _windowImage = null;
+            }
+            _photoApproved = false;
+            UpdateApproveButton();
+            BtnApprove.IsEnabled = false;
+            PosPanel.IsEnabled = false;
+            PosPanel.SetState(1, 0, 0);
+            _nudgeZoom = 1f; _nudgeX = _nudgeY = 0;
+            TxtPhotoStatus.Text = "";
+            TxtStatus.Text = "";
+            NewCardDraft.Clear();
+            TxtDraftNote.Text = "";
+            _dirty = false;
+            UpdateTitle();
+        }
+        finally { _restoringDraft = false; }
+        UpdateUidStatus();
+        UpdateValidityLine();
+        UpdateFooterChips();
+        SchedulePreview();
+    }
+
+    // ---------------- New Card: preview zoom, arrows, drag-drop ----------------
+
+    private void ZoomMode_Changed(object sender, RoutedEventArgs e)
+    {
+        _previewZoomMode = RadZoomFit.IsChecked == true ? 0 : RadZoom100.IsChecked == true ? 1 : 2;
+        ApplyPreviewZoom();
+    }
+
+    private void ApplyPreviewZoom()
+    {
+        if (ImgPreview?.Source == null) return;   // ImgPreview still null during InitializeComponent
+        switch (_previewZoomMode)
+        {
+            case 1: ImgPreview.Width = Config.CardWidth; ImgPreview.Height = Config.CardHeight; break;
+            case 2: ImgPreview.Width = Config.CardWidth * 2; ImgPreview.Height = Config.CardHeight * 2; break;
+            default:
+                var w = PreviewArea.ActualWidth - 24;
+                var h = PreviewArea.ActualHeight - 24;
+                if (w <= 0 || h <= 0) { ImgPreview.Width = double.NaN; ImgPreview.Height = double.NaN; return; }
+                var s = Math.Min(w / Config.CardWidth, h / Config.CardHeight);
+                ImgPreview.Width = Config.CardWidth * s;
+                ImgPreview.Height = Config.CardHeight * s;
+                break;
+        }
+    }
+
+    private void PreviewArea_SizeChanged(object sender, SizeChangedEventArgs e) => ApplyPreviewZoom();
+
+    /// <summary>Ctrl+wheel cycles Fit → 100% → 200% → Fit.</summary>
+    private void Preview_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+        _previewZoomMode = (_previewZoomMode + (e.Delta > 0 ? 1 : 2)) % 3;
+        RadZoomFit.IsChecked = _previewZoomMode == 0;
+        RadZoom100.IsChecked = _previewZoomMode == 1;
+        RadZoom200.IsChecked = _previewZoomMode == 2;
+        e.Handled = true;
+    }
+
+    /// <summary>Arrow keys move the photo 1 px; Shift+arrows 10 px.</summary>
+    private void Preview_KeyDown(object sender, KeyEventArgs e)
+    {
+        var step = PhotoNudgeStep(Keyboard.Modifiers);
+        var (dx, dy) = e.Key switch
+        {
+            Key.Left => (-step, 0), Key.Right => (step, 0),
+            Key.Up => (0, -step), Key.Down => (0, step),
+            _ => (0, 0)
+        };
+        if (dx == 0 && dy == 0) return;
+        NudgePhoto(dx, dy);
+        e.Handled = true;
+    }
+
+    private void Preview_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void Preview_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+        {
+            _photoPath = files[0];
+            _photoAddedAt = DateTime.Now;
+            UpdatePhotoMeta();
+            ProcessPhotoAsync(files[0]);
+            ScheduleDraftSave();
+        }
     }
 
     // ---------------- shell: nav, menu, status bar, settings (Phase 2) ----------------
@@ -451,10 +824,20 @@ public partial class MainWindow : Window
         {
             "Model" => 1, "Keep" => 2, _ => 0
         };
+        // New Card: contract + background defaults from Settings
+        RadContractPerm.IsChecked = AppSettings.DefaultContract != "Contractual";
+        RadContractContract.IsChecked = AppSettings.DefaultContract == "Contractual";
+        SetBgModeFromTag(AppSettings.DefaultBgMode);
+        WirePhotoPanel();
+        UpdateOutputLine();
         UpdateStatusBar();
         UpdateTitle();
         ShowArea("newcard");
         _shellReady = true;
+        RestoreDraft();
+        UpdateValidityLine();
+        UpdateFooterChips();
+        UpdateUidStatus();
     }
 
     /// <summary>Switches the visible page + nav highlight. State is kept per page.</summary>
@@ -484,7 +867,15 @@ public partial class MainWindow : Window
 
     private void MarkDirty()
     {
+        if (!_shellReady) return;   // ctor/InitializeComponent field sets are not edits
         if (!_dirty) { _dirty = true; UpdateTitle(); }
+    }
+
+    private void ScheduleDraftSave()
+    {
+        if (!_shellReady || _restoringDraft) return;
+        _draftTimer.Stop();
+        _draftTimer.Start();
     }
 
     private void UpdateStatusBar()
@@ -537,17 +928,27 @@ public partial class MainWindow : Window
         PnlBackupCompact.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Ctrl+1/2/3/, area switching and Ctrl+B backup. Returns true when handled.</summary>
+    /// <summary>Area shortcuts + New Card editing shortcuts. Returns true when handled.</summary>
     public bool TryHandleShortcut(Key key, ModifierKeys modifiers)
     {
-        if (modifiers != ModifierKeys.Control) return false;
+        bool ctrl = modifiers.HasFlag(ModifierKeys.Control);
+        bool shift = modifiers.HasFlag(ModifierKeys.Shift);
+        if (!ctrl || modifiers.HasFlag(ModifierKeys.Alt) || modifiers.HasFlag(ModifierKeys.Windows))
+            return false;
+        var inNewCard = _area == "newcard";
         switch (key)
         {
             case Key.D1: ShowArea("newcard"); break;
             case Key.D2: ShowArea("batch"); break;
             case Key.D3: ShowArea("records"); break;
             case Key.OemComma: ShowArea("settings"); break;
-            case Key.B: NavBackup_Click(this, null!); break;
+            case Key.B when !shift: NavBackup_Click(this, null!); break;
+            case Key.O when inNewCard && !shift: BrowsePhoto_Click(this, null!); break;
+            case Key.D0 when inNewCard && !shift:
+            case Key.NumPad0 when inNewCard && !shift: ResetPhotoPosition(); break;
+            case Key.S when inNewCard && !shift: SaveDraftNow(); break;
+            case Key.Enter when inNewCard && !shift: Save_Click(this, null!); break;
+            case Key.A when inNewCard && shift: ApprovePhoto_Click(this, null!); break;
             default: return false;
         }
         return true;
@@ -613,6 +1014,7 @@ public partial class MainWindow : Window
         if (SetPdf.IsChecked != null) AppSettings.IncludePdf = SetPdf.IsChecked == true;
         if (SetContract.SelectedItem is string c) AppSettings.DefaultContract = c;
         if (SetBg.SelectedItem is ComboBoxItem bg && bg.Tag is string tag) AppSettings.DefaultBgMode = tag;
+        UpdateOutputLine();
         TxtSettingsStatus.Text = "Setting saved";
         var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         t.Tick += (_, _) => { TxtSettingsStatus.Text = ""; t.Stop(); };
@@ -677,7 +1079,8 @@ public partial class MainWindow : Window
                 TxtName.Text = existing.Name;
                 CmbBlood.SelectedItem = existing.BloodGroup;
                 CmbPosition.SelectedItem = existing.Position;
-                CmbContract.SelectedItem = existing.ContractType;
+                RadContractPerm.IsChecked = existing.ContractType == "Permanent";
+                RadContractContract.IsChecked = existing.ContractType != "Permanent";
                 RefreshRecords();
                 SetStatus("Existing record loaded. Adjust and Save to issue a new version.");
                 return;
@@ -728,17 +1131,27 @@ public partial class MainWindow : Window
             SetStatus($"Issued v{issue.Version} — valid until {issue.ValidUntil:MMMM yyyy}.\nSaved: {savedFiles}");
             Dialogs.ShowIssued(this, f.uid, issue.ValidUntil, outcome.PngPath, outcome.PdfPath);
 
-            // reset form
-            TxtName.Clear(); TxtUid.Clear(); TxtPhoto.Clear();
+            // reset form (same fields as before: name, UID, photo)
+            TxtName.Clear(); TxtUid.Clear();
+            _photoPath = null; _photoAddedAt = null;
+            TxtPhotoName.Text = "No photo chosen"; TxtPhotoMeta.Text = "";
+            ImgPhotoThumb.Source = null;
             lock (_photoLock)
             {
                 _cutout?.Dispose(); _windowImage?.Dispose();
                 _cutout = _windowImage = null;
             }
-            _photoPath = null;
-            _photoApproved = false; BtnSave.IsEnabled = false; BtnApprove.IsEnabled = false;
+            _photoApproved = false;
+            UpdateApproveButton();
+            BtnApprove.IsEnabled = false;
+            PosPanel.IsEnabled = false;
+            PosPanel.SetState(1, 0, 0);
+            _nudgeZoom = 1f; _nudgeX = _nudgeY = 0;
             _dirty = false;
-            GrpNudge.IsEnabled = false;
+            NewCardDraft.Clear();
+            TxtDraftNote.Text = "";
+            UpdateUidStatus();
+            UpdateFooterChips();
             SchedulePreview();
             RefreshRecords();
         }
@@ -746,7 +1159,7 @@ public partial class MainWindow : Window
         {
             SetStatus($"Save failed: {ex.Message}");
         }
-        finally { BtnSave.IsEnabled = true; }
+        finally { BtnSave.IsEnabled = _photoApproved; }
     }
 
     // ---------------- records ----------------
