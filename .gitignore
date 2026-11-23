@@ -15,3 +15,6 @@ idcard.db*
 *.log
 settings.json
 dbg_decode.txt
+
+!tests/fixtures/photos/
+!tests/fixtures/photos/**
