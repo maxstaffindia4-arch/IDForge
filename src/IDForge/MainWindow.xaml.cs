@@ -175,13 +175,13 @@ public partial class MainWindow : Window
         _previewDebounce.Start();
     }
 
-    private void Field_Changed(object sender, SelectionChangedEventArgs e) { MarkDirty(); NewCardUiChanged(); }
+    private void Field_Changed(object sender, SelectionChangedEventArgs e) => NewCardUiChanged();
     private void Field_Changed(object sender, TextChangedEventArgs e)
     {
         if (sender == TxtUid) Uid_TextChanged(sender, e);
-        else { MarkDirty(); NewCardUiChanged(); }
+        else NewCardUiChanged();
     }
-    private void Field_Changed(object sender, RoutedEventArgs e) { MarkDirty(); NewCardUiChanged(); }
+    private void Field_Changed(object sender, RoutedEventArgs e) => NewCardUiChanged();
 
     /// <summary>Side-effects of any New Card field change: preview, validity, chips, autosave.</summary>
     private void NewCardUiChanged()
@@ -226,7 +226,6 @@ public partial class MainWindow : Window
         }
         TxtUidCount.Text = $"{digits.Length} / {Core.Uid.MaxLength}";
         UpdateUidStatus();
-        MarkDirty();
         NewCardUiChanged();
     }
 
@@ -648,6 +647,7 @@ public partial class MainWindow : Window
             SavedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm")
         });
         TxtDraftNote.Text = $"Draft saved automatically {DateTime.Now:HH:mm}";
+        if (_draftPending) { _draftPending = false; UpdateTitle(); }
     }
 
     private void SaveDraft_Click(object sender, RoutedEventArgs e) => SaveDraftNow();
@@ -717,9 +717,10 @@ public partial class MainWindow : Window
             _nudgeZoom = 1f; _nudgeX = _nudgeY = 0;
             TxtPhotoStatus.Text = "";
             TxtStatus.Text = "";
+            _draftPending = false;
+            _draftTimer.Stop();
             NewCardDraft.Clear();
             TxtDraftNote.Text = "";
-            _dirty = false;
             UpdateTitle();
         }
         finally { _restoringDraft = false; }
@@ -804,7 +805,7 @@ public partial class MainWindow : Window
     // ---------------- shell: nav, menu, status bar, settings (Phase 2) ----------------
 
     private string _area = "newcard";
-    private bool _dirty;
+    private bool _draftPending;   // edits not yet written to the autosaved draft
     private bool _navCollapsed;
     private bool _shellReady;
 
@@ -858,22 +859,17 @@ public partial class MainWindow : Window
 
     private void UpdateTitle()
         => Title = $"IDForge — {AreaLabel(_area)}" +
-           (_area == "newcard" && _dirty ? " • unsaved changes" : "");
+           (_area == "newcard" && _draftPending ? " • saving…" : "");
 
     private static string AreaLabel(string a) => a switch
     {
         "batch" => "Batch", "records" => "Records", "settings" => "Settings", _ => "New card"
     };
 
-    private void MarkDirty()
-    {
-        if (!_shellReady) return;   // ctor/InitializeComponent field sets are not edits
-        if (!_dirty) { _dirty = true; UpdateTitle(); }
-    }
-
     private void ScheduleDraftSave()
     {
         if (!_shellReady || _restoringDraft) return;
+        if (!_draftPending) { _draftPending = true; UpdateTitle(); }
         _draftTimer.Stop();
         _draftTimer.Start();
     }
@@ -1147,9 +1143,11 @@ public partial class MainWindow : Window
             PosPanel.IsEnabled = false;
             PosPanel.SetState(1, 0, 0);
             _nudgeZoom = 1f; _nudgeX = _nudgeY = 0;
-            _dirty = false;
+            _draftPending = false;
+            _draftTimer.Stop();
             NewCardDraft.Clear();
             TxtDraftNote.Text = "";
+            UpdateTitle();
             UpdateUidStatus();
             UpdateFooterChips();
             SchedulePreview();

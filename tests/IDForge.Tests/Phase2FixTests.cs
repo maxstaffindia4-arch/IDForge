@@ -51,6 +51,17 @@ public class Phase2FixTests
         return n;
     }
 
+    /// <summary>Pumps the dispatcher until the condition holds or the deadline passes.</summary>
+    private static void PumpUntil(Func<bool> done, int ms = 5000)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(ms);
+        while (!done() && DateTime.UtcNow < deadline)
+        {
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.SystemIdle);
+            Thread.Sleep(40);
+        }
+    }
+
     [Fact]
     public void Unsaved_Marker_Only_On_NewCard()
     {
@@ -61,20 +72,49 @@ public class Phase2FixTests
             {
                 // Records with no edits: no marker.
                 main.ShowArea("records");
+                Assert.DoesNotContain("saving", main.Title, StringComparison.OrdinalIgnoreCase);
                 Assert.DoesNotContain("unsaved", main.Title, StringComparison.OrdinalIgnoreCase);
                 main.ShowArea("settings");
-                Assert.DoesNotContain("unsaved", main.Title, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("saving", main.Title, StringComparison.OrdinalIgnoreCase);
                 main.ShowArea("batch");
-                Assert.DoesNotContain("unsaved", main.Title, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("saving", main.Title, StringComparison.OrdinalIgnoreCase);
 
-                // Dirty the New Card form, then switch away and back.
+                // A New Card edit pending autosave shows "saving…", never "unsaved changes".
                 ((TextBox)main.FindName("TxtName")!).Text = "Marker Test";
                 main.ShowArea("newcard");
-                Assert.Contains("unsaved changes", main.Title, StringComparison.OrdinalIgnoreCase);
-                main.ShowArea("records");
+                Assert.Contains("saving", main.Title, StringComparison.OrdinalIgnoreCase);
                 Assert.DoesNotContain("unsaved", main.Title, StringComparison.OrdinalIgnoreCase);
+                main.ShowArea("records");
+                Assert.DoesNotContain("saving", main.Title, StringComparison.OrdinalIgnoreCase);
                 main.ShowArea("newcard");
-                Assert.Contains("unsaved changes", main.Title, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("saving", main.Title, StringComparison.OrdinalIgnoreCase);
+
+                // After the 800 ms autosave fires, the marker clears entirely.
+                PumpUntil(() => !main.Title.Contains("saving"));
+                Assert.DoesNotContain("saving", main.Title, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("unsaved", main.Title, StringComparison.OrdinalIgnoreCase);
+                NewCardDraft.Clear();
+            }
+            finally { main.Close(); }
+            return true;
+        });
+    }
+
+    [Fact]
+    public void Marker_Clears_After_Draft_Autosave()
+    {
+        OnSta(() =>
+        {
+            var main = NewWindow();
+            try
+            {
+                ((TextBox)main.FindName("TxtName")!).Text = "Autosave Test";
+                Assert.Contains("saving", main.Title, StringComparison.OrdinalIgnoreCase);
+                PumpUntil(() => !main.Title.Contains("saving"), 8000);
+                Assert.DoesNotContain("saving", main.Title, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("unsaved", main.Title, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Draft saved automatically", ((TextBlock)main.FindName("TxtDraftNote")!).Text);
+                NewCardDraft.Clear();
             }
             finally { main.Close(); }
             return true;
