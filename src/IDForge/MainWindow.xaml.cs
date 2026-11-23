@@ -508,7 +508,8 @@ public partial class MainWindow : Window
     {
         var n = _batchRows.Count;
         TxtNavBatchCount.Text = n.ToString();
-        NavBatchBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+        NavBatchBadge.Visibility = n > 0 && !_navCollapsed ? Visibility.Visible : Visibility.Collapsed;
+        NavBatch.ToolTip = $"Batch — {n} row{(n == 1 ? "" : "s")} (Ctrl+2)";
     }
 
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -523,8 +524,15 @@ public partial class MainWindow : Window
         {
             if (FindName(name) is FrameworkElement fe) fe.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         }
+        // Collapsed: icon-only items, centered, with tighter padding.
+        foreach (var (rb, pnl) in new (RadioButton, FrameworkElement)[]
+                 { (NavNewCard, NavPnlNewCard), (NavBatch, NavPnlBatch),
+                   (NavRecords, NavPnlRecords), (NavSettings, NavPnlSettings) })
+        {
+            pnl.HorizontalAlignment = collapsed ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+            rb.Padding = collapsed ? new Thickness(4, 8, 4, 8) : new Thickness(10, 7, 10, 7);
+        }
         NavBatchBadge.Visibility = _batchRows.Count > 0 && !collapsed ? Visibility.Visible : Visibility.Collapsed;
-        if (collapsed) { TxtNavBatchCount.Text = _batchRows.Count.ToString(); }
         PnlBackupFull.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         PnlBackupCompact.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
     }

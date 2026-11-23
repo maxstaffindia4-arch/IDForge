@@ -18,7 +18,7 @@
 | ID | Mockup says | We keep | Reason |
 |----|-------------|---------|--------|
 | V1 | Position as free-text field | Position stays a dropdown (`Config.Positions`) | V1 decision — dropdown prevents invalid positions; revisit only if owner asks |
-| V2 | Icon glyphs in collapsed nav | Single letters (N/B/R/S) in a badge | No icon font embedded yet; letters are unambiguous placeholders |
+| V2 | Icon glyphs in collapsed nav | ~~Single letters~~ → Segoe MDL2 Assets icons (E8C8/E8FD/E8F1/E713, E898 backup); icon-only + tooltip when collapsed | Closed in Phase 2 fix pass — system font, no embedding needed |
 | V3 | Page-header action buttons | Headers show title+description only | Area actions still live inside each page (phases 3–6 move them) |
 | V4 | "• unsaved changes" per area | Tracked for New Card field edits only | Batch rows persist immediately; Records/Settings have no draft state yet |
 | V5 | Date-format setting | Display-only text "dd/MM/yyyy" | Entry formats change in phase 3 (New Card) |

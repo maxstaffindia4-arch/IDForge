@@ -105,18 +105,20 @@
                         <TextBlock x:Name="LblIssueCards" Text="ISSUE CARDS" FontSize="10" FontWeight="Bold"
                                    Foreground="{StaticResource MutedBrush}" Margin="4,0,0,4"/>
                         <RadioButton x:Name="NavNewCard" Style="{StaticResource NavItem}" GroupName="nav"
-                                     IsChecked="True" Click="NavNewCard_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="N" FontWeight="Bold" Width="18"/>
+                                     IsChecked="True" Click="NavNewCard_Click" ToolTip="New card (Ctrl+1)">
+                            <StackPanel x:Name="NavPnlNewCard" Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" FontSize="15"
+                                           Width="22" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="NavLblNewCard" Text="New card"/>
                                 <TextBlock x:Name="NavKeyNewCard" Text="Ctrl+1" FontSize="10"
                                            Foreground="{StaticResource MutedBrush}" Margin="8,0,0,0"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavBatch" Style="{StaticResource NavItem}" GroupName="nav"
-                                     Click="NavBatch_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="B" FontWeight="Bold" Width="18"/>
+                                     Click="NavBatch_Click" ToolTip="Batch (Ctrl+2)">
+                            <StackPanel x:Name="NavPnlBatch" Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8FD;" FontSize="15"
+                                           Width="22" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="NavLblBatch" Text="Batch"/>
                                 <Border x:Name="NavBatchBadge" CornerRadius="8" Padding="6,1" Margin="6,0,0,0"
                                         Background="{StaticResource PrimaryBrush}" Visibility="Collapsed">
@@ -130,18 +132,20 @@
                         <TextBlock x:Name="LblManage" Text="MANAGE" FontSize="10" FontWeight="Bold"
                                    Foreground="{StaticResource MutedBrush}" Margin="4,14,0,4"/>
                         <RadioButton x:Name="NavRecords" Style="{StaticResource NavItem}" GroupName="nav"
-                                     Click="NavRecords_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="R" FontWeight="Bold" Width="18"/>
+                                     Click="NavRecords_Click" ToolTip="Records (Ctrl+3)">
+                            <StackPanel x:Name="NavPnlRecords" Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8F1;" FontSize="15"
+                                           Width="22" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="NavLblRecords" Text="Records"/>
                                 <TextBlock x:Name="NavKeyRecords" Text="Ctrl+3" FontSize="10"
                                            Foreground="{StaticResource MutedBrush}" Margin="8,0,0,0"/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton x:Name="NavSettings" Style="{StaticResource NavItem}" GroupName="nav"
-                                     Click="NavSettings_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="S" FontWeight="Bold" Width="18"/>
+                                     Click="NavSettings_Click" ToolTip="Settings (Ctrl+,)">
+                            <StackPanel x:Name="NavPnlSettings" Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" FontSize="15"
+                                           Width="22" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="NavLblSettings" Text="Settings"/>
                                 <TextBlock x:Name="NavKeySettings" Text="Ctrl+," FontSize="10"
                                            Foreground="{StaticResource MutedBrush}" Margin="8,0,0,0"/>
