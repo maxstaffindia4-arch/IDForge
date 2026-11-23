@@ -731,9 +731,12 @@
                                    Foreground="{StaticResource SuccessBrush}"/>
                     </StackPanel>
                 </StackPanel>
-                <TextBlock x:Name="TxtStatusVersion" DockPanel.Dock="Right" VerticalAlignment="Center"
-                           Foreground="{StaticResource MutedBrush}" FontSize="11"
-                           Text="IDForge · About (F1)"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text=" | " Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <TextBlock x:Name="TxtStatusVersion" VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}" FontSize="11"
+                               Text="IDForge · About (F1)"/>
+                </StackPanel>
             </DockPanel>
         </Border>
     </Grid>
