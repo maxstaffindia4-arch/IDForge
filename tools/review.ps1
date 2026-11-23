@@ -6,8 +6,8 @@ Set-Location $root
 
 $gitExe = (Get-Command git -ErrorAction SilentlyContinue).Source
 if (-not $gitExe) { $gitExe = "C:\Tools\MinGit\cmd\git.exe" }
-$dotnetExe = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
-if (-not $dotnetExe) { $dotnetExe = "C:\Users\Max\.dotnet\dotnet.exe" }
+$dotnetExe = "C:\Users\Max\.dotnet\dotnet.exe"
+if (-not (Test-Path $dotnetExe)) { $dotnetExe = (Get-Command dotnet -ErrorAction SilentlyContinue).Source }
 
 $branch = (& $gitExe rev-parse --abbrev-ref HEAD 2>$null)
 $hash = (& $gitExe rev-parse --short HEAD 2>$null)
