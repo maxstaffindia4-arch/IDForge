@@ -1,0 +1,84 @@
+<UserControl x:Class="IDForge.Controls.PhotoPositionPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style TargetType="RepeatButton">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Background" Value="{StaticResource WhiteBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="bd" CornerRadius="6" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <StackPanel>
+        <TextBlock Text="Position and size" FontWeight="SemiBold" FontSize="12"/>
+
+        <!-- Arrow pad: nudge 1 px, Shift for 10 px -->
+        <Grid Width="120" Height="120" HorizontalAlignment="Center" Margin="0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/><RowDefinition Height="*"/><RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <RepeatButton x:Name="BtnUp" Grid.Row="0" Grid.Column="1" Margin="3" Click="Arrow_Click"
+                          ToolTip="Move photo up 1 px (Shift: 10 px)">↑</RepeatButton>
+            <RepeatButton x:Name="BtnLeft" Grid.Row="1" Grid.Column="0" Margin="3" Click="Arrow_Click"
+                          ToolTip="Move photo left 1 px (Shift: 10 px)">←</RepeatButton>
+            <RepeatButton x:Name="BtnRight" Grid.Row="1" Grid.Column="2" Margin="3" Click="Arrow_Click"
+                          ToolTip="Move photo right 1 px (Shift: 10 px)">→</RepeatButton>
+            <RepeatButton x:Name="BtnDown" Grid.Row="2" Grid.Column="1" Margin="3" Click="Arrow_Click"
+                          ToolTip="Move photo down 1 px (Shift: 10 px)">↓</RepeatButton>
+        </Grid>
+
+        <!-- Absolute offsets in px -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                <TextBlock Text="Left/right (px)" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                <TextBox x:Name="TxtX" TextChanged="OffsetText_Changed" LostFocus="Offset_Commit"
+                         KeyDown="Offset_KeyDown" ToolTip="Horizontal offset in px"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                <TextBlock Text="Up/down (px)" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
+                <TextBox x:Name="TxtY" TextChanged="OffsetText_Changed" LostFocus="Offset_Commit"
+                         KeyDown="Offset_KeyDown" ToolTip="Vertical offset in px"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Zoom: slider + % box + reset -->
+        <TextBlock Text="Zoom" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"/>
+        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+            <Slider x:Name="SldZoom" Width="150" Minimum="0.4" Maximum="3.0" TickFrequency="0.05"
+                    ValueChanged="Zoom_Changed" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtZoomPct" Width="52" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                     TextChanged="ZoomText_Changed" LostFocus="Zoom_Commit" KeyDown="Zoom_KeyDown"
+                     ToolTip="Zoom % (Ctrl+0 resets position)"/>
+            <Button Content="Reset" Style="{StaticResource CompactButton}" Margin="8,0,0,0"
+                    Click="Reset_Click" ToolTip="Reset position and zoom (Ctrl+0)"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>
