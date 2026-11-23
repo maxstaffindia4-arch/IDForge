@@ -255,8 +255,17 @@ public sealed class CardService : IDisposable
     /// <summary>Consistent snapshot via VACUUM INTO. Returns backup path.</summary>
     public string BackupDatabase()
     {
-        var path = Store.BackupTo(Path.Combine(BackupDir,
-            $"idcard_{DateTime.Now:yyyyMMdd_HHmmss}.db"));
+        // Second-resolution names collide when backing up twice quickly —
+        // VACUUM INTO refuses an existing file, so suffix until unique.
+        string path;
+        var i = 0;
+        do
+        {
+            path = Path.Combine(BackupDir,
+                $"idcard_{DateTime.Now:yyyyMMdd_HHmmss}{(i == 0 ? "" : $"_{i}")}.db");
+            i++;
+        } while (File.Exists(path));
+        path = Store.BackupTo(path);
         Store.LogAudit(null, "backup", $"Database backed up to {path}");
         return path;
     }

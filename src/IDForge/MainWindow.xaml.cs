@@ -537,18 +537,25 @@ public partial class MainWindow : Window
         PnlBackupCompact.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void Window_KeyDown(object sender, KeyEventArgs e)
+    /// <summary>Ctrl+1/2/3/, area switching and Ctrl+B backup. Returns true when handled.</summary>
+    public bool TryHandleShortcut(Key key, ModifierKeys modifiers)
     {
-        if (Keyboard.Modifiers != ModifierKeys.Control) return;
-        switch (e.Key)
+        if (modifiers != ModifierKeys.Control) return false;
+        switch (key)
         {
             case Key.D1: ShowArea("newcard"); break;
             case Key.D2: ShowArea("batch"); break;
             case Key.D3: ShowArea("records"); break;
             case Key.OemComma: ShowArea("settings"); break;
-            default: return;
+            case Key.B: NavBackup_Click(this, null!); break;
+            default: return false;
         }
-        e.Handled = true;
+        return true;
+    }
+
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (TryHandleShortcut(e.Key, Keyboard.Modifiers)) e.Handled = true;
     }
 
     private void NavNewCard_Click(object sender, RoutedEventArgs e) => ShowArea("newcard");
@@ -560,17 +567,44 @@ public partial class MainWindow : Window
         => NavCol.Width = new GridLength(NavCol.Width.Value > 100 ? 56 : 208);
     private void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void NavBackup_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Single backup path used by the nav card, Tools menu, and Ctrl+B:
+    /// silent backup + transient status-bar message.
+    /// </summary>
+    public string BackupNow()
     {
-        try
-        {
-            var path = _svc.BackupDatabase();
-            AppSettings.LastBackupAt = DateTime.Now;
-            UpdateStatusBar();
-            if (sender is MenuItem) MessageBox.Show($"Database backed up to:\n{path}", "Backup");
-        }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Backup failed"); }
+        var path = _svc.BackupDatabase();
+        AppSettings.LastBackupAt = DateTime.Now;
+        UpdateStatusBar();
+        var count = _svc.Store.AllEmployees().Count;
+        var msg = $"Backup saved — {count} record{(count == 1 ? "" : "s")}, {DateTime.Now:dd/MM/yyyy HH:mm}";
+        ShowStatusMessage(msg);
+        return msg;
     }
+
+    private string BackupNowSafe()
+    {
+        try { return BackupNow(); }
+        catch (Exception ex)
+        {
+            ShowStatusMessage($"Backup failed: {ex.Message}");
+            return $"Backup failed: {ex.Message}";
+        }
+    }
+
+    private DispatcherTimer? _statusMsgTimer;
+
+    private void ShowStatusMessage(string msg)
+    {
+        TxtStatusMsg.Text = msg;
+        PnlStatusMsg.Visibility = Visibility.Visible;
+        _statusMsgTimer?.Stop();
+        _statusMsgTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+        _statusMsgTimer.Tick += (_, _) => { PnlStatusMsg.Visibility = Visibility.Collapsed; _statusMsgTimer!.Stop(); };
+        _statusMsgTimer.Start();
+    }
+
+    public void NavBackup_Click(object sender, RoutedEventArgs e) => BackupNowSafe();
 
     private void Setting_Changed(object sender, RoutedEventArgs e)
     {
