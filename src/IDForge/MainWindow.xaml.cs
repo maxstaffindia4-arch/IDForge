@@ -625,31 +625,50 @@ public partial class MainWindow : Window
         TxtValidity.Text = $"Card will be valid until {until:dd/MM/yyyy} · {months} months from print date";
     }
 
-    private void SetChip(Border chip, TextBlock text, bool on)
+    private enum ChipState { Idle, Ok, Warn, Err }
+
+    private void SetChip(Border chip, TextBlock text, string label, ChipState state)
     {
-        if (on)
+        text.Text = label;
+        var (bg, br, fg) = state switch
         {
-            chip.Background = FindResource("SuccessTintBrush") as Brush;
-            chip.BorderBrush = FindResource("SuccessBrush") as Brush;
-            text.Foreground = FindResource("SuccessBrush") as Brush;
-        }
-        else
-        {
-            chip.ClearValue(Border.BackgroundProperty);
-            chip.BorderBrush = FindResource("BorderBrush") as Brush;
-            text.Foreground = FindResource("MutedBrush") as Brush;
-        }
+            ChipState.Ok => ((Brush?)FindResource("SuccessTintBrush"),
+                             (Brush?)FindResource("SuccessBrush"),
+                             (Brush?)FindResource("SuccessBrush")),
+            ChipState.Warn => ((Brush?)FindResource("WarningTintBrush"),
+                               (Brush?)FindResource("WarningBrush"),
+                               (Brush?)FindResource("WarningBrush")),
+            ChipState.Err => ((Brush?)FindResource("ErrorTintBrush"),
+                              (Brush?)FindResource("ErrorBrush"),
+                              (Brush?)FindResource("ErrorBrush")),
+            _ => (null,
+                  (Brush?)FindResource("BorderBrush"),
+                  (Brush?)FindResource("MutedBrush"))
+        };
+        if (bg == null) chip.ClearValue(Border.BackgroundProperty); else chip.Background = bg;
+        chip.BorderBrush = br;
+        text.Foreground = fg;
     }
 
     private void UpdateFooterChips()
     {
         var f = GetForm();
-        bool detailsDone = f.name.Length >= 2 && Core.Uid.IsValid(f.uid)
+        bool fieldsOk = f.name.Length >= 2 && Core.Uid.IsValid(f.uid)
             && Config.Positions.Contains(f.position) && Config.BloodGroups.Contains(f.blood);
-        bool uidNew = Core.Uid.IsValid(f.uid) && _svc.Store.FindEmployeeByUid(f.uid) == null;
-        SetChip(ChipDetails, TxtChipDetails, detailsDone);
-        SetChip(ChipUidNew, TxtChipUidNew, uidNew);
-        SetChip(ChipPhoto, TxtChipPhoto, _photoApproved);
+        bool uidValid = Core.Uid.IsValid(f.uid);
+        var dup = uidValid ? _uidDuplicate : null;
+        bool uidNew = uidValid && dup == null;
+
+        // Green only when every required field is valid AND the ID is new;
+        // amber when the fields are fine but the ID already exists.
+        SetChip(ChipDetails, TxtChipDetails, "Details complete",
+            fieldsOk && uidNew ? ChipState.Ok : fieldsOk && dup != null ? ChipState.Warn : ChipState.Idle);
+        // One truthful chip: green "is new", red "already exists", grey otherwise.
+        SetChip(ChipUidNew, TxtChipUidNew,
+            dup != null ? "Employee ID already exists" : "Employee ID is new",
+            uidNew ? ChipState.Ok : dup != null ? ChipState.Err : ChipState.Idle);
+        SetChip(ChipPhoto, TxtChipPhoto, "Photo approved",
+            _photoApproved ? ChipState.Ok : ChipState.Idle);
     }
 
     /// <summary>"Saves image + PDF" when PDF is on in Settings, else "Saves image · change in Settings".</summary>

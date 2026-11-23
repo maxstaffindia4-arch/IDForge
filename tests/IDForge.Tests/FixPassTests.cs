@@ -73,6 +73,18 @@ public class FixPassTests
         });
     }
 
+    /// <summary>A digits-only UID not present even among soft-deleted rows
+    /// (Employees.Uid is UNIQUE, so deleted rows still occupy the value).</summary>
+    private static string FreshUid(IDForge.Core.Data.CardStore store)
+    {
+        for (var i = 0; i < 200; i++)
+        {
+            var u = (90000000000L + Random.Shared.NextInt64(0, 9999999999L)).ToString();
+            if (store.FindEmployeeByUidIncludingDeleted(u) == null) return u;
+        }
+        throw new InvalidOperationException("no free test UID");
+    }
+
     [Fact]
     public void Duplicate_Uid_Shows_Red_Message_Link_And_Disables_Issue()
     {
@@ -81,20 +93,14 @@ public class FixPassTests
             var main = NewWindow();
             try
             {
-                const string uid = "99887766";
+                var uid = FreshUid(main.Svc.Store);
                 var store = main.Svc.Store;
-                var emp = store.FindEmployeeByUid(uid);
-                var inserted = false;
-                if (emp == null)
+                var emp = new Employee
                 {
-                    emp = new Employee
-                    {
-                        Uid = uid, Name = "Dup Test Person", BloodGroup = "N/A",
-                        Position = "Intern", ContractType = "Permanent"
-                    };
-                    emp.Id = store.InsertEmployee(emp);
-                    inserted = true;
-                }
+                    Uid = uid, Name = "Dup Test Person", BloodGroup = "N/A",
+                    Position = "Intern", ContractType = "Permanent"
+                };
+                emp.Id = store.InsertEmployee(emp);
                 try
                 {
                     // Photo approved must NOT re-enable Issue for a duplicate:
@@ -121,9 +127,75 @@ public class FixPassTests
                     Assert.Contains("Dup Test Person",
                         ((TextBlock)main.FindName("TxtRecordInfo")!).Text);
                 }
+                finally { store.SoftDeleteEmployee(emp.Id); }
+            }
+            finally { main.Close(); }
+            return true;
+        });
+    }
+
+    private static Color ChipColor(MainWindow w, string name)
+        => ((SolidColorBrush)((TextBlock)w.FindName(name)!).Foreground).Color;
+
+    private static Color ResColor(MainWindow w, string key)
+        => ((SolidColorBrush)w.FindResource(key)!).Color;
+
+    [Fact]
+    public void Completion_Chips_Reflect_Details_Uid_And_Photo()
+    {
+        OnSta(() =>
+        {
+            var main = NewWindow();
+            try
+            {
+                var store = main.Svc.Store;
+                // A UID that is guaranteed not to exist (not even soft-deleted).
+                var newUid = FreshUid(store);
+
+                // A duplicate employee for the amber/red states.
+                var dupUid = FreshUid(store);
+                var dupEmp = new Employee
+                {
+                    Uid = dupUid, Name = "Chip Dup", BloodGroup = "N/A",
+                    Position = "Intern", ContractType = "Permanent"
+                };
+                dupEmp.Id = store.InsertEmployee(dupEmp);
+                try
+                {
+                    var name = (TextBox)main.FindName("TxtName")!;
+                    var uid = (TextBox)main.FindName("TxtUid")!;
+                    var pos = (ComboBox)main.FindName("CmbPosition")!;
+                    var blood = (ComboBox)main.FindName("CmbBlood")!;
+
+                    // 1 · Valid new card, photo NOT approved.
+                    name.Text = "Chip Test";
+                    pos.SelectedItem = "Manager";
+                    blood.SelectedItem = blood.Items.Cast<object>().Skip(1).First();
+                    uid.Text = newUid;
+
+                    Assert.Equal(ResColor(main, "SuccessBrush"), ChipColor(main, "TxtChipDetails"));
+                    Assert.Equal("Employee ID is new",
+                        ((TextBlock)main.FindName("TxtChipUidNew")!).Text);
+                    Assert.Equal(ResColor(main, "SuccessBrush"), ChipColor(main, "TxtChipUidNew"));
+                    Assert.Equal(ResColor(main, "MutedBrush"), ChipColor(main, "TxtChipPhoto"));
+
+                    // 2 · Photo approved → photo chip goes green.
+                    main._photoApproved = true;
+                    name.Text = "Chip Test ";   // retrigger chip refresh
+                    Assert.Equal(ResColor(main, "SuccessBrush"), ChipColor(main, "TxtChipPhoto"));
+
+                    // 3 · Duplicate ID → details amber, ID chip red with reason.
+                    uid.Text = dupUid;
+                    Assert.Equal(ResColor(main, "WarningBrush"), ChipColor(main, "TxtChipDetails"));
+                    Assert.Equal("Employee ID already exists",
+                        ((TextBlock)main.FindName("TxtChipUidNew")!).Text);
+                    Assert.Equal(ResColor(main, "ErrorBrush"), ChipColor(main, "TxtChipUidNew"));
+                    Assert.Equal(ResColor(main, "SuccessBrush"), ChipColor(main, "TxtChipPhoto"));
+                }
                 finally
                 {
-                    if (inserted) store.SoftDeleteEmployee(emp.Id);
+                    store.SoftDeleteEmployee(dupEmp.Id);
+                    NewCardDraft.Clear();
                 }
             }
             finally { main.Close(); }
