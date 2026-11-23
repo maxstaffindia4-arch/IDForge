@@ -61,6 +61,12 @@ public static class Config
     public const int ContractualMonths = 6;
     public const int PermanentMonths = 12;
 
+    // Bump whenever photo processing changes — invalidates cached cutouts.
+    public const string PipelineVersion = "v2";
+
+    /// <summary>Versioned photo-cache filename; old unversioned/other-version files are stale.</summary>
+    public static string CacheFileName(string safe) => $"{PipelineVersion}_{safe}.png";
+
     // Photo auto-fit (calibrate in Phase 0b)
     public const float FaceHeightRatio = 0.58f;        // face height as fraction of window height
     public const float HeadTopRatio = 0.08f;           // head top as fraction of window height

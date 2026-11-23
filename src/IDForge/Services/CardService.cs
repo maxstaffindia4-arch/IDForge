@@ -28,6 +28,7 @@ public sealed class CardService : IDisposable
         Pipeline = new PhotoPipeline();
         PhotoCacheDir = AppPaths.PhotosDir;
         Directory.CreateDirectory(PhotoCacheDir);
+        CleanupStalePhotoCache();
     }
 
     public static string DefaultDbPath => AppPaths.DbPath;
@@ -134,11 +135,30 @@ public sealed class CardService : IDisposable
         var safe = digits != null && Uid.IsValid(digits)
             ? Uid.FileToken(digits)
             : string.Concat(uid.Select(c => char.IsLetterOrDigit(c) ? c : '_'));
-        var path = Path.Combine(PhotoCacheDir, $"{safe}.png");
+        var path = Path.Combine(PhotoCacheDir, Config.CacheFileName(safe));
         using var image = SKImage.FromBitmap(cutout);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
         File.WriteAllBytes(path, data.ToArray());
         return path;
+    }
+
+    /// <summary>
+    /// Deletes cached cutouts written by an older pipeline version (unversioned or
+    /// different vN_ prefix) and clears DB references to them so they regenerate.
+    /// </summary>
+    private void CleanupStalePhotoCache()
+    {
+        try
+        {
+            var prefix = Config.PipelineVersion + "_";
+            var stale = Directory.GetFiles(PhotoCacheDir, "*.png")
+                .Where(f => !Path.GetFileName(f).StartsWith(prefix, StringComparison.Ordinal))
+                .ToList();
+            if (stale.Count == 0) return;
+            foreach (var f in stale) File.Delete(f);
+            Store.ClearPhotoPaths(stale);
+        }
+        catch { /* cache cleanup is best-effort */ }
     }
 
     public static SKBitmap? LoadCachedPhoto(string? path)

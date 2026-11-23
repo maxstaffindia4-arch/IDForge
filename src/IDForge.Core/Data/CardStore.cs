@@ -373,6 +373,35 @@ public sealed class CardStore : IDisposable
 
     // ---------- Audit ----------
 
+    /// <summary>Nulls photo-path references whose cache files were deleted as stale.</summary>
+    public void ClearPhotoPaths(IEnumerable<string> missingPaths)
+    {
+        var set = new HashSet<string>(missingPaths, StringComparer.OrdinalIgnoreCase);
+        if (set.Count == 0) return;
+        using var tx = _conn.BeginTransaction();
+        foreach (var (table, col) in new[] { ("Employees", "PhotoPath"), ("BatchRows", "CutoutPath") })
+        {
+            var ids = new List<(long Id, string Path)>();
+            using (var cmd = _conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = $"SELECT Id, {col} FROM {table} WHERE {col} IS NOT NULL";
+                using var r = cmd.ExecuteReader();
+                while (r.Read()) ids.Add((r.GetInt64(0), r.GetString(1)));
+            }
+            foreach (var (id, path) in ids)
+                if (set.Contains(path))
+                {
+                    using var u = _conn.CreateCommand();
+                    u.Transaction = tx;
+                    u.CommandText = $"UPDATE {table} SET {col}=NULL WHERE Id=$id";
+                    u.Parameters.AddWithValue("$id", id);
+                    u.ExecuteNonQuery();
+                }
+        }
+        tx.Commit();
+    }
+
     public void LogAudit(long? employeeId, string action, string detail, string? user = null)
     {
         using var cmd = _conn.CreateCommand();
