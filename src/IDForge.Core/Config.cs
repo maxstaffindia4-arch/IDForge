@@ -67,10 +67,10 @@ public static class Config
     /// <summary>Versioned photo-cache filename; old unversioned/other-version files are stale.</summary>
     public static string CacheFileName(string safe) => $"{PipelineVersion}_{safe}.png";
 
-    // Photo auto-fit (calibrate in Phase 0b)
-    public const float FaceHeightRatio = 0.58f;        // face height as fraction of window height
-    public const float HeadTopRatio = 0.08f;           // head top as fraction of window height
-    public const float HairAboveFaceRatio = 0.55f;     // hair above YuNet face box, as fraction of face height
+    // Photo auto-fit ratios — operator-tunable via config.json (PhotoTuning).
+    public static float FaceHeightRatio => PhotoTuning.FaceHeightRatio;
+    public static float HeadTopRatio => PhotoTuning.HeadTopRatio;
+    public static float HairAboveFaceRatio => PhotoTuning.HairAboveFaceRatio;
     public const float TransparentSkipThreshold = 0.05f; // >5% transparent px => already cut out
     public const byte WhiteBgMinChannel = 235;   // near-white flood fill threshold
     public const byte WhiteBgMaxDelta = 25;      // max channel spread = "low saturation"

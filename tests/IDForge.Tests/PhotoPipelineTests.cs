@@ -128,6 +128,15 @@ public class PhotoPipelineTests
     }
 
     [Fact]
+    public void AutoFit_Ratios_Load_From_Config_With_Provisional_Default()
+    {
+        // PROVISIONAL default pending owner calibration on real photos.
+        Assert.Equal(0.48f, Config.FaceHeightRatio, 3);
+        Assert.Equal(0.08f, Config.HeadTopRatio, 3);
+        Assert.Equal(0.55f, Config.HairAboveFaceRatio, 3);
+    }
+
+    [Fact]
     public void AutoFit_Uses_Configured_Ratios_Without_Coverage_Enforcement()
     {
         using var cutout = MakeSyntheticPhoto();
