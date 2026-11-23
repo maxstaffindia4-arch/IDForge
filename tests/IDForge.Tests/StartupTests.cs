@@ -14,6 +14,7 @@ namespace IDForge.Tests;
 /// Windows are not shown (headless-safe); template application is covered
 /// by the owner checklist in docs/redesign/REVIEW.md.
 /// </summary>
+[Collection("Wpf")]
 public class StartupTests
 {
     [Fact]
@@ -24,8 +25,7 @@ public class StartupTests
         {
             try
             {
-                var app = new App();
-                app.InitializeComponent();           // merges all theme dictionaries
+                WpfTestHost.EnsureApp();      // shared Application (one per AppDomain)
                 MainWindow.SkipResumePrompt = true;  // no modal dialogs headless
                 var main = new MainWindow();          // InitializeComponent inside ctor
                 var rows = new ObservableCollection<BatchRow>
