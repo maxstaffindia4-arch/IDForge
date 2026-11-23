@@ -23,3 +23,7 @@
 | V4 | "• unsaved changes" per area | Tracked for New Card field edits only | Batch rows persist immediately; Records/Settings have no draft state yet |
 | V5 | Date-format setting | Display-only text "dd/MM/yyyy" | Entry formats change in phase 3 (New Card) |
 | V6 | Menu items Edit/Records | Minimal placeholders (no-op / Go to Records) | Full menu commands arrive with the phases that own each area |
+| V7 | Photo background shown as a single option | All three modes kept as radio buttons (plain white / model / keep original) | D2 — removing modes would drop existing behaviour |
+| V8 | "Show print edges" toggle | Omitted | D8 — deferred/left out by decision |
+| V9 | Position nudge as drag/slider only | Shared PhotoPositionPanel: arrows (1 px, Shift = 10 px), X/Y numeric boxes, zoom slider + % box, Reset | Existing transform values and clamps unchanged; slider kept per V4-open note |
+| V10 | Settings sections Backup & restore, Data protection, About | Deferred to phase 7 | Phase 3 scope — settings page keeps Phase 2 sections only |
