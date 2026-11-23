@@ -343,4 +343,31 @@ public class FixPassTests
             return true;
         });
     }
+
+    [Fact]
+    public void Zoom_Chips_Sit_On_Their_Own_Row_Under_Preview_Title()
+    {
+        OnSta(() =>
+        {
+            var main = NewWindow();
+            try
+            {
+                var title = FindTextBlocks(main).First(t => t.Text == "Live preview");
+                var subtitle = FindTextBlocks(main).First(t => t.Text == "Updates as you type");
+                var fit = (RadioButton)main.FindName("RadZoomFit")!;
+
+                // Subtitle shares the title's row; zoom chips are on a different row.
+                Assert.Equal(title.Parent, subtitle.Parent);
+                Assert.NotEqual(title.Parent, fit.Parent);
+
+                // Draft note sits on the subtitle line under the page title.
+                var desc = FindTextBlocks(main)
+                    .First(t => t.Text.StartsWith("Fill in the employee"));
+                var note = (TextBlock)main.FindName("TxtDraftNote")!;
+                Assert.Equal(desc.Parent, note.Parent);
+            }
+            finally { main.Close(); }
+            return true;
+        });
+    }
 }
