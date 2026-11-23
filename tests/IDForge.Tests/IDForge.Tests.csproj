@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -18,10 +19,22 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- pack://application:,,,/ URIs resolve against the entry assembly;
+         mirror the app's resources so WPF tests resolve them identically. -->
+    <Resource Include="..\..\src\IDForge\app.ico" Link="app.ico" />
+    <Resource Include="..\..\assets\fonts\Inter-Regular.ttf" Link="Fonts\Inter-Regular.ttf" />
+    <Resource Include="..\..\assets\fonts\Inter-Medium.ttf" Link="Fonts\Inter-Medium.ttf" />
+    <Resource Include="..\..\assets\fonts\Inter-SemiBold.ttf" Link="Fonts\Inter-SemiBold.ttf" />
+    <Resource Include="..\..\assets\fonts\JetBrainsMono-Regular.ttf" Link="Fonts\JetBrainsMono-Regular.ttf" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\IDForge.Core\IDForge.Core.csproj" />
+    <ProjectReference Include="..\..\src\IDForge\IDForge.csproj" />
   </ItemGroup>
 
 </Project>

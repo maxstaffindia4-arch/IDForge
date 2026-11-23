@@ -31,12 +31,17 @@
         </Setter>
     </Style>
 
-    <Style x:Key="InputComboBox" TargetType="ComboBox" BasedOn="{StaticResource InputTextBox}">
+    <!-- ComboBox/DatePicker cannot BasedOn the TextBox style (target-type rule)
+         and must keep their own control templates — setters only. -->
+    <Style x:Key="InputComboBox" TargetType="ComboBox">
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="Height" Value="32"/>
-        <Setter Property="Padding" Value="8,4"/>
     </Style>
 
-    <Style x:Key="InputDatePicker" TargetType="DatePicker" BasedOn="{StaticResource InputTextBox}">
+    <Style x:Key="InputDatePicker" TargetType="DatePicker">
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="Height" Value="32"/>
     </Style>
 <Style TargetType="TextBox" BasedOn="{StaticResource InputTextBox}"/>

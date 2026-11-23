@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="clr-namespace:IDForge.Core;assembly=IDForge.Core"
         Title="IDForge" Width="1100" Height="760" FontFamily="{StaticResource AppFontFamily}"
-        Icon="pack://application:,,,/app.ico"
+        Icon="pack://application:,,,/IDForge;component/app.ico"
         MinWidth="860" MinHeight="620"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="8">

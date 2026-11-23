@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="clr-namespace:IDForge.Core;assembly=IDForge.Core"
         Title="Batch Review" Width="1180" Height="780" FontFamily="{StaticResource AppFontFamily}"
-        Icon="pack://application:,,,/app.ico"
+        Icon="pack://application:,,,/IDForge;component/app.ico"
         WindowStartupLocation="CenterOwner">
     <Grid>
         <Grid.RowDefinitions>
