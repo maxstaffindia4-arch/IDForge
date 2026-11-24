@@ -137,10 +137,14 @@ public partial class ReviewWindow : Window
             if (DateOnly.TryParse(row.PrintDateText, out var pd))
                 DpPrintDate.SelectedDate = pd.ToDateTime(TimeOnly.MinValue);
             TxtPhoto.Text = row.PhotoPath ?? "";
+            _loading = true;
+            ChkRemoveBg.IsChecked = row.BgMode != "Keep";
             CmbBgMode.SelectedIndex = row.BgMode switch
             {
                 "Model" => 1, "Keep" => 2, _ => 0
             };
+            _loading = false;
+            CmbBgMode.IsEnabled = row.BgMode != "Keep";
             SyncNudgeFromRow();
             ValidateRowInline();
             TxtStatus.Text = $"{row.Name} ({row.Uid}) — {row.StatusText}";
@@ -330,9 +334,29 @@ public partial class ReviewWindow : Window
         await ProcessRowPhotoAsync(_current, keepNudge: false);
     }
 
+    private void RemoveBg_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading || _current == null) return;
+        if (ChkRemoveBg.IsChecked == true)
+        {
+            // Back on: use the selected mode ("Keep as is" falls back to Plain white).
+            var tag = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string;
+            _current.BgMode = tag is "PlainWhite" or "Model" ? tag : "PlainWhite";
+            if (tag == "Keep") CmbBgMode.SelectedIndex = 0;
+            CmbBgMode.IsEnabled = true;
+        }
+        else
+        {
+            _current.BgMode = "Keep";
+            CmbBgMode.IsEnabled = false;
+        }
+        _ = ProcessRowPhotoAsync(_current, keepNudge: true);
+    }
+
     private async void BgMode_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_loading || _current == null || _current.PhotoPath == null) return;
+        if (ChkRemoveBg.IsChecked != true) return; // mode only applies while removal is on
         _current.BgMode = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string ?? "PlainWhite";
         await ProcessRowPhotoAsync(_current, keepNudge: true);
     }

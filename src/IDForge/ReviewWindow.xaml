@@ -90,8 +90,9 @@
                     <Button Content="Replace..." Margin="6,0,0,0" Click="BrowsePhoto_Click"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                    <TextBlock Text="Background:" VerticalAlignment="Center"/>
-                    <ComboBox x:Name="CmbBgMode" Width="180" Margin="8,0,0,0"
+                    <CheckBox x:Name="ChkRemoveBg" Content="Remove background" VerticalAlignment="Center"
+                              Checked="RemoveBg_Changed" Unchecked="RemoveBg_Changed"/>
+                    <ComboBox x:Name="CmbBgMode" Width="140" Margin="8,0,0,0" IsEnabled="False"
                               SelectionChanged="BgMode_Changed">
                         <ComboBoxItem Content="Plain white" Tag="PlainWhite"/>
                         <ComboBoxItem Content="Model" Tag="Model"/>

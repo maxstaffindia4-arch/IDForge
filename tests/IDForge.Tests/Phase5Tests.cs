@@ -105,6 +105,63 @@ public class Phase5Tests
         });
     }
 
+    [Fact]
+    public void RemoveBg_Toggle_Switches_Mode_And_Enables_Selector()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            var row = Row("80000031", "Bg Test", id: 31);
+            row.BgMode = "PlainWhite";
+            var win = NewReview(w, row);
+            try
+            {
+                var chk = (CheckBox)FindName(win, "ChkRemoveBg")!;
+                var cmb = (ComboBox)FindName(win, "CmbBgMode")!;
+                Assert.True(chk.IsChecked == true);
+                Assert.True(cmb.IsEnabled);
+
+                chk.IsChecked = false; // keep as is
+                Assert.Equal("Keep", row.BgMode);
+                Assert.False(cmb.IsEnabled);
+
+                chk.IsChecked = true;
+                Assert.Equal("PlainWhite", row.BgMode);
+                Assert.True(cmb.IsEnabled);
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Zoom_Adjustment_Survives_Row_Switch()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            var a = Row("80000041", "Zoom A", id: 41);
+            var b = Row("80000042", "Zoom B", id: 42);
+            a.Zoom = 1.7; a.OffsetX = 12; a.OffsetY = -8;
+            var win = NewReview(w, a, b);
+            try
+            {
+                var sld = (Slider)FindName(win, "SldZoom")!;
+                Assert.Equal(1.7, sld.Value, 3);
+                // Move to row B and back — adjustment must still be there.
+                var next = FindButton(win, "Next ►")!;
+                next.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                next.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                var back = FindButton(win, "◄ Previous")!;
+                back.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.Same(a, win.CurrentForTest);
+                Assert.Equal(1.7, sld.Value, 3);
+                Assert.Equal(12, a.OffsetX);
+                Assert.Equal(-8, a.OffsetY);
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
     // ---------- helpers ----------
 
     private static DependencyObject? FindName(DependencyObject root, string name)
