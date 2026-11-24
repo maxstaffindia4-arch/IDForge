@@ -1293,8 +1293,8 @@ public partial class MainWindow : Window
         public string Name => Emp.Name;
         public string Position => Emp.Position;
         public string ContractType => Emp.ContractType;
-        public string ValidUntil => Issue?.ValidUntil.ToString("yyyy-MM-dd") ?? "-";
-        public string LastIssued => Issue?.IssuedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "-";
+        public string ValidUntil => Issue?.ValidUntil.ToString("dd/MM/yyyy") ?? "-";
+        public string LastIssued => Issue?.IssuedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm") ?? "-";
     }
 
     private void RefreshRecords()

@@ -86,7 +86,7 @@ public static class AppSettings
         }
     }
 
-    private sealed class SettingsFile
+    internal sealed class SettingsFile
     {
         [System.Text.Json.Serialization.JsonPropertyName("confirmBeforeIssue")]
         public bool ConfirmBeforeIssue { get; set; } = true;

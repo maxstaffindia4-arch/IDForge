@@ -411,4 +411,72 @@ public class Phase4Tests
             finally { w.Close(); }
         });
     }
+
+    // ---- Phase 4 fix C ----
+
+    [Fact]
+    public void Reissue_Checkbox_Is_Checked_And_Disabled()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                CheckBox? found = null;
+                void Walk(object node)
+                {
+                    if (node is CheckBox cb && cb.Content?.ToString() == "Always confirm re-issues") found = cb;
+                    if (node is DependencyObject d)
+                        foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(d)) Walk(c);
+                }
+                Walk(w);
+                Assert.NotNull(found);
+                Assert.True(found!.IsChecked);
+                Assert.False(found.IsEnabled);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void New_Install_Confirm_Before_Issue_Defaults_On()
+    {
+        // SettingsFile defaults apply when settings.json is absent or lacks the key.
+        Assert.True(new AppSettings.SettingsFile().ConfirmBeforeIssue);
+    }
+
+    [Fact]
+    public void Records_Dates_Display_DdMmYyyy()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                var store = w.Svc.Store;
+                var uid = Random.Shared.Next(1000000000, 1999999999).ToString();
+                var empId = store.InsertEmployee(new Employee
+                {
+                    Uid = uid, Name = "Date Check", BloodGroup = "O+",
+                    Position = "Driver", ContractType = "Permanent"
+                });
+                store.InsertIssue(new CardIssue
+                {
+                    EmployeeId = empId, Version = 1,
+                    PrintDate = new DateOnly(2026, 2, 3),
+                    ValidUntil = new DateOnly(2027, 2, 3),
+                    IssuedAt = new DateTimeOffset(2026, 2, 3, 14, 30, 0, TimeSpan.Zero)
+                });
+                w.RefreshRecordsPublic();
+                var list = (ListView)w.FindName("LstRecords")!;
+                var row = list.Items.Cast<object>()
+                    .First(i => i.GetType().GetProperty("Uid")!.GetValue(i) as string == uid);
+                var validUntil = row.GetType().GetProperty("ValidUntil")!.GetValue(row) as string;
+                var lastIssued = row.GetType().GetProperty("LastIssued")!.GetValue(row) as string;
+                Assert.Equal("03/02/2027", validUntil);
+                Assert.Matches(@"^\d{2}/\d{2}/\d{4} \d{2}:\d{2}$", lastIssued);
+            }
+            finally { w.Close(); }
+        });
+    }
 }
