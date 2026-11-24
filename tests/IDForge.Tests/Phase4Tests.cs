@@ -479,4 +479,103 @@ public class Phase4Tests
             finally { w.Close(); }
         });
     }
+
+    // ---- Fix D ----
+
+    [Fact]
+    public void Collapsed_Backup_Panel_Is_Icon_Only_With_Tooltip()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                // Headless windows report ActualWidth 0 → collapsed rail state.
+                w.Window_SizeChanged(w, null!);   // handler reads ActualWidth only
+                var compact = (FrameworkElement)w.FindName("PnlBackupCompact")!;
+                var full = (FrameworkElement)w.FindName("PnlBackupFull")!;
+                Assert.Equal(Visibility.Visible, compact.Visibility);
+                Assert.Equal(Visibility.Collapsed, full.Visibility);
+                var tip = compact.ToolTip?.ToString() ?? "";
+                Assert.Contains("Back up now", tip);
+                Assert.Contains("backup", tip, StringComparison.OrdinalIgnoreCase);
+                // icon only — no "Backed up" label inside the compact panel
+                var labels = new List<string>();
+                void Walk(object node)
+                {
+                    if (node is TextBlock tb) labels.Add(tb.Text);
+                    if (node is DependencyObject d)
+                        foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(d)) Walk(c);
+                }
+                Walk(compact);
+                Assert.DoesNotContain("Backed up", labels);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Message_Column_Takes_Remaining_Width()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                var dg = (DataGrid)w.FindName("DgBatch")!;
+                var employee = dg.Columns.First(c => (string)c.Header! == "Employee");
+                var message = dg.Columns.First(c => (string)c.Header! == "Message");
+                Assert.False(employee.Width.IsStar);          // fixed sensible minimum
+                Assert.True(message.Width.IsStar);            // absorbs the rest
+                var msgStyle = (Style)((DataGridTextColumn)message).ElementStyle;
+                var trimming = (TextTrimming)msgStyle.Setters
+                    .OfType<Setter>().First(s => s.Property == TextBlock.TextTrimmingProperty).Value;
+                Assert.Equal(TextTrimming.CharacterEllipsis, trimming);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Collapsed_Nav_Icons_Have_Name_And_Shortcut_Tooltips()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                Assert.Equal("New card (Ctrl+1)", ((RadioButton)w.FindName("NavNewCard")!).ToolTip);
+                Assert.Contains("Ctrl+2", ((RadioButton)w.FindName("NavBatch")!).ToolTip?.ToString());
+                Assert.Equal("Records (Ctrl+3)", ((RadioButton)w.FindName("NavRecords")!).ToolTip);
+                Assert.Equal("Settings (Ctrl+,)", ((RadioButton)w.FindName("NavSettings")!).ToolTip);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Disabled_Reissue_Checkbox_Is_Greyed()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                CheckBox? found = null;
+                void Walk(object node)
+                {
+                    if (node is CheckBox cb && cb.Content?.ToString() == "Always confirm re-issues") found = cb;
+                    if (node is DependencyObject d)
+                        foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(d)) Walk(c);
+                }
+                Walk(w);
+                Assert.NotNull(found);
+                Assert.False(found!.IsEnabled);
+                var fg = ((SolidColorBrush)found.Foreground).Color;
+                var muted = ((SolidColorBrush)w.FindResource("MutedBrush")).Color;
+                Assert.Equal(muted, fg);
+            }
+            finally { w.Close(); }
+        });
+    }
 }

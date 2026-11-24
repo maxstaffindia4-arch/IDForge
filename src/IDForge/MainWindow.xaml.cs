@@ -1004,7 +1004,10 @@ public partial class MainWindow : Window
             ? $"Last backup {bt:dd/MM/yyyy} at {bt:HH:mm}\nClick to back up now (Ctrl+B)"
             : "Never backed up\nClick to back up now (Ctrl+B)";
         PnlBackupFull.ToolTip = backupTip;
-        PnlBackupCompact.ToolTip = backupTip;
+        // Collapsed rail: icon only, single-line tooltip per spec.
+        PnlBackupCompact.ToolTip = AppSettings.LastBackupAt is { } cb
+            ? $"Last backup {cb:dd/MM/yyyy HH:mm}. Back up now"
+            : "Never backed up. Back up now";
     }
 
     private void UpdateBatchBadge()
@@ -1012,10 +1015,10 @@ public partial class MainWindow : Window
         var n = _batchRows.Count;
         TxtNavBatchCount.Text = n.ToString();
         NavBatchBadge.Visibility = n > 0 && !_navCollapsed ? Visibility.Visible : Visibility.Collapsed;
-        NavBatch.ToolTip = $"Batch — {n} row{(n == 1 ? "" : "s")} (Ctrl+2)";
+        NavBatch.ToolTip = $"Batch (Ctrl+2){(n > 0 ? $" — {n} row{(n == 1 ? "" : "s")}" : "")}";
     }
 
-    private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+    internal void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         var collapsed = ActualWidth < 1100;
         if (collapsed == _navCollapsed) return;

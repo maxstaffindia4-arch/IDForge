@@ -187,12 +187,8 @@
                             Background="{StaticResource WhiteBrush}" BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1" Cursor="Hand" Visibility="Collapsed"
                             MouseLeftButtonUp="NavBackup_Click">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" FontSize="15"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock Text="Backed up" FontSize="11" Margin="6,0,0,0"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" FontSize="18"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"/>
                     </Border>
                     <StackPanel Margin="8">
                         <TextBlock x:Name="LblIssueCards" Text="ISSUE CARDS" FontSize="10" FontWeight="Bold"
@@ -609,7 +605,14 @@
                               CellEditEnding="DgBatch_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="36" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="130">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="ToolTip" Value="{Binding Name}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="Employee ID" Binding="{Binding Uid}" Width="110"/>
                             <DataGridTemplateColumn Header="Blood group" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -656,7 +659,14 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="ToolTip" Value="{Binding Message}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="8,6,8,4" VerticalAlignment="Center">
@@ -744,6 +754,7 @@
                                 <CheckBox x:Name="SetConfirm" Content="Ask me to confirm before issuing a card"
                                           Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                                 <CheckBox IsChecked="True" IsEnabled="False" Margin="0,6,0,0"
+                                          Foreground="{StaticResource MutedBrush}"
                                           Content="Always confirm re-issues"/>
                                 <TextBlock Text="Re-issues always ask for confirmation — this protects against issuing the wrong card twice."
                                            FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="20,2,0,0"/>
