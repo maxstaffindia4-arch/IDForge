@@ -162,6 +162,105 @@ public class Phase5Tests
         });
     }
 
+    [Fact]
+    public void Bottom_Bar_Has_Spec_Buttons()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            var win = NewReview(w, Row("80000051", "Buttons", id: 51));
+            try
+            {
+                foreach (var label in new[] { "◄ Previous", "Save draft", "Skip", "Approve & Issue", "Next ►" })
+                    Assert.NotNull(FindButton(win, label));
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task Issued_Row_Cannot_Be_Issued_Again()
+    {
+        await OnStaAsync(async () =>
+        {
+            var w = FixPassTests.NewWindow();
+            var row = Row("80000061", "Once", "Issued", 61);
+            row.AttemptCount = 1;
+            var win = NewReview(w, row);
+            try
+            {
+                var outcome = await win.IssueRowAsync(row, confirm: false, quiet: true);
+                Assert.Null(outcome);
+                Assert.Equal(1, row.AttemptCount);   // no second attempt / CardIssue
+                Assert.Equal("Issued", row.Status);
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task Invalid_Row_Issue_Writes_Nothing()
+    {
+        await OnStaAsync(async () =>
+        {
+            var w = FixPassTests.NewWindow();
+            var row = Row("", "", "NeedsReview", 62);   // missing name + UID
+            var win = NewReview(w, row);
+            try
+            {
+                var outcome = await win.IssueRowAsync(row, confirm: false, quiet: true);
+                Assert.Null(outcome);
+                Assert.Equal(0, row.AttemptCount);
+                Assert.Equal("NeedsReview", row.Status);   // not flipped to Failed, nothing persisted as issued
+                Assert.Null(row.CardIssueId);
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Reissue_Always_Asks_For_Confirmation()
+    {
+        OnSta(() =>
+        {
+            var prev = AppSettings.ConfirmBeforeIssue;
+            bool? sawReissue = null; int calls = 0;
+            Dialogs.ConfirmOverride = (_, _, _, _, isReissue) => { calls++; sawReissue = isReissue; return true; };
+            try
+            {
+                AppSettings.ConfirmBeforeIssue = false;
+                // Non-reissue with setting off: no dialog at all.
+                Assert.True(Dialogs.ConfirmIssue(null!, "A", "1", DateOnly.FromDateTime(DateTime.Today), false));
+                Assert.Equal(0, calls);
+                // Re-issue: always confirms even with the setting off.
+                Assert.True(Dialogs.ConfirmIssue(null!, "A", "1", DateOnly.FromDateTime(DateTime.Today), true));
+                Assert.Equal(1, calls);
+                Assert.True(sawReissue);
+            }
+            finally
+            {
+                Dialogs.ConfirmOverride = null;
+                AppSettings.ConfirmBeforeIssue = prev;
+            }
+        });
+    }
+
+    private static async Task OnStaAsync(Func<Task> work)
+    {
+        Exception? error = null;
+        var thread = new Thread(() =>
+        {
+            try { work().GetAwaiter().GetResult(); }
+            catch (Exception ex) { error = ex; }
+            finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA thread timed out");
+        Assert.Null(error);
+    }
+
     // ---------- helpers ----------
 
     private static DependencyObject? FindName(DependencyObject root, string name)

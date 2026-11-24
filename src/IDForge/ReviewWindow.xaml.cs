@@ -34,6 +34,7 @@ public partial class ReviewWindow : Window
 
     // preview debounce + stale-render guard + photo lock (same pattern as MainWindow)
     private readonly DispatcherTimer _previewDebounce = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    private readonly DispatcherTimer _persistDebounce = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private int _previewRequest;
     private readonly object _photoLock = new();
     private bool _syncingNudge;
@@ -69,6 +70,11 @@ public partial class ReviewWindow : Window
         _view.Filter = FilterRow;
         LstRows.ItemsSource = _view;
         _previewDebounce.Tick += (_, _) => { _previewDebounce.Stop(); _ = UpdatePreviewAsync(); };
+        _persistDebounce.Tick += (_, _) =>
+        {
+            _persistDebounce.Stop();
+            if (_current != null) _owner.PersistBatchRow(_current);
+        };
 
         CmbBlood.SelectedIndex = -1; // set per row
         DpPrintDate.SelectedDate = Validity.TodayInDhaka().ToDateTime(TimeOnly.MinValue);
@@ -77,7 +83,6 @@ public partial class ReviewWindow : Window
         var idx = startAt != null ? rows.IndexOf(startAt) : rows.ToList().FindIndex(r => r.Status == "NeedsReview");
         if (idx >= 0) SelectRow(rows[idx]);
         else TxtStatus.Text = rows.Count == 0 ? "No rows." : "No rows need review.";
-        UpdateBatchIssueButton();
     }
 
     internal BatchRow? CurrentForTest => _current;
@@ -154,7 +159,6 @@ public partial class ReviewWindow : Window
         }
         finally { _loading = false; }
         _ = EnsureRowPhotoAsync(row);
-        UpdateBatchIssueButton();
     }
 
     private void SyncNudgeFromRow()
@@ -179,7 +183,7 @@ public partial class ReviewWindow : Window
     private void Row_DoubleClick(object sender, MouseButtonEventArgs e)
     {
         // Double-click = quick approve&issue for the selected row.
-        Issue_Click(sender, e);
+        ApproveIssue_Click(sender, e);
     }
 
     private void Prev_Click(object sender, RoutedEventArgs e) => Move(-1);
@@ -201,7 +205,7 @@ public partial class ReviewWindow : Window
         if (e.OriginalSource is TextBoxBase or ComboBox or DatePicker or Slider or Button) return;
         if (e.Key == Key.Left) { Move(-1); e.Handled = true; }
         else if (e.Key == Key.Right) { Move(1); e.Handled = true; }
-        else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control) { Issue_Click(this, e); e.Handled = true; }
+        else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control) { ApproveIssue_Click(this, e); e.Handled = true; }
     }
 
     protected override void OnClosed(EventArgs e)
@@ -214,9 +218,15 @@ public partial class ReviewWindow : Window
 
     // ---------------- field <-> row sync ----------------
 
-    private void Field_Changed(object sender, SelectionChangedEventArgs e) { if (!_loading) { SyncFormToRow(); ValidateRowInline(); SchedulePreview(); } }
-    private void Field_Changed(object sender, TextChangedEventArgs e) { if (!_loading) { SyncFormToRow(); ValidateRowInline(); SchedulePreview(); } }
-    private void Field_Changed(object sender, RoutedEventArgs e) { if (!_loading) { SyncFormToRow(); ValidateRowInline(); SchedulePreview(); } }
+    private void SchedulePersist()
+    {
+        _persistDebounce.Stop();
+        _persistDebounce.Start();
+    }
+
+    private void Field_Changed(object sender, SelectionChangedEventArgs e) { if (!_loading) { SyncFormToRow(); ValidateRowInline(); SchedulePreview(); SchedulePersist(); } }
+    private void Field_Changed(object sender, TextChangedEventArgs e) { if (!_loading) { SyncFormToRow(); ValidateRowInline(); SchedulePreview(); SchedulePersist(); } }
+    private void Field_Changed(object sender, RoutedEventArgs e) { if (!_loading) { SyncFormToRow(); ValidateRowInline(); SchedulePreview(); SchedulePersist(); } }
 
     private void SyncFormToRow()
     {
@@ -408,7 +418,6 @@ public partial class ReviewWindow : Window
             if (row.Status is "Draft" or "NeedsPhoto" or "Failed") row.Status = "NeedsReview";
             row.Error = "";
             _owner.PersistBatchRow(row);
-            UpdateBatchIssueButton();
             SchedulePreview();
         }
         catch (Exception ex)
@@ -416,7 +425,6 @@ public partial class ReviewWindow : Window
             row.Status = "Failed"; row.Error = ex.Message;
             TxtPhotoStatus.Text = $"Photo failed: {ex.Message}";
             _owner.PersistBatchRow(row);
-            UpdateBatchIssueButton();
         }
     }
 
@@ -441,6 +449,7 @@ public partial class ReviewWindow : Window
         _current.OffsetY = SldY.Value;
         lock (_photoLock) { Recompose(_current); }
         SchedulePreview();
+        if (!_syncingNudge) SchedulePersist();
     }
 
     private void NudgeText_Changed(object sender, TextChangedEventArgs e)
@@ -469,6 +478,7 @@ public partial class ReviewWindow : Window
             _current.Zoom = 1; _current.OffsetX = 0; _current.OffsetY = 0;
             lock (_photoLock) { if (_current.Cutout != null) Recompose(_current); }
             SchedulePreview();
+            SchedulePersist();
         }
     }
 
@@ -539,7 +549,6 @@ public partial class ReviewWindow : Window
         _current.Status = "Skipped";
         _owner.PersistBatchRow(_current);
         TxtStatus.Text = $"Skipped {rowLabel(_current)}.";
-        UpdateBatchIssueButton();
         Move(1);
     }
 
@@ -564,13 +573,16 @@ public partial class ReviewWindow : Window
     /// the per-row dialog (batch issue confirms once up front); quiet=true
     /// suppresses per-row result dialogs (batch shows a summary instead).
     /// </summary>
-    private async Task<IDForge.Core.Issuing.IssueOutcome?> IssueRowAsync(BatchRow row, bool confirm, bool quiet)
+    internal async Task<IDForge.Core.Issuing.IssueOutcome?> IssueRowAsync(BatchRow row, bool confirm, bool quiet)
     {
+        if (row.Status == "Issued") return null;   // single-issue rule
         var problem = ValidateRowForIssue(row);
         if (problem != null) { TxtStatus.Text = problem; return null; }
 
         var validUntil = Validity.CalculateValidUntil(row.PrintDate, row.Contract);
-        if (confirm && !Dialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue: false))
+        var uidNorm = Core.Uid.Normalize(row.Uid);
+        var isReissue = uidNorm != null && _owner.Svc.Store.FindEmployeeByUid(uidNorm) != null;
+        if (confirm && !Dialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue))
             return null;
 
         row.AttemptCount++;
@@ -585,9 +597,9 @@ public partial class ReviewWindow : Window
             _owner.PersistBatchRow(row);
             if (!quiet)
             {
-                Dialogs.ShowIssued(this, row.Uid, outcome.Issue?.ValidUntil ?? validUntil,
-                    outcome.PngPath, outcome.PdfPath);
+                var goNext = ShowIssueSuccess(row, outcome, outcome.Issue?.ValidUntil ?? validUntil);
                 TxtStatus.Text = $"Issued {rowLabel(row)}.";
+                if (goNext) Move(1);
             }
             _owner.RefreshRecordsPublic();
         }
@@ -597,35 +609,52 @@ public partial class ReviewWindow : Window
             row.Error = outcome.Error ?? "unknown";
             _owner.PersistBatchRow(row);
             if (!quiet)
-            {
                 Dialogs.ShowIssueFailed(this, outcome.Step ?? "issue", outcome.Error ?? "unknown");
-                TxtStatus.Text = $"Issue failed ({outcome.Step}): {outcome.Error}";
-            }
         }
         return outcome;
     }
 
-    /// <summary>Marks the current row approved (ready to issue) — no card is written.</summary>
-    private void Approve_Click(object sender, RoutedEventArgs e)
+    /// <summary>"Saved to Records…" dialog with Open folder / Next card buttons.</summary>
+    private bool ShowIssueSuccess(BatchRow row, IDForge.Core.Issuing.IssueOutcome outcome, DateOnly validUntil)
     {
-        if (_current == null) return;
-        SyncFormToRow();
-        ValidateRowInline();
-        var row = _current;
-        if (row.Status == "Issued") { TxtStatus.Text = $"{rowLabel(row)} already issued."; return; }
-        var problem = ValidateRowForIssue(row);
-        if (problem != null) { TxtStatus.Text = problem; return; }
-
-        row.Approved = true;
-        row.Status = "Approved";
-        row.Error = "";
-        _owner.PersistBatchRow(row);
-        TxtStatus.Text = $"Approved {rowLabel(row)}.";
-        UpdateBatchIssueButton();
-        Move(1);
+        var next = false;
+        var dlg = new Window
+        {
+            Owner = this, Title = "Card issued", Width = 460,
+            SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        var files = outcome.PdfPath != null ? $"{outcome.PngPath}\n{outcome.PdfPath}" : outcome.PngPath;
+        panel.Children.Add(new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Text = $"Saved to Records: {row.Uid}, valid until {validUntil:dd/MM/yyyy}.\nFiles:\n{files}",
+            Margin = new Thickness(0, 0, 0, 14)
+        });
+        var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var bOpen = new Button { Content = "Open folder", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(12, 4, 12, 4), IsCancel = true };
+        bOpen.Click += (_, _) =>
+        {
+            try
+            {
+                if (outcome.PngPath != null)
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{outcome.PngPath}\"");
+            }
+            catch { /* best effort */ }
+        };
+        var bNext = new Button { Content = "Next card", Padding = new Thickness(12, 4, 12, 4), IsDefault = true };
+        bNext.Click += (_, _) => { next = true; dlg.Close(); };
+        btns.Children.Add(bOpen);
+        btns.Children.Add(bNext);
+        panel.Children.Add(btns);
+        dlg.Content = panel;
+        dlg.ShowDialog();
+        return next;
     }
 
-    private async void Issue_Click(object sender, RoutedEventArgs e)
+    /// <summary>Approves and issues the current row in one step (same issue path as Batch).</summary>
+    private async void ApproveIssue_Click(object sender, RoutedEventArgs e)
     {
         if (_current == null) return;
         SyncFormToRow();
@@ -633,60 +662,18 @@ public partial class ReviewWindow : Window
         var row = _current;
         if (row.Status == "Issued") { TxtStatus.Text = $"{rowLabel(row)} already issued."; return; }
 
-        BtnIssue.IsEnabled = false;
+        BtnApproveIssue.IsEnabled = false;
         TxtStatus.Text = "Issuing...";
-        try { await IssueRowAsync(row, confirm: true, quiet: false); }
-        finally { BtnIssue.IsEnabled = true; UpdateBatchIssueButton(); }
-    }
-
-    /// <summary>Issues every Approved row sequentially; one confirm up front.</summary>
-    private async void BatchIssue_Click(object sender, RoutedEventArgs e)
-    {
-        var targets = _rows.Where(r => r.Status == "Approved").ToList();
-        if (targets.Count == 0) { UpdateBatchIssueButton(); return; }
-        var r = MessageBox.Show(this,
-            $"Issue {targets.Count} approved card(s) to the selected output folder?",
-            "Batch issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (r != MessageBoxResult.Yes) return;
-
-        BtnBatchIssue.IsEnabled = false;
-        BtnIssue.IsEnabled = false;
-        int ok = 0, fail = 0;
-        var failures = new List<string>();
         try
         {
-            foreach (var row in targets)
-            {
-                if (row.Status != "Approved") continue;   // may have been issued/skipped meanwhile
-                TxtStatus.Text = $"Issuing {rowLabel(row)} ({ok + fail + 1}/{targets.Count})...";
-                var outcome = await IssueRowAsync(row, confirm: false, quiet: true);
-                if (outcome?.Success == true) ok++;
-                else { fail++; failures.Add($"{rowLabel(row)}: {outcome?.Error ?? "cancelled"}"); }
-                UpdateBatchIssueButton();
-            }
+            // Approve first so the row is marked ready even if issue is cancelled.
+            row.Approved = true;
+            if (row.Status is "NeedsReview" or "Draft" or "NeedsPhoto" or "Failed")
+                row.Status = "Approved";
+            _owner.PersistBatchRow(row);
+            await IssueRowAsync(row, confirm: true, quiet: false);
         }
-        finally
-        {
-            BtnBatchIssue.IsEnabled = true;
-            BtnIssue.IsEnabled = true;
-            UpdateBatchIssueButton();
-        }
-        TxtStatus.Text = $"Batch issue done: {ok} issued, {fail} failed.";
-        if (failures.Count > 0)
-            MessageBox.Show(this, "Some cards failed:\n\n" + string.Join("\n", failures),
-                "Batch issue", MessageBoxButton.OK, MessageBoxImage.Warning);
-    }
-
-    /// <summary>Shows Batch Issue only when nothing is left pending review.</summary>
-    private void UpdateBatchIssueButton()
-    {
-        var pending = _rows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto"
-            or "Failed" or "Processing");
-        var approved = _rows.Count(r => r.Status == "Approved");
-        BtnBatchIssue.Visibility = pending == 0 && approved > 0
-            ? Visibility.Visible : Visibility.Collapsed;
-        if (BtnBatchIssue.Visibility == Visibility.Visible)
-            BtnBatchIssue.Content = $"Batch Issue ({approved})";
+        finally { BtnApproveIssue.IsEnabled = true; }
     }
 
     // Issue-option checkboxes removed in Phase 2 — settings live on the main window.
@@ -699,9 +686,13 @@ public static class Dialogs
 {
     /// <summary>Pre-issue confirm. Honors the 'confirm before issue' setting;
     /// always shows for re-issue / UID change.</summary>
+    /// <summary>Test hook: replaces the modal confirm. Args: owner,name,uid,validUntil,isReissue.</summary>
+    internal static Func<Window, string, string, DateOnly, bool, bool>? ConfirmOverride;
+
     public static bool ConfirmIssue(Window owner, string name, string uid, DateOnly validUntil, bool isReissue)
     {
         if (!isReissue && !AppSettings.ConfirmBeforeIssue) return true;
+        if (ConfirmOverride != null) return ConfirmOverride(owner, name, uid, validUntil, isReissue);
         var r = MessageBox.Show(owner,
             $"Issue card for {name}, UID {uid}, valid until {validUntil:MMMM yyyy}?",
             "Confirm issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
