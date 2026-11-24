@@ -570,4 +570,95 @@ public class Phase4Tests
             finally { w.Close(); }
         });
     }
+
+    // ---- Fix G: collapsed sidebar ----
+
+    [Fact]
+    public void Collapsed_Rail_Fits_Icon_Buttons_With_Focus_Room()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                w.Window_SizeChanged(w, null!);   // ActualWidth 0 → collapsed
+                var navCol = w.FindName("NavCol") as ColumnDefinition
+                    ?? throw new Exception("NavCol not found");
+                Assert.Equal(64, navCol.Width.Value);
+                Assert.True(navCol.MinWidth >= 64);
+
+                foreach (var name in new[] { "NavNewCard", "NavBatch", "NavRecords", "NavSettings" })
+                {
+                    var rb = (RadioButton)w.FindName(name)!;
+                    Assert.Equal(44, rb.Width);
+                    Assert.Equal(44, rb.Height);
+                    Assert.Equal(HorizontalAlignment.Center, rb.HorizontalAlignment);
+                    // rail 64 - button 44 = 20 px spare → 10 px each side for the
+                    // 2 px focus ring + padding; nothing clips.
+                    Assert.True(64 - rb.Width >= 8);
+                }
+                var backup = (FrameworkElement)w.FindName("PnlBackupCompact")!;
+                Assert.Equal(44, backup.Width);
+                Assert.Equal(44, backup.Height);
+                Assert.True(64 - backup.Width >= 8);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Nav_Focus_Style_Is_Blue_Ring_No_Dotted_Box()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                var rb = (RadioButton)w.FindName("NavNewCard")!;
+                // Dotted default FocusVisualStyle removed.
+                Assert.Null(rb.FocusVisualStyle);
+                var tpl = (ControlTemplate)rb.Template;
+                var focusTrigger = tpl.Triggers.OfType<Trigger>()
+                    .FirstOrDefault(t => t.Property == UIElement.IsKeyboardFocusedProperty);
+                Assert.NotNull(focusTrigger);
+                var setter = focusTrigger!.Setters.OfType<Setter>()
+                    .FirstOrDefault(s => s.Property == Border.BorderBrushProperty);
+                Assert.NotNull(setter);
+                // Setter value is a DynamicResource to PrimaryBrush — resolve it.
+                var brush = w.TryFindResource("PrimaryBrush") as SolidColorBrush;
+                Assert.NotNull(brush);
+                Assert.Equal(Color.FromRgb(0x3B, 0x82, 0xF6), brush!.Color);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Badge_Shows_When_Collapsed_And_Hides_At_Zero()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                w.Window_SizeChanged(w, null!);   // collapsed rail
+                var badge = (FrameworkElement)w.FindName("NavBatchBadge")!;
+                Assert.Equal(Visibility.Collapsed, badge.Visibility);   // zero rows
+
+                w.BatchRows.Add(new BatchRow { Uid = "70000041", Name = "Badge Test" });
+                w.UpdateBatchSummary();
+                Assert.Equal(Visibility.Visible, badge.Visibility);
+                Assert.Equal("1", ((TextBlock)w.FindName("TxtNavBatchCount")!).Text);
+                // Collapsed tooltip shows "to review" wording.
+                var tip = ((RadioButton)w.FindName("NavBatch")!).ToolTip?.ToString() ?? "";
+                Assert.Contains("to review", tip);
+                Assert.Contains("Ctrl+2", tip);
+
+                w.BatchRows.Clear();
+                w.UpdateBatchSummary();
+                Assert.Equal(Visibility.Collapsed, badge.Visibility);
+            }
+            finally { w.Close(); }
+        });
+    }
 }

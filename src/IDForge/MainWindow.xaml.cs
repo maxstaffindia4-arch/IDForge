@@ -976,8 +976,11 @@ public partial class MainWindow : Window
     {
         var n = _batchRows.Count;
         TxtNavBatchCount.Text = n.ToString();
-        NavBatchBadge.Visibility = n > 0 && !_navCollapsed ? Visibility.Visible : Visibility.Collapsed;
-        NavBatch.ToolTip = $"Batch (Ctrl+2){(n > 0 ? $" — {n} row{(n == 1 ? "" : "s")}" : "")}";
+        NavBatchBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var review = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
+        NavBatch.ToolTip = _navCollapsed
+            ? $"Batch — {(review > 0 ? $"{review} to review" : "nothing to review")} (Ctrl+2)"
+            : $"Batch (Ctrl+2){(n > 0 ? $" — {n} row{(n == 1 ? "" : "s")}" : "")}";
     }
 
     internal void Window_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -985,22 +988,41 @@ public partial class MainWindow : Window
         var collapsed = ActualWidth < 1100;
         if (collapsed == _navCollapsed) return;
         _navCollapsed = collapsed;
-        NavCol.Width = new GridLength(collapsed ? 56 : 208);
+        NavCol.Width = new GridLength(collapsed ? 64 : 208);
         foreach (var name in new[] { "NavLblNewCard", "NavKeyNewCard", "NavLblBatch", "NavKeyBatch",
                      "NavLblRecords", "NavKeyRecords", "NavLblSettings", "NavKeySettings",
                      "LblIssueCards", "LblManage" })
         {
             if (FindName(name) is FrameworkElement fe) fe.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         }
-        // Collapsed: icon-only items, centered, with tighter padding.
+        // Collapsed: fixed-size icon buttons centred in the 64 px rail —
+        // 44 px button + 2 px focus ring + padding on every side, nothing clipped.
         foreach (var (rb, pnl) in new (RadioButton, FrameworkElement)[]
                  { (NavNewCard, NavPnlNewCard), (NavBatch, NavPnlBatch),
                    (NavRecords, NavPnlRecords), (NavSettings, NavPnlSettings) })
         {
-            pnl.HorizontalAlignment = collapsed ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-            rb.Padding = collapsed ? new Thickness(4, 8, 4, 8) : new Thickness(10, 7, 10, 7);
+            if (collapsed)
+            {
+                rb.Width = 44; rb.Height = 44;
+                rb.HorizontalAlignment = HorizontalAlignment.Center;
+                rb.Padding = new Thickness(0);
+                pnl.HorizontalAlignment = HorizontalAlignment.Center;
+                pnl.VerticalAlignment = VerticalAlignment.Center;
+            }
+            else
+            {
+                rb.ClearValue(FrameworkElement.WidthProperty);
+                rb.ClearValue(FrameworkElement.HeightProperty);
+                rb.HorizontalAlignment = HorizontalAlignment.Stretch;
+                rb.Padding = new Thickness(10, 7, 10, 7);
+                pnl.HorizontalAlignment = HorizontalAlignment.Left;
+                pnl.VerticalAlignment = VerticalAlignment.Stretch;
+            }
         }
-        NavBatchBadge.Visibility = _batchRows.Count > 0 && !collapsed ? Visibility.Visible : Visibility.Collapsed;
+        // Badge overlays the Batch icon in both modes; hidden only at zero rows.
+        NavBatchBadge.Margin = collapsed ? new Thickness(0, 0, 2, 26) : new Thickness(0, 0, 10, 0);
+        NavBatchBadge.VerticalAlignment = collapsed ? VerticalAlignment.Top : VerticalAlignment.Center;
+        NavBatchBadge.HorizontalAlignment = collapsed ? HorizontalAlignment.Right : HorizontalAlignment.Right;
         PnlBackupFull.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         PnlBackupCompact.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -1049,7 +1071,7 @@ public partial class MainWindow : Window
     private void NavSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
     private void GoSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
     private void MenuToggleNav_Click(object sender, RoutedEventArgs e)
-        => NavCol.Width = new GridLength(NavCol.Width.Value > 100 ? 56 : 208);
+        => NavCol.Width = new GridLength(NavCol.Width.Value > 100 ? 64 : 208);
     private void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
