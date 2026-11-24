@@ -71,8 +71,12 @@ public sealed class BatchRow : INotifyPropertyChanged
     public string Error { get => _error; set { Set(ref _error, value); OnPropertyChanged(nameof(StatusText)); OnPropertyChanged(nameof(DisplayText)); } }
 
     /// <summary>Status column text: state plus failure reason.</summary>
-    public string StatusText => Status == "Failed" && !string.IsNullOrEmpty(Error)
-        ? $"Failed — {Error}" : Status;
+    public string StatusText => Status switch
+    {
+        "Approved" => "Issuing…",   // transient state inside Approve & Issue — never a resting row state
+        "Failed" when !string.IsNullOrEmpty(Error) => $"Failed — {Error}",
+        _ => Status
+    };
 
     public string StatusIcon => Status switch
     {
@@ -81,7 +85,7 @@ public sealed class BatchRow : INotifyPropertyChanged
         "Skipped" => "⤼",
         "NeedsReview" => "👁",
         "Processing" => "…",
-        "Approved" => "✓",
+        "Approved" => "…",
         _ => "·"
     };
 

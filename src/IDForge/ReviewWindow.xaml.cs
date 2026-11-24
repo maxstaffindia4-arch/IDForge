@@ -182,8 +182,8 @@ public partial class ReviewWindow : Window
 
     private void Row_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // Double-click = quick approve&issue for the selected row.
-        ApproveIssue_Click(sender, e);
+        // Double-click only selects the row (Row_Selected already ran). Approving
+        // and issuing is exclusively Ctrl+Enter or the Approve & Issue button.
     }
 
     private void Prev_Click(object sender, RoutedEventArgs e) => Move(-1);
@@ -585,6 +585,11 @@ public partial class ReviewWindow : Window
         if (confirm && !Dialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue))
             return null;
 
+        // Approved is transient: set it only once the issue is really going ahead.
+        row.Approved = true;
+        row.Status = "Approved";
+        _owner.PersistBatchRow(row);
+
         row.AttemptCount++;
         _owner.PersistBatchRow(row);           // persist attempt so RowId/key are stable
         var key = $"batchrow:{row.RowId}:attempt:{row.AttemptCount}";
@@ -664,15 +669,7 @@ public partial class ReviewWindow : Window
 
         BtnApproveIssue.IsEnabled = false;
         TxtStatus.Text = "Issuing...";
-        try
-        {
-            // Approve first so the row is marked ready even if issue is cancelled.
-            row.Approved = true;
-            if (row.Status is "NeedsReview" or "Draft" or "NeedsPhoto" or "Failed")
-                row.Status = "Approved";
-            _owner.PersistBatchRow(row);
-            await IssueRowAsync(row, confirm: true, quiet: false);
-        }
+        try { await IssueRowAsync(row, confirm: true, quiet: false); }
         finally { BtnApproveIssue.IsEnabled = true; }
     }
 

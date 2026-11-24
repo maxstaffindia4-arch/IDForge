@@ -68,18 +68,20 @@ public class Phase4Tests
                 var headers = ColumnHeaders(w);
                 Assert.Equal(new[] { "#", "Employee", "Employee ID", "Blood group", "Position",
                     "Contract", "Print date", "Card type", "Photo", "Status", "Message" }, headers);
-                foreach (var tag in new[] { "all", "attention", "review", "approved", "reissue" })
+                foreach (var tag in new[] { "all", "attention", "review", "reissue" })
                     Assert.NotNull(FilterRadio(w, tag));
+                Assert.Throws<InvalidOperationException>(() => FilterRadio(w, "approved")); // chip removed
+                Assert.Null(w.FindName("BtnIssueBatch"));          // batch issuing removed
                 Assert.NotNull(w.FindName("TxtBatchCounts"));
-                Assert.NotNull(w.FindName("BtnIssueBatch"));
-                Assert.NotNull(w.FindName("TxtIssueBatchReason"));
+                Assert.NotNull(w.FindName("BtnReview"));
+                Assert.NotNull(w.FindName("TxtReviewReason"));
             }
             finally { w.Close(); }
         });
     }
 
     [Fact]
-    public void Counts_Line_And_Issue_Batch_Gating()
+    public void Counts_Line_And_Review_Gating()
     {
         OnSta(() =>
         {
@@ -91,18 +93,18 @@ public class Phase4Tests
                 w.UpdateBatchSummary();
 
                 var counts = ((TextBlock)w.FindName("TxtBatchCounts")!).Text;
-                Assert.Contains("0 of 2 approved", counts);
-                Assert.Contains("2 more before the batch can be issued", counts);
+                Assert.Equal("2 to review", counts);
 
-                var btn = (Button)w.FindName("BtnIssueBatch")!;
-                var reason = ((TextBlock)w.FindName("TxtIssueBatchReason")!).Text;
-                Assert.False(btn.IsEnabled);
-                Assert.False(string.IsNullOrEmpty(reason));
-
-                foreach (var r in w.BatchRows) r.Status = "Approved";
-                w.UpdateBatchSummary();
+                var btn = (Button)w.FindName("BtnReview")!;
+                var reason = ((TextBlock)w.FindName("TxtReviewReason")!).Text;
                 Assert.True(btn.IsEnabled);
-                Assert.Equal("", ((TextBlock)w.FindName("TxtIssueBatchReason")!).Text);
+                Assert.Equal("", reason);
+
+                foreach (var r in w.BatchRows) { r.Status = "Issued"; }
+                w.UpdateBatchSummary();
+                Assert.Equal("All rows done", ((TextBlock)w.FindName("TxtBatchCounts")!).Text);
+                Assert.False(btn.IsEnabled);
+                Assert.Equal("No rows to review", ((TextBlock)w.FindName("TxtReviewReason")!).Text);
             }
             finally { w.Close(); }
         });
@@ -176,7 +178,7 @@ public class Phase4Tests
                 w.BatchRows.Add(new BatchRow { Uid = "70000031", Name = "Draft Row" });       // Draft
                 var needs = new BatchRow { Uid = "70000032", Name = "Bad Row", Status = "Failed" };
                 w.BatchRows.Add(needs);
-                w.BatchRows.Add(new BatchRow { Uid = "70000033", Name = "Ok Row", Status = "Approved" });
+                w.BatchRows.Add(new BatchRow { Uid = "70000033", Name = "Ok Row", Status = "NeedsReview" });
                 w.UpdateBatchSummary();
 
                 var dg = (DataGrid)w.FindName("DgBatch")!;
@@ -186,7 +188,7 @@ public class Phase4Tests
                 Assert.Equal(1, dg.Items.Count);
                 Assert.Same(needs, dg.Items[0]);
 
-                FilterRadio(w, "approved").IsChecked = true;
+                FilterRadio(w, "review").IsChecked = true;
                 Assert.Equal(1, dg.Items.Count);
                 Assert.Equal("Ok Row", ((BatchRow)dg.Items[0]).Name);
 

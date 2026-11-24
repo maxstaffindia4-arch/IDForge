@@ -43,7 +43,6 @@ public partial class MainWindow : Window
     private readonly System.Collections.ObjectModel.ObservableCollection<BatchRow> _batchRows = new();
     private string _batchFilter = "all";
     private string _batchSessionName = "";
-    private bool _batchIssuing;
     private long _batchSessionId;
     private CancellationTokenSource? _batchCts;
     private readonly List<string> _batchLog = new();
@@ -1942,7 +1941,12 @@ public partial class MainWindow : Window
     // ---- review ----
 
     private void BatchReview_Click(object sender, RoutedEventArgs e)
-        => OpenReview(DgBatch.SelectedItem as BatchRow);
+    {
+        // Open on the first row that needs review (same rule that enables the button).
+        var first = _batchRows.FirstOrDefault(r =>
+            r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
+        OpenReview(first);
+    }
 
     private void DgBatch_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         => OpenReview(DgBatch.SelectedItem as BatchRow);
@@ -1982,17 +1986,12 @@ public partial class MainWindow : Window
         int review = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
         int failed = _batchRows.Count(r => r.Status == "Failed");
         int skipped = _batchRows.Count(r => r.Status == "Skipped");
-        int approved = _batchRows.Count(r => r.Status == "Approved");
-        int pending = _batchRows.Count - approved - issued - skipped;
         TxtBatchStatus.Text = $"Ready to review: {review}, Issued: {issued}, Failed: {failed}" +
             (skipped > 0 ? $", Skipped: {skipped}" : "");
         TxtBatchName.Text = FormatBatchName(_batchSessionName);
-        TxtBatchCounts.Text = _batchRows.Count == 0 ? "No rows yet"
-            : $"{approved} of {_batchRows.Count} approved" +
-              (pending > 0 ? $", {pending} more before the batch can be issued"
-                           : approved > 0 ? ", ready to issue" : ", nothing left to issue");
+        TxtBatchCounts.Text = BatchCountsText();
         RefreshBatchDerived();
-        UpdateIssueBatchButton();
+        UpdateReviewButton();
         // Auto-complete the session when every row reached a terminal state.
         if (_batchSessionId != 0 && _batchRows.Count > 0 &&
             _batchRows.All(r => r.Status is "Issued" or "Skipped"))
@@ -2080,7 +2079,6 @@ public partial class MainWindow : Window
         {
             "attention" => r.Status is "Failed" or "NeedsPhoto",
             "review" => r.Status == "NeedsReview",
-            "approved" => r.Status == "Approved",
             "reissue" => r.CardType == "Re-issue",
             _ => true,
         };
@@ -2095,89 +2093,31 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Issue batch stays disabled until every row is approved, issued, or skipped.</summary>
-    private void UpdateIssueBatchButton()
+    /// <summary>Counts line: "3 issued, 5 to review, 1 failed" — "All rows done" at the end.</summary>
+    private string BatchCountsText()
     {
-        var pending = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft"
-            or "NeedsPhoto" or "Failed" or "Processing");
-        var approved = _batchRows.Count(r => r.Status == "Approved");
-        BtnIssueBatch.IsEnabled = !_batchIssuing && pending == 0 && approved > 0;
-        TxtIssueBatchReason.Text = BtnIssueBatch.IsEnabled ? ""
-            : pending > 0 ? $"{pending} row(s) still need review or have errors"
-            : approved == 0 ? (_batchRows.Count == 0 ? "Add rows to begin" : "No approved cards to issue")
-            : "";
+        if (_batchRows.Count == 0) return "No rows yet";
+        if (_batchRows.All(r => r.Status is "Issued" or "Skipped")) return "All rows done";
+        var parts = new List<string>();
+        var issued = _batchRows.Count(r => r.Status == "Issued");
+        var review = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
+        var failed = _batchRows.Count(r => r.Status == "Failed");
+        var skipped = _batchRows.Count(r => r.Status == "Skipped");
+        if (issued > 0) parts.Add($"{issued} issued");
+        if (review > 0) parts.Add($"{review} to review");
+        if (failed > 0) parts.Add($"{failed} failed");
+        if (skipped > 0) parts.Add($"{skipped} skipped");
+        return string.Join(", ", parts);
     }
 
-    /// <summary>Issues every Approved row sequentially through the single issue path.</summary>
-    private async void IssueBatch_Click(object sender, RoutedEventArgs e)
+    /// <summary>Review opens on the first row that needs review; disabled with a reason otherwise.</summary>
+    private void UpdateReviewButton()
     {
-        var targets = _batchRows.Where(r => r.Status == "Approved").ToList();
-        if (targets.Count == 0) return;
-        var ans = MessageBox.Show(this,
-            $"Issue {targets.Count} approved card(s) to the output folder?",
-            "Issue batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (ans != MessageBoxResult.Yes) return;
+        var first = _batchRows.FirstOrDefault(NeedsReview);
+        BtnReview.IsEnabled = first != null;
+        TxtReviewReason.Text = first != null ? "" : _batchRows.Count == 0 ? "Add rows to begin" : "No rows to review";
 
-        _batchIssuing = true;
-        UpdateIssueBatchButton();
-        int ok = 0, fail = 0;
-        var failures = new List<string>();
-        try
-        {
-            foreach (var row in targets)
-            {
-                if (row.Status != "Approved") continue;
-                TxtBatchStatus.Text = $"Issuing {Core.RowLabels.For(row.Name, row.Uid)} ({ok + fail + 1}/{targets.Count})...";
-                // rows resumed from disk have no runtime bitmap — reload the cached cutout
-                if (row.Cutout == null && row.CutoutPath != null && File.Exists(row.CutoutPath))
-                    row.Cutout = await Task.Run(() => SKBitmap.Decode(row.CutoutPath));
-                string Label() => Core.RowLabels.For(row.Name, row.Uid);
-                if (row.Cutout == null)
-                {
-                    fail++; failures.Add($"{Label()}: photo not processed");
-                    row.Status = "Failed"; row.Error = "photo not processed";
-                    PersistBatchRow(row); continue;
-                }
-                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var r in _batchRows)
-                    if (!ReferenceEquals(r, row) && Core.Uid.Normalize(r.Uid) is { } nu) seen.Add(nu);
-                var problem = BatchValidator.Validate(
-                    new BatchRowData(row.Uid, row.Name, row.Blood, row.Position, row.Contract,
-                        row.PrintDateText, row.PhotoPath),
-                    seen, uid => _svc.Store.FindEmployeeByUid(uid) != null);
-                if (problem != null)
-                {
-                    fail++; failures.Add($"{Label()}: {problem}");
-                    row.Status = "Failed"; row.Error = problem;
-                    PersistBatchRow(row); continue;
-                }
-                row.AttemptCount++;
-                PersistBatchRow(row);
-                var key = $"batchrow:{row.RowId}:attempt:{row.AttemptCount}";
-                var outcome = await IssueBatchRowAsync(row, key);
-                if (outcome.Success)
-                {
-                    row.Status = "Issued"; row.Error = "";
-                    row.CardIssueId = outcome.Issue?.Id;
-                    PersistBatchRow(row); ok++;
-                }
-                else
-                {
-                    row.Status = "Failed"; row.Error = outcome.Error ?? "unknown";
-                    PersistBatchRow(row); fail++;
-                    failures.Add($"{Label()}: {outcome.Error ?? "unknown"}");
-                }
-            }
-        }
-        finally
-        {
-            _batchIssuing = false;
-            TxtBatchStatus.Text = $"Batch issue done: {ok} issued, {fail} failed.";
-            if (failures.Count > 0)
-                MessageBox.Show(this, "Some cards failed:\n\n" + string.Join("\n", failures),
-                    "Issue batch", MessageBoxButton.OK, MessageBoxImage.Warning);
-            UpdateBatchSummary();
-        }
+        static bool NeedsReview(BatchRow r) => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto";
     }
 
     // ---- process photos stage (no approval, no issuing) ----

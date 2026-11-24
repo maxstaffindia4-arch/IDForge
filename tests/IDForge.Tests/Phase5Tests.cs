@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 using IDForge;
 using Xunit;
@@ -242,6 +243,51 @@ public class Phase5Tests
                 Dialogs.ConfirmOverride = null;
                 AppSettings.ConfirmBeforeIssue = prev;
             }
+        });
+    }
+
+    [Fact]
+    public void Review_Row_DoubleClick_Only_Selects_Does_Not_Issue()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            var row = Row("80000071", "NoIssue", id: 71);
+            var win = NewReview(w, row);
+            try
+            {
+                var list = (ListBox)FindName(win, "LstRows")!;
+                list.SelectedItem = row;
+                // Raise the real double-click routed event on the list.
+                var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = Control.MouseDoubleClickEvent };
+                list.RaiseEvent(args);
+                Assert.Equal("NeedsReview", row.Status);
+                Assert.Equal(0, row.AttemptCount);
+                Assert.Null(row.CardIssueId);
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Approve_Issue_Button_Runs_Approve_Then_Same_Issue_Path()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            var row = Row("80000081", "BtnPath", "NeedsReview", 81);
+            var win = NewReview(w, row);
+            try
+            {
+                // No photo → validation stops before approve/issue: nothing changes.
+                var btn = FindButton(win, "Approve & Issue")!;
+                btn.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.Equal("NeedsReview", row.Status);
+                Assert.False(row.Approved);
+                Assert.Equal(0, row.AttemptCount);
+            }
+            finally { win.Close(); w.Close(); }
         });
     }
 

@@ -582,8 +582,6 @@
                                      Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
                         <RadioButton Content="Ready to review" Tag="review" GroupName="BatchFilters"
                                      Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
-                        <RadioButton Content="Approved" Tag="approved" GroupName="BatchFilters"
-                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
                         <RadioButton Content="Re-issues" Tag="reissue" GroupName="BatchFilters"
                                      Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
                     </StackPanel>
@@ -670,12 +668,10 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="8,6,8,4" VerticalAlignment="Center">
-                        <Button Content="Review" Click="BatchReview_Click" FontWeight="SemiBold"
+                        <Button Content="Review" Click="BatchReview_Click" x:Name="BtnReview"
+                                FontWeight="SemiBold" IsEnabled="False"
                                 ToolTip="Open the review screen — approve &amp; issue each card manually."/>
-                        <Button Content="Issue batch" Click="IssueBatch_Click" x:Name="BtnIssueBatch"
-                                Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Height="34"
-                                IsEnabled="False" ToolTip="Issues every approved card"/>
-                        <TextBlock x:Name="TxtIssueBatchReason" VerticalAlignment="Center"
+                        <TextBlock x:Name="TxtReviewReason" VerticalAlignment="Center"
                                    Foreground="{StaticResource MutedBrush}" FontSize="11"
                                    Margin="10,0,0,0" TextWrapping="Wrap" MaxWidth="420"/>
                         <Button Content="Cancel" Click="BatchCancel_Click" Margin="14,0,0,0" IsEnabled="False" x:Name="BtnBatchCancel"/>
