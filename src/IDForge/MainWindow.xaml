@@ -469,15 +469,6 @@
                                                FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
                                                Foreground="{StaticResource MutedBrush}"/>
 
-                                    <TextBlock FontWeight="SemiBold" Margin="0,12,0,4">Photo background</TextBlock>
-                                    <RadioButton x:Name="RadBgPlain" Content="Plain white" GroupName="bgmode"
-                                                 IsChecked="True" Checked="BgRadio_Changed"/>
-                                    <RadioButton x:Name="RadBgModel" Content="Model (complex background)"
-                                                 GroupName="bgmode" Checked="BgRadio_Changed"
-                                                 Margin="0,4,0,0"/>
-                                    <RadioButton x:Name="RadBgKeep" Content="Keep as is" GroupName="bgmode"
-                                                 Checked="BgRadio_Changed" Margin="0,4,0,0"/>
-
                                     <controls:PhotoPositionPanel x:Name="PosPanel" Margin="0,12,0,0"/>
 
                                     <Border Background="{StaticResource PanelLightBrush}" CornerRadius="6"

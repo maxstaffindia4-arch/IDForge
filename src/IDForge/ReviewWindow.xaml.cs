@@ -37,7 +37,6 @@ public partial class ReviewWindow : Window
     private readonly DispatcherTimer _persistDebounce = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private int _previewRequest;
     private readonly object _photoLock = new();
-    private bool _syncingNudge;
 
     public ReviewWindow(MainWindow owner, ObservableCollection<BatchRow> rows, BatchRow? startAt = null)
     {
@@ -75,6 +74,11 @@ public partial class ReviewWindow : Window
             _persistDebounce.Stop();
             if (_current != null) _owner.PersistBatchRow(_current);
         };
+        PosPanel.NudgeRequested += PosPanel_Nudge;
+        PosPanel.OffsetCommitted += PosPanel_Offset;
+        PosPanel.ZoomChanged += PosPanel_Zoom;
+        PosPanel.ResetRequested += PosPanel_Reset;
+        PosPanel.BgModeChanged += PosPanel_BgMode;
 
         CmbBlood.SelectedIndex = -1; // set per row
         DpPrintDate.SelectedDate = Validity.TodayInDhaka().ToDateTime(TimeOnly.MinValue);
@@ -142,15 +146,8 @@ public partial class ReviewWindow : Window
             if (DateOnly.TryParse(row.PrintDateText, out var pd))
                 DpPrintDate.SelectedDate = pd.ToDateTime(TimeOnly.MinValue);
             TxtPhoto.Text = row.PhotoPath ?? "";
-            _loading = true;
-            ChkRemoveBg.IsChecked = row.BgMode != "Keep";
-            CmbBgMode.SelectedIndex = row.BgMode switch
-            {
-                "Model" => 1, "Keep" => 2, _ => 0
-            };
-            _loading = false;
-            CmbBgMode.IsEnabled = row.BgMode != "Keep";
-            SyncNudgeFromRow();
+            PosPanel.SetBgMode(row.BgMode);
+            SyncPanelFromRow();
             ValidateRowInline();
             TxtStatus.Text = $"{row.Name} ({row.Uid}) — {row.StatusText}";
             Title = string.IsNullOrWhiteSpace(row.Name)
@@ -161,17 +158,21 @@ public partial class ReviewWindow : Window
         _ = EnsureRowPhotoAsync(row);
     }
 
-    private void SyncNudgeFromRow()
+    /// <summary>Pushes the row's transform into the shared position panel.</summary>
+    private void SyncPanelFromRow()
     {
-        _syncingNudge = true;
-        if (_current != null)
-        {
-            SldZoom.Value = Math.Clamp(_current.Zoom, SldZoom.Minimum, SldZoom.Maximum);
-            SldX.Value = Math.Clamp(_current.OffsetX, SldX.Minimum, SldX.Maximum);
-            SldY.Value = Math.Clamp(_current.OffsetY, SldY.Minimum, SldY.Maximum);
-        }
-        _syncingNudge = false;
-        SyncNudgeText();
+        if (_current == null) return;
+        PosPanel.SetState(_current.Zoom, _current.OffsetX, _current.OffsetY);
+        PosPanel.IsEnabled = _current.Cutout != null;
+    }
+
+    /// <summary>Shared tail for every panel change: write to the row, re-render, persist.</summary>
+    private void PhotoAdjusted()
+    {
+        if (_current?.Cutout == null || _current.AutoTransform == null) return;
+        lock (_photoLock) { Recompose(_current); }
+        SchedulePreview();
+        SchedulePersist();
     }
 
     private void Row_Selected(object sender, SelectionChangedEventArgs e)
@@ -300,7 +301,7 @@ public partial class ReviewWindow : Window
                         (float)row.AutoScale, (float)row.AutoOffsetX, (float)row.AutoOffsetY);
                     Recompose(row);
                 }
-                GrpNudge.IsEnabled = true;
+                PosPanel.IsEnabled = true;
                 SchedulePreview();
                 return;
             }
@@ -313,12 +314,12 @@ public partial class ReviewWindow : Window
         else if (string.IsNullOrWhiteSpace(row.PhotoPath))
         {
             TxtPhotoStatus.Text = "Row has no photo. Add a photo before review.";
-            GrpNudge.IsEnabled = false;
+            PosPanel.IsEnabled = false;
             SchedulePreview();
         }
         else
         {
-            GrpNudge.IsEnabled = row.Cutout != null;
+            PosPanel.IsEnabled = row.Cutout != null;
             SchedulePreview();
         }
     }
@@ -344,31 +345,46 @@ public partial class ReviewWindow : Window
         await ProcessRowPhotoAsync(_current, keepNudge: false);
     }
 
-    private void RemoveBg_Changed(object sender, RoutedEventArgs e)
+    private void PosPanel_Nudge(int dx, int dy)
     {
-        if (_loading || _current == null) return;
-        if (ChkRemoveBg.IsChecked == true)
-        {
-            // Back on: use the selected mode ("Keep as is" falls back to Plain white).
-            var tag = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string;
-            _current.BgMode = tag is "PlainWhite" or "Model" ? tag : "PlainWhite";
-            if (tag == "Keep") CmbBgMode.SelectedIndex = 0;
-            CmbBgMode.IsEnabled = true;
-        }
-        else
-        {
-            _current.BgMode = "Keep";
-            CmbBgMode.IsEnabled = false;
-        }
-        _ = ProcessRowPhotoAsync(_current, keepNudge: true);
+        if (_current == null) return;
+        _current.OffsetX = Math.Clamp(_current.OffsetX + dx, -320, 320);
+        _current.OffsetY = Math.Clamp(_current.OffsetY + dy, -400, 400);
+        PosPanel.SetState(_current.Zoom, _current.OffsetX, _current.OffsetY);
+        PhotoAdjusted();
     }
 
-    private async void BgMode_Changed(object sender, SelectionChangedEventArgs e)
+    private void PosPanel_Offset(double x, double y)
     {
-        if (_loading || _current == null || _current.PhotoPath == null) return;
-        if (ChkRemoveBg.IsChecked != true) return; // mode only applies while removal is on
-        _current.BgMode = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string ?? "PlainWhite";
-        await ProcessRowPhotoAsync(_current, keepNudge: true);
+        if (_current == null) return;
+        _current.OffsetX = Math.Clamp(x, -320, 320);
+        _current.OffsetY = Math.Clamp(y, -400, 400);
+        PosPanel.SetState(_current.Zoom, _current.OffsetX, _current.OffsetY);
+        PhotoAdjusted();
+    }
+
+    private void PosPanel_Zoom(double z)
+    {
+        if (_current == null) return;
+        _current.Zoom = Math.Clamp(z, 0.4, 3.0);
+        PosPanel.SetState(_current.Zoom, _current.OffsetX, _current.OffsetY);
+        PhotoAdjusted();
+    }
+
+    private void PosPanel_Reset()
+    {
+        if (_current == null) return;
+        _current.Zoom = 1; _current.OffsetX = 0; _current.OffsetY = 0;
+        PosPanel.SetState(1, 0, 0);
+        PhotoAdjusted();
+    }
+
+    private void PosPanel_BgMode(string tag)
+    {
+        if (_loading || _current == null) return;
+        _current.BgMode = tag;   // recorded even without a photo; reprocess needs one
+        if (_current.PhotoPath == null) return;
+        _ = ProcessRowPhotoAsync(_current, keepNudge: true);
     }
 
     private async Task ProcessRowPhotoAsync(BatchRow row, bool keepNudge)
@@ -377,7 +393,7 @@ public partial class ReviewWindow : Window
         float kZ = (float)row.Zoom, kX = (float)row.OffsetX, kY = (float)row.OffsetY;
         var mode = row.BgMode switch { "Model" => BgMode.Model, "Keep" => BgMode.Keep, _ => BgMode.PlainWhite };
         TxtPhotoStatus.Text = "Processing photo...";
-        GrpNudge.IsEnabled = false;
+        PosPanel.IsEnabled = false;
         try
         {
             var job = await Task.Run(() => _owner.Svc.ProcessPhoto(row.PhotoPath, mode));
@@ -414,7 +430,7 @@ public partial class ReviewWindow : Window
             };
             TxtPhotoStatus.Text = string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — adjust and approve." }
                 .Where(s => s != null));
-            if (ReferenceEquals(row, _current)) { SyncNudgeFromRow(); GrpNudge.IsEnabled = job.Cutout != null; }
+            if (ReferenceEquals(row, _current)) { SyncPanelFromRow(); PosPanel.IsEnabled = job.Cutout != null; }
             if (row.Status is "Draft" or "NeedsPhoto" or "Failed") row.Status = "NeedsReview";
             row.Error = "";
             _owner.PersistBatchRow(row);
@@ -425,60 +441,6 @@ public partial class ReviewWindow : Window
             row.Status = "Failed"; row.Error = ex.Message;
             TxtPhotoStatus.Text = $"Photo failed: {ex.Message}";
             _owner.PersistBatchRow(row);
-        }
-    }
-
-    // ---- nudge (same transform model as New Card tab) ----
-
-    private void SyncNudgeText()
-    {
-        if (_syncingNudge || TxtZoom == null || _current == null) return;
-        _syncingNudge = true;
-        TxtZoom.Text = SldZoom.Value.ToString("0.##");
-        TxtX.Text = ((int)SldX.Value).ToString();
-        TxtY.Text = ((int)SldY.Value).ToString();
-        _syncingNudge = false;
-    }
-
-    private void Nudge_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        SyncNudgeText();
-        if (TxtZoom == null || _current?.Cutout == null || _current.AutoTransform == null) return;
-        _current.Zoom = SldZoom.Value;
-        _current.OffsetX = SldX.Value;
-        _current.OffsetY = SldY.Value;
-        lock (_photoLock) { Recompose(_current); }
-        SchedulePreview();
-        if (!_syncingNudge) SchedulePersist();
-    }
-
-    private void NudgeText_Changed(object sender, TextChangedEventArgs e)
-    {
-        if (_syncingNudge || _current?.Cutout == null) return;
-        if (sender is not TextBox tb || !double.TryParse(tb.Text, out var v)) return;
-        _syncingNudge = true;
-        switch (tb.Tag as string)
-        {
-            case "zoom": SldZoom.Value = Math.Clamp(v, SldZoom.Minimum, SldZoom.Maximum); break;
-            case "x": SldX.Value = Math.Clamp(v, SldX.Minimum, SldX.Maximum); break;
-            case "y": SldY.Value = Math.Clamp(v, SldY.Minimum, SldY.Maximum); break;
-        }
-        _syncingNudge = false;
-        SyncNudgeText();
-    }
-
-    private void ResetNudge_Click(object sender, RoutedEventArgs e)
-    {
-        _syncingNudge = true;
-        SldZoom.Value = 1; SldX.Value = 0; SldY.Value = 0;
-        TxtZoom.Text = "1"; TxtX.Text = "0"; TxtY.Text = "0";
-        _syncingNudge = false;
-        if (_current != null)
-        {
-            _current.Zoom = 1; _current.OffsetX = 0; _current.OffsetY = 0;
-            lock (_photoLock) { if (_current.Cutout != null) Recompose(_current); }
-            SchedulePreview();
-            SchedulePersist();
         }
     }
 

@@ -22,10 +22,54 @@ public partial class PhotoPositionPanel : UserControl
     /// <summary>Zoom factor commit (0.4–3.0).</summary>
     public event Action<double>? ZoomChanged;
     public event Action? ResetRequested;
+    /// <summary>Background-removal mode changed. Tag: "PlainWhite" | "Model" | "Keep".</summary>
+    public event Action<string>? BgModeChanged;
+
+    private string _bgMode = "PlainWhite";
+
+    /// <summary>Current background mode tag ("PlainWhite" | "Model" | "Keep").</summary>
+    public string BgMode => _bgMode;
 
     public PhotoPositionPanel()
     {
         InitializeComponent();
+    }
+
+    /// <summary>Pushes the background mode into the controls without firing events.</summary>
+    public void SetBgMode(string mode)
+    {
+        _bgMode = mode is "Model" or "Keep" ? mode : "PlainWhite";
+        _syncing = true;
+        ChkRemoveBg.IsChecked = _bgMode != "Keep";
+        CmbBgMode.SelectedIndex = _bgMode switch { "Model" => 1, "Keep" => 2, _ => 0 };
+        CmbBgMode.IsEnabled = _bgMode != "Keep";
+        _syncing = false;
+    }
+
+    private void Bg_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncing) return;
+        if (ChkRemoveBg.IsChecked == true)
+        {
+            var tag = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string;
+            _bgMode = tag is "PlainWhite" or "Model" ? tag : "PlainWhite";
+            if (tag == "Keep") CmbBgMode.SelectedIndex = 0;
+            CmbBgMode.IsEnabled = true;
+        }
+        else
+        {
+            _bgMode = "Keep";
+            CmbBgMode.IsEnabled = false;
+        }
+        BgModeChanged?.Invoke(_bgMode);
+    }
+
+    private void BgMode_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing || ChkRemoveBg.IsChecked != true) return;
+        var tag = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string;
+        _bgMode = tag is "PlainWhite" or "Model" ? tag : "PlainWhite";
+        BgModeChanged?.Invoke(_bgMode);
     }
 
     /// <summary>Pushes current transform values into the controls without firing events.</summary>

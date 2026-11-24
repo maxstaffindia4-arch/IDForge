@@ -92,5 +92,15 @@
                        Foreground="{StaticResource MutedBrush}"/>
             <Border x:Name="ZoomTick" Width="1.5" Height="4" Background="{StaticResource MutedBrush}"/>
         </Canvas>
+
+        <!-- Remove background + mode selector (shared by New Card and Review) -->
+        <CheckBox x:Name="ChkRemoveBg" Content="Remove background" Margin="0,12,0,0"
+                  Checked="Bg_Changed" Unchecked="Bg_Changed"/>
+        <ComboBox x:Name="CmbBgMode" Width="180" Margin="0,4,0,0" IsEnabled="False"
+                  SelectionChanged="BgMode_Changed">
+            <ComboBoxItem Content="Plain white" Tag="PlainWhite"/>
+            <ComboBoxItem Content="Model" Tag="Model"/>
+            <ComboBoxItem Content="Keep as is" Tag="Keep"/>
+        </ComboBox>
     </StackPanel>
 </UserControl>

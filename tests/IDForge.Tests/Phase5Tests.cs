@@ -119,6 +119,8 @@ public class Phase5Tests
             {
                 var chk = (CheckBox)FindName(win, "ChkRemoveBg")!;
                 var cmb = (ComboBox)FindName(win, "CmbBgMode")!;
+                // Panel is disabled until a photo loads — enable it to inspect children.
+                FindByType<IDForge.Controls.PhotoPositionPanel>(win)!.IsEnabled = true;
                 Assert.True(chk.IsChecked == true);
                 Assert.True(cmb.IsEnabled);
 
@@ -289,6 +291,72 @@ public class Phase5Tests
             }
             finally { win.Close(); w.Close(); }
         });
+    }
+
+    [Fact]
+    public void Both_Screens_Use_Same_Photo_Position_Panel()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            var win = NewReview(w, Row("80000091", "Panel", id: 91));
+            try
+            {
+                // New Card panel
+                var mainPanel = FindByType<IDForge.Controls.PhotoPositionPanel>(w);
+                Assert.NotNull(mainPanel);
+                // Review panel — same type
+                var revPanel = FindByType<IDForge.Controls.PhotoPositionPanel>(win);
+                Assert.NotNull(revPanel);
+                Assert.IsType<IDForge.Controls.PhotoPositionPanel>(revPanel);
+                // Review has no old-style sliders (SldX/SldY are gone; only the
+                // panel's own zoom slider remains inside the shared control).
+                Assert.Null(FindName(win, "SldX"));
+                Assert.Null(FindName(win, "SldY"));
+                Assert.Null(FindName(win, "GrpNudge"));
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void RemoveBg_Toggle_Works_On_Both_Screens()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            var row = Row("80000101", "Bg Both", id: 101);
+            row.BgMode = "PlainWhite";
+            var win = NewReview(w, row);
+            try
+            {
+                // Review side: checkbox inside the shared panel flips the row mode.
+                var revChk = FindByType<IDForge.Controls.PhotoPositionPanel>(win)!
+                    .FindName("ChkRemoveBg") as CheckBox;
+                Assert.NotNull(revChk);
+                revChk!.IsChecked = false;
+                Assert.Equal("Keep", row.BgMode);
+                revChk.IsChecked = true;
+                Assert.Equal("PlainWhite", row.BgMode);
+
+                // New Card side: same control drives CurrentBgModeTag.
+                var mainPanel = FindByType<IDForge.Controls.PhotoPositionPanel>(w)!;
+                var mainChk = mainPanel.FindName("ChkRemoveBg") as CheckBox;
+                Assert.NotNull(mainChk);
+                Assert.Equal("PlainWhite", w.BgModeTagForTest);
+                mainChk!.IsChecked = false;
+                Assert.Equal("Keep", w.BgModeTagForTest);
+            }
+            finally { win.Close(); w.Close(); }
+        });
+    }
+
+    private static T? FindByType<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T t) return t;
+        foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root))
+            if (child is DependencyObject d && FindByType<T>(d) is { } r) return r;
+        return null;
     }
 
     private static async Task OnStaAsync(Func<Task> work)

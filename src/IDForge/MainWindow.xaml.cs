@@ -444,36 +444,23 @@ public partial class MainWindow : Window
         catch { ImgPhotoThumb.Source = null; }
     }
 
-    private BgMode CurrentBgMode
+    private BgMode CurrentBgMode => PosPanel.BgMode switch
     {
-        get
-        {
-            if (RadBgModel.IsChecked == true) return BgMode.Model;
-            if (RadBgKeep.IsChecked == true) return BgMode.Keep;
-            return BgMode.PlainWhite;
-        }
-    }
-
-    private string CurrentBgModeTag => CurrentBgMode switch
-    {
-        BgMode.Model => "Model", BgMode.Keep => "Keep", _ => "PlainWhite"
+        "Model" => BgMode.Model, "Keep" => BgMode.Keep, _ => BgMode.PlainWhite
     };
 
-    private void BgRadio_Changed(object sender, RoutedEventArgs e)
+    private string CurrentBgModeTag => PosPanel.BgMode;
+    internal string BgModeTagForTest => CurrentBgModeTag;
+
+    private void BgMode_Changed_Reprocess(string tag)
     {
         // Mode change reprocesses from the original file (cache makes repeat
-        // modes cheap) and keeps the current nudge values. Checked also fires
-        // for programmatic IsChecked sets — IsLoaded + _photoPath guard those.
+        // modes cheap) and keeps the current nudge values.
         if (_restoringDraft || _photoPath == null || !IsLoaded) return;
         ProcessPhotoAsync(_photoPath, keepNudge: true);
     }
 
-    private void SetBgModeFromTag(string tag)
-    {
-        RadBgPlain.IsChecked = tag == "PlainWhite";
-        RadBgModel.IsChecked = tag == "Model";
-        RadBgKeep.IsChecked = tag == "Keep";
-    }
+    private void SetBgModeFromTag(string tag) => PosPanel.SetBgMode(tag);
 
     private static int _photoBusy;
 
@@ -636,6 +623,7 @@ public partial class MainWindow : Window
         PosPanel.OffsetCommitted += SetPhotoOffset;
         PosPanel.ZoomChanged += SetPhotoZoom;
         PosPanel.ResetRequested += ResetPhotoPosition;
+        PosPanel.BgModeChanged += BgMode_Changed_Reprocess;
         PosPanel.SetState(1, 0, 0);
     }
 
