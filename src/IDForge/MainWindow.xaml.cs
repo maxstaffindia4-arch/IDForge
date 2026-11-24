@@ -451,6 +451,7 @@ public partial class MainWindow : Window
 
     private string CurrentBgModeTag => PosPanel.BgMode;
     internal string BgModeTagForTest => CurrentBgModeTag;
+    internal bool TestNavCollapsed => _navCollapsed;
 
     private void BgMode_Changed_Reprocess(string tag)
     {
@@ -1014,7 +1015,8 @@ public partial class MainWindow : Window
                 rb.ClearValue(FrameworkElement.WidthProperty);
                 rb.ClearValue(FrameworkElement.HeightProperty);
                 rb.HorizontalAlignment = HorizontalAlignment.Stretch;
-                rb.Padding = new Thickness(10, 7, 10, 7);
+                // 18 left = old 10 padding + 8 ContentPresenter margin.
+                rb.Padding = new Thickness(18, 7, 10, 7);
                 pnl.HorizontalAlignment = HorizontalAlignment.Left;
                 pnl.VerticalAlignment = VerticalAlignment.Stretch;
             }

@@ -41,16 +41,18 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="Padding" Value="18,7,10,7"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="bd" CornerRadius="6" Padding="10,7"
+                        <Border x:Name="bd" CornerRadius="6"
+                                Padding="{TemplateBinding Padding}"
                                 Background="Transparent" BorderBrush="Transparent" BorderThickness="2">
                             <Grid>
                                 <Rectangle x:Name="accent" Width="3" Height="18" RadiusX="1.5"
                                            HorizontalAlignment="Left" Fill="Transparent"/>
-                                <ContentPresenter VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <ContentPresenter VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -605,12 +607,13 @@
                         <Button Content="Remove selected (Del)" Click="BatchDelRow_Click" Margin="6,0,0,0" Height="30"/>
                     </StackPanel>
                     <DataGrid x:Name="DgBatch" Grid.Row="3" Margin="8,0,8,0" AutoGenerateColumns="False"
+                              RowHeight="40"
                               CanUserAddRows="False" SelectionMode="Single" CellStyle="{StaticResource BatchCell}"
                               HeadersVisibility="Column" MouseDoubleClick="DgBatch_MouseDoubleClick"
                               CellEditEnding="DgBatch_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="36" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="130">
+                            <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="108">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
@@ -618,8 +621,8 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="Employee ID" Binding="{Binding Uid}" Width="110"/>
-                            <DataGridTemplateColumn Header="Blood group" Width="90">
+                            <DataGridTextColumn Header="Employee ID" Binding="{Binding Uid}" Width="100"/>
+                            <DataGridTemplateColumn Header="Blood group" Width="105">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding Source={x:Static core:Config.BloodGroups}}"
@@ -628,7 +631,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Position" Width="130">
+                            <DataGridTemplateColumn Header="Position" Width="125">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
@@ -644,7 +647,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Contract" Width="105">
+                            <DataGridTemplateColumn Header="Contract" Width="120">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding Source={x:Static core:Config.ContractTypes}}"
@@ -653,8 +656,8 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Print date" Binding="{Binding PrintDateDisplay}" Width="95"/>
-                            <DataGridTextColumn Header="Card type" Binding="{Binding CardType}" Width="85" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Print date" Binding="{Binding PrintDateDisplay}" Width="90"/>
+                            <DataGridTextColumn Header="Card type" Binding="{Binding CardType}" Width="80" IsReadOnly="True"/>
                             <DataGridTemplateColumn Header="Photo" Width="70">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -663,7 +666,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
