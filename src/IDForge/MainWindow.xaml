@@ -735,7 +735,9 @@
                 </Grid>
 
                 <!-- ===== SETTINGS ===== -->
-                <ScrollViewer x:Name="PageSettings" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="PageSettings" Visibility="Collapsed"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto">
                     <StackPanel Margin="20,10,20,20" MaxWidth="720">
                         <TextBlock Text="Settings" FontSize="20" FontWeight="SemiBold"/>
                         <TextBlock Text="Issuing, saved files, and new-card defaults — changes save instantly"

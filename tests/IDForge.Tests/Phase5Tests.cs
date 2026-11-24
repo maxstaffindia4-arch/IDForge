@@ -397,6 +397,25 @@ public class Phase5Tests
         });
     }
 
+    [Fact]
+    public void Main_Window_Minimum_Is_860x620_And_Settings_Scrolls()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            try
+            {
+                Assert.Equal(860, w.MinWidth);
+                Assert.Equal(620, w.MinHeight);
+                var sv = (ScrollViewer)w.FindName("PageSettings")!;
+                Assert.Equal(ScrollBarVisibility.Auto, sv.HorizontalScrollBarVisibility);
+                // Browse button + folder box exist inside the settings panel.
+                Assert.NotNull(w.FindName("TxtSaveFolder"));
+            }
+            finally { w.Close(); }
+        });
+    }
+
     private static T? FindByType<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T t) return t;
