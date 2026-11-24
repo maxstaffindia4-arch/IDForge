@@ -82,13 +82,15 @@
             <Button Content="Reset" Style="{StaticResource CompactButton}" Margin="8,0,0,0"
                     Click="Reset_Click" ToolTip="Reset position and zoom (Ctrl+0)"/>
         </StackPanel>
-        <Canvas x:Name="ZoomScale" Width="150" Height="14" Margin="0,1,0,0"
+        <Canvas x:Name="ZoomScale" Width="150" Height="18" Margin="0,1,0,0"
                 SizeChanged="ZoomScale_SizeChanged">
-            <TextBlock Text="40 %" FontSize="10" Foreground="{StaticResource MutedBrush}"/>
+            <TextBlock x:Name="LblZoomMin" Text="40 %" FontSize="10"
+                       Foreground="{StaticResource MutedBrush}"/>
             <TextBlock x:Name="LblZoomHundred" Text="100 %" FontSize="10"
                        Foreground="{StaticResource MutedBrush}"/>
             <TextBlock x:Name="LblZoomMax" Text="300 %" FontSize="10"
                        Foreground="{StaticResource MutedBrush}"/>
+            <Border x:Name="ZoomTick" Width="1.5" Height="4" Background="{StaticResource MutedBrush}"/>
         </Canvas>
     </StackPanel>
 </UserControl>

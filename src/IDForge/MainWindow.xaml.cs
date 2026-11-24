@@ -79,6 +79,7 @@ public partial class MainWindow : Window
         // bound in XAML); nothing to wire here.
         DgBatch.ItemsSource = _batchRows;
         CollectionViewSource.GetDefaultView(_batchRows).Filter = BatchRowFilter;
+        TxtName.TextChanged += (_, _) => UpdateNameHint();
         InitShell();
 
         RefreshRecords();
@@ -182,6 +183,31 @@ public partial class MainWindow : Window
     }
 
     private void SetStatus(string msg) => TxtStatus.Text = msg;
+
+    /// <summary>Photo status line: info messages are neutral with an icon; red is for errors only.</summary>
+    internal void SetPhotoStatus(string msg, bool isError = false)
+    {
+        TxtPhotoStatus.Text = !isError && msg.Length > 0 ? "ℹ " + msg : msg;
+        TxtPhotoStatus.Foreground = isError
+            ? (Brush)FindResource("ErrorBrush") : (Brush)FindResource("MutedBrush");
+    }
+
+    /// <summary>True when a word has an uppercase letter right after a lowercase one ("mEHDI").</summary>
+    internal static bool HasMixedCapitals(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        foreach (var word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            for (var i = 1; i < word.Length; i++)
+                if (char.IsUpper(word[i]) && char.IsLower(word[i - 1])) return true;
+        return false;
+    }
+
+    private void UpdateNameHint()
+    {
+        if (TxtNameHint == null) return;
+        TxtNameHint.Visibility = HasMixedCapitals(TxtName?.Text)
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void SchedulePreview()
     {
@@ -463,7 +489,7 @@ public partial class MainWindow : Window
     private async Task ProcessPhotoCoreAsync(string path, bool keepNudge = false)
     {
         float keepZoom = _nudgeZoom, keepX = _nudgeX, keepY = _nudgeY;
-        TxtPhotoStatus.Text = "Processing photo (background removal)...";
+        SetPhotoStatus("Processing photo (background removal)...");
         BtnApprove.IsEnabled = false;
         _photoApproved = false;
         UpdateApproveButton();
@@ -502,8 +528,8 @@ public partial class MainWindow : Window
                     "fallback" => "Background removal unavailable — photo used as-is.",
                     _ => null
                 };
-                TxtPhotoStatus.Text = string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — check preview, then Approve." }
-                    .Where(s => s != null));
+                SetPhotoStatus(string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — check preview, then Approve." }
+                    .Where(s => s != null)));
                 PosPanel.IsEnabled = job.Cutout != null;
                 BtnApprove.IsEnabled = job.Cutout != null;
                 UpdateApproveButton();
@@ -518,7 +544,7 @@ public partial class MainWindow : Window
             try
             {
                 if (!Dispatcher.HasShutdownStarted)
-                    Dispatcher.Invoke(() => TxtPhotoStatus.Text = $"Photo failed: {ex.Message}");
+                    Dispatcher.Invoke(() => SetPhotoStatus($"Photo failed: {ex.Message}", isError: true));
             }
             catch { /* dispatcher already gone */ }
         }
@@ -629,10 +655,6 @@ public partial class MainWindow : Window
             BtnApprove.Style = null;
         }
         ChkPhoto.Visibility = _photoApproved ? Visibility.Visible : Visibility.Collapsed;
-        // Footer approve mirrors the photo-panel button exactly.
-        BtnApproveFooter.Content = BtnApprove.Content;
-        BtnApproveFooter.Style = BtnApprove.Style;
-        BtnApproveFooter.IsEnabled = BtnApprove.IsEnabled;
         // Issue stays blocked on a duplicate UID even after photo approval.
         BtnSave.IsEnabled = _photoApproved && _uidDuplicate == null;
         if (TxtIssueBlocked != null)
@@ -774,7 +796,7 @@ public partial class MainWindow : Window
             }
             else if (!string.IsNullOrWhiteSpace(d.PhotoPath))
             {
-                TxtPhotoStatus.Text = "Draft photo file is missing — choose the photo again.";
+                SetPhotoStatus("Draft photo file is missing — choose the photo again.");
             }
             TxtDraftNote.Text = $"Draft restored — saved {d.SavedAt}";
         }
@@ -808,7 +830,7 @@ public partial class MainWindow : Window
             PosPanel.IsEnabled = false;
             PosPanel.SetState(1, 0, 0);
             _nudgeZoom = 1f; _nudgeX = _nudgeY = 0;
-            TxtPhotoStatus.Text = "";
+            SetPhotoStatus("");
             TxtStatus.Text = "";
             _draftPending = false;
             _draftTimer.Stop();
@@ -2030,6 +2052,7 @@ public partial class MainWindow : Window
             }
             var parts = new List<string>();
             if (!string.IsNullOrEmpty(lead)) parts.Add(lead);
+            if (HasMixedCapitals(r.Name)) parts.Add("Mixed capitals, check spelling");
             if (r.ReplacesText.Length > 0) parts.Add(r.ReplacesText);
             if (dupOf.TryGetValue(r, out var first)) parts.Add($"Duplicate of row {first}");
             r.Message = string.Join(" · ", parts);

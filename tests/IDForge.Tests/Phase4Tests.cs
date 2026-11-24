@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using IDForge;
 using IDForge.Core.Data;
@@ -294,6 +295,120 @@ public class Phase4Tests
                 Assert.DoesNotContain(filled, w.BatchRows);
             }
             finally { MainWindow.ConfirmRemoveRow = null; w.Close(); }
+        });
+    }
+
+    // ---- Phase 4 fix B ----
+
+    [Fact]
+    public void Zoom_Labels_Do_Not_Overlap_Or_Fall_Back_To_Tick()
+    {
+        var frac = (1.0 - 0.4) / (3.0 - 0.4);
+        Assert.Equal(0.2307, frac, 3);
+
+        // wide canvas: all three labels fit without overlap
+        var wide = IDForge.Controls.PhotoPositionPanel.ZoomLabelLayout(300, 28, 34, 30, frac);
+        Assert.True(wide.ShowMid);
+        Assert.True(wide.MidLeft >= 28 + 3);
+        Assert.True(wide.MidLeft + 34 <= wide.MaxLeft - 3);
+
+        // narrow canvas (the real 150 px): mid label collides → hidden, tick remains
+        var narrow = IDForge.Controls.PhotoPositionPanel.ZoomLabelLayout(150, 28, 34, 30, frac);
+        Assert.False(narrow.ShowMid);
+        Assert.Equal(0, narrow.MinLeft);
+        Assert.True(narrow.MaxLeft > 100);
+    }
+
+    [Fact]
+    public void Footer_Has_Only_The_Panel_Approve_Action()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                Assert.Null(w.FindName("BtnApproveFooter"));
+                var approveButtons = new List<Button>();
+                void Walk(object node)
+                {
+                    if (node is Button b && (b.Name.Contains("Approve") ||
+                        b.Content?.ToString() == "Approve photo" ||
+                        b.Content?.ToString() == "✓ Photo approved")) approveButtons.Add(b);
+                    if (node is DependencyObject d)
+                        foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(d)) Walk(c);
+                }
+                Walk(w);
+                Assert.Single(approveButtons);
+                Assert.Equal("BtnApprove", approveButtons[0].Name);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Photo_Status_Uses_Neutral_Info_Colour_And_Red_For_Errors()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                var status = (TextBlock)w.FindName("TxtPhotoStatus")!;
+                var errorColor = ((SolidColorBrush)w.FindResource("ErrorBrush")).Color;
+                var mutedColor = ((SolidColorBrush)w.FindResource("MutedBrush")).Color;
+
+                w.SetPhotoStatus("Background already transparent — removal skipped.");
+                Assert.StartsWith("ℹ ", status.Text);
+                Assert.Equal(mutedColor, ((SolidColorBrush)status.Foreground).Color);
+                Assert.NotEqual(errorColor, ((SolidColorBrush)status.Foreground).Color);
+
+                w.SetPhotoStatus("Photo failed: boom", isError: true);
+                Assert.Equal("Photo failed: boom", status.Text);
+                Assert.Equal(errorColor, ((SolidColorBrush)status.Foreground).Color);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Mixed_Capitals_Hint_For_Name()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                Assert.True(MainWindow.HasMixedCapitals("mEHDI"));
+                Assert.False(MainWindow.HasMixedCapitals("Mehdi"));
+                Assert.False(MainWindow.HasMixedCapitals("MEHDI"));
+
+                var name = (TextBox)w.FindName("TxtName")!;
+                var hint = (TextBlock)w.FindName("TxtNameHint")!;
+                name.Text = "mEHDI";
+                Assert.Equal(Visibility.Visible, hint.Visibility);
+                name.Text = "Mehdi";
+                Assert.Equal(Visibility.Collapsed, hint.Visibility);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Message_Warns_On_Mixed_Capitals_Name()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                w.BatchRows.Add(new BatchRow { Uid = "70000201", Name = "mEHDI", Status = "Draft" });
+                w.BatchRows.Add(new BatchRow { Uid = "70000202", Name = "Mehdi", Status = "Draft" });
+                w.UpdateBatchSummary();
+                var rows = w.BatchRows.ToList();
+                Assert.Contains("Mixed capitals, check spelling", rows[0].Message);
+                Assert.DoesNotContain("Mixed capitals", rows[1].Message);
+            }
+            finally { w.Close(); }
         });
     }
 }

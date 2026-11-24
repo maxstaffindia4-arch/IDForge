@@ -117,13 +117,43 @@ public partial class PhotoPositionPanel : UserControl
     {
         if (SldZoom == null || ZoomScale == null || ZoomScale.ActualWidth <= 0) return;
         var w = ZoomScale.ActualWidth;
-        if (LblZoomMax != null)
-            Canvas.SetLeft(LblZoomMax, Math.Max(0, w - LblZoomMax.ActualWidth));
-        if (LblZoomHundred != null)
+        var frac = (1.0 - SldZoom.Minimum) / (SldZoom.Maximum - SldZoom.Minimum);
+        var minW = LblZoomMin?.ActualWidth ?? 0;
+        var midW = LblZoomHundred?.ActualWidth ?? 0;
+        var maxW = LblZoomMax?.ActualWidth ?? 0;
+        if (minW == 0 || midW == 0 || maxW == 0)
         {
-            var frac = (1.0 - SldZoom.Minimum) / (SldZoom.Maximum - SldZoom.Minimum);
-            var x = frac * w - LblZoomHundred.ActualWidth / 2;
-            Canvas.SetLeft(LblZoomHundred, Math.Max(0, Math.Min(w - LblZoomHundred.ActualWidth, x)));
+            // labels not measured yet — retry once after layout
+            Dispatcher.BeginInvoke(new Action(LayoutZoomScale));
+            return;
         }
+        var (minLeft, midLeft, maxLeft, showMid) =
+            ZoomLabelLayout(w, minW, midW, maxW, frac);
+        Canvas.SetLeft(LblZoomMin, minLeft);
+        Canvas.SetLeft(LblZoomMax, maxLeft);
+        LblZoomHundred.Visibility = showMid ? Visibility.Visible : Visibility.Collapsed;
+        if (showMid) Canvas.SetLeft(LblZoomHundred, midLeft);
+        // tick marks the zoom = 1.0 position under the slider
+        Canvas.SetLeft(ZoomTick, frac * w - ZoomTick.Width / 2);
+        Canvas.SetTop(ZoomTick, ZoomScale.Height - ZoomTick.Height - 1);
+    }
+
+    /// <summary>
+    /// Positions the 40 %/100 %/300 % labels under the slider. The 100 % label is
+    /// centred on the zoom = 1.0 fraction; when it would overlap an end label it
+    /// is hidden and only the tick mark remains (returns showMid = false).
+    /// </summary>
+    internal static (double MinLeft, double MidLeft, double MaxLeft, bool ShowMid)
+        ZoomLabelLayout(double w, double minW, double midW, double maxW, double frac)
+    {
+        const double gap = 3.0;
+        var minLeft = 0.0;
+        var maxLeft = Math.Max(0, w - maxW);
+        var midCenter = frac * w;
+        var midLeft = midCenter - midW / 2;
+        var overlaps = midLeft < minLeft + minW + gap || midLeft + midW > maxLeft - gap;
+        return overlaps
+            ? (minLeft, midLeft, maxLeft, false)
+            : (minLeft, midLeft, maxLeft, true);
     }
 }
