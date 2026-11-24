@@ -379,6 +379,24 @@ public class Phase5Tests
         Assert.True(File.Exists(path), $"missing {path}");
     }
 
+    [Fact]
+    public void Batch_Cell_Template_Has_No_Black_Focus_Box()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            try
+            {
+                var style = (Style)w.FindResource("BatchCell");
+                var template = style.Setters.OfType<Setter>()
+                    .FirstOrDefault(s => s.Property == Control.TemplateProperty)?.Value
+                    as ControlTemplate;
+                Assert.NotNull(template);   // custom template = no stock black focus box
+            }
+            finally { w.Close(); }
+        });
+    }
+
     private static T? FindByType<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T t) return t;

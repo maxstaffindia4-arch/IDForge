@@ -22,6 +22,17 @@
         </Style>
         <Style x:Key="BatchCell" TargetType="DataGridCell">
             <Setter Property="FocusVisualStyle" Value="{StaticResource BatchCellFocus}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <!-- No template focus rectangles: the blue FocusVisualStyle
+                             ring is the only focus indicator (also in selected rows). -->
+                        <Border Padding="4,0" Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <!-- Left-nav item: blue accent bar + light blue background when checked -->
         <Style x:Key="NavItem" TargetType="RadioButton">
@@ -256,19 +267,24 @@
                     </Grid.RowDefinitions>
 
                     <!-- Page header -->
-                    <DockPanel Grid.Row="0" Margin="14,10,14,4">
-                        <StackPanel>
+                    <Grid Grid.Row="0" Margin="14,10,14,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="New card" FontSize="20" FontWeight="SemiBold"/>
                             <TextBlock Text="Fill in the employee's details, adjust the photo, then issue the card."
-                                       FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                                       FontSize="12" Foreground="{StaticResource MutedBrush}"
+                                       TextWrapping="Wrap"/>
                             <TextBlock x:Name="TxtDraftNote" FontSize="11"
                                        Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Content="Clear form" Click="ClearForm_Click"/>
                             <Button Content="Save draft  Ctrl+S" Click="SaveDraft_Click" Margin="8,0,0,0"/>
                         </StackPanel>
-                    </DockPanel>
+                    </Grid>
 
                     <!-- Three columns; scrolls horizontally on narrow windows -->
                     <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
