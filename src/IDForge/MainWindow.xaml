@@ -94,6 +94,31 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="BatchFilterChip" TargetType="RadioButton">
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="bd" CornerRadius="14" Padding="{TemplateBinding Padding}"
+                                Background="{StaticResource PanelLightBrush}" BorderThickness="1"
+                                BorderBrush="{StaticResource BorderBrush}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -531,6 +556,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -538,42 +564,45 @@
                     <DockPanel Grid.Row="0" Margin="14,10,14,4">
                         <StackPanel>
                             <TextBlock Text="Batch" FontSize="20" FontWeight="SemiBold"/>
-                            <TextBlock Text="Prepare and issue many cards at once" FontSize="12"
+                            <TextBlock x:Name="TxtBatchName" Text="Batch" FontSize="12"
+                                       Foreground="{StaticResource MutedBrush}"/>
+                            <TextBlock x:Name="TxtBatchCounts" FontSize="12"
                                        Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
                     </DockPanel>
-                    <StackPanel Grid.Row="1" Margin="8">
-                        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}">
-                            One employee per row. Paste from Excel/CSV, or use Import/Export CSV.
-                            Columns: UID, Full name, Blood group, Position, Contract type, Print date, Photo path.
-                        </TextBlock>
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="Add Row" Click="BatchAddRow_Click"/>
-                            <Button Content="Duplicate" Click="BatchDupRow_Click" Margin="6,0,0,0"/>
-                            <Button Content="Delete Row" Click="BatchDelRow_Click" Margin="6,0,0,0"/>
-                            <Button Content="Paste Rows" Click="BatchPaste_Click" Margin="6,0,0,0"
-                                    ToolTip="Paste tab or comma separated rows from Excel/CSV"/>
-                            <Button Content="Import CSV..." Click="BatchImport_Click" Margin="6,0,0,0"/>
-                            <Button Content="Export CSV..." Click="BatchExportCsv_Click" Margin="6,0,0,0"/>
-                        </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="8,0,8,4">
+                        <RadioButton Content="All" Tag="all" GroupName="BatchFilters" IsChecked="True"
+                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed"/>
+                        <RadioButton Content="Needs attention" Tag="attention" GroupName="BatchFilters"
+                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
+                        <RadioButton Content="Ready to review" Tag="review" GroupName="BatchFilters"
+                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
+                        <RadioButton Content="Approved" Tag="approved" GroupName="BatchFilters"
+                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
+                        <RadioButton Content="Re-issues" Tag="reissue" GroupName="BatchFilters"
+                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
                     </StackPanel>
-                    <DataGrid x:Name="DgBatch" Grid.Row="2" Margin="8" AutoGenerateColumns="False"
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="8,0,8,6">
+                        <Button Content="Add row" Click="BatchAddRow_Click" Height="30"/>
+                        <Button Content="Duplicate" Click="BatchDupRow_Click" Margin="6,0,0,0" Height="30"/>
+                        <Button Content="Paste from Excel" Click="BatchPaste_Click" Margin="6,0,0,0" Height="30"
+                                ToolTip="Paste tab or comma separated rows from Excel/CSV"/>
+                        <Button Content="Import CSV..." Click="BatchImport_Click" Margin="6,0,0,0" Height="30"/>
+                        <Button Content="Export CSV..." Click="BatchExportCsv_Click" Margin="6,0,0,0" Height="30"/>
+                        <Button Content="Prepare photos (F5)" Click="StartBatch_Click" x:Name="BtnStartBatch"
+                                Margin="14,0,0,0" Height="30"
+                                ToolTip="Runs background removal + auto-positioning. Nothing is approved or issued."/>
+                        <Button Content="Remove selected (Del)" Click="BatchDelRow_Click" Margin="6,0,0,0" Height="30"/>
+                    </StackPanel>
+                    <DataGrid x:Name="DgBatch" Grid.Row="3" Margin="8,0,8,0" AutoGenerateColumns="False"
                               CanUserAddRows="False" SelectionMode="Single"
                               HeadersVisibility="Column" MouseDoubleClick="DgBatch_MouseDoubleClick"
                               CellEditEnding="DgBatch_CellEditEnding">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="UID" Binding="{Binding Uid}" Width="120"/>
-                            <DataGridTextColumn Header="Full name" Binding="{Binding Name}" Width="*"/>
-                            <DataGridTemplateColumn Header="Blood" Width="90">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <ComboBox ItemsSource="{Binding Source={x:Static core:Config.BloodGroups}}"
-                                                  SelectedItem="{Binding Blood, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                  BorderThickness="0" Background="Transparent"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Position" Width="140">
+                            <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="36" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Employee ID" Binding="{Binding Uid}" Width="110"/>
+                            <DataGridTemplateColumn Header="Position" Width="130">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding Source={x:Static core:Config.Positions}}"
@@ -582,7 +611,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Contract" Width="100">
+                            <DataGridTemplateColumn Header="Contract" Width="105">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding Source={x:Static core:Config.ContractTypes}}"
@@ -591,30 +620,36 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Print date" Binding="{Binding PrintDateText}" Width="100"/>
-                            <DataGridTextColumn Header="Photo path" Binding="{Binding PhotoPath}" Width="180"/>
-                            <DataGridTemplateColumn Header="" Width="70">
+                            <DataGridTextColumn Header="Print date" Binding="{Binding PrintDateText}" Width="95"/>
+                            <DataGridTextColumn Header="Card type" Binding="{Binding CardType}" Width="85" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Photo" Width="70">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Button Content="Browse" Click="BatchBrowse_Click"/>
+                                        <Button Content="Browse" Click="BatchBrowse_Click" Padding="8,2"
+                                                ToolTip="{Binding PhotoPath}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="220" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" IsReadOnly="True"/>
                         </DataGrid.Columns>
                     </DataGrid>
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="8,0,8,4">
-                        <Button Content="Process photos" Click="StartBatch_Click" x:Name="BtnStartBatch"
-                                ToolTip="Runs background removal + auto-positioning. Nothing is approved or issued."/>
-                        <Button Content="Review" Click="BatchReview_Click" Margin="8,0,0,0" FontWeight="SemiBold"
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="8,6,8,4" VerticalAlignment="Center">
+                        <Button Content="Review" Click="BatchReview_Click" FontWeight="SemiBold"
                                 ToolTip="Open the review screen — approve &amp; issue each card manually."/>
-                        <Button Content="Cancel" Click="BatchCancel_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnBatchCancel"/>
+                        <Button Content="Issue batch" Click="IssueBatch_Click" x:Name="BtnIssueBatch"
+                                Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Height="34"
+                                IsEnabled="False" ToolTip="Issues every approved card"/>
+                        <TextBlock x:Name="TxtIssueBatchReason" VerticalAlignment="Center"
+                                   Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                   Margin="10,0,0,0" TextWrapping="Wrap" MaxWidth="420"/>
+                        <Button Content="Cancel" Click="BatchCancel_Click" Margin="14,0,0,0" IsEnabled="False" x:Name="BtnBatchCancel"/>
                         <Button Content="Open output" Click="BatchOpenOutput_Click" Margin="8,0,0,0"/>
                         <ProgressBar x:Name="BatchProgress" Width="200" Height="14" Margin="16,0,0,0"
                                      Minimum="0" Maximum="100" Visibility="Collapsed"/>
                         <TextBlock x:Name="TxtBatchStatus" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     </StackPanel>
-                    <TextBlock x:Name="TxtBatchLog" Grid.Row="4" Margin="8,0,8,6" Foreground="{StaticResource MutedBrush}"
+                    <TextBlock x:Name="TxtBatchLog" Grid.Row="5" Margin="8,0,8,6" Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" FontSize="11"/>
                 </Grid>
 

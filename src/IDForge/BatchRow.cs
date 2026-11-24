@@ -18,7 +18,9 @@ public sealed class BatchRow : INotifyPropertyChanged
 
     private string _uid = "", _name = "", _blood = "N/A", _position = "",
         _contract = "Permanent", _printDateText = Validity.TodayInDhaka().ToString("yyyy-MM-dd"),
-        _status = "Draft", _error = "";
+        _status = "Draft", _error = "", _message = "", _cardType = "New card",
+        _replacesText = "";
+    private int _rowNumber;
     private string? _photoPath, _cutoutPath;
     private bool _approved;
     private int _attemptCount;
@@ -64,6 +66,18 @@ public sealed class BatchRow : INotifyPropertyChanged
         "Approved" => "✓",
         _ => "·"
     };
+
+    /// <summary>1-based position in the batch grid (set by the view).</summary>
+    public int RowNumber { get => _rowNumber; set => Set(ref _rowNumber, value); }
+
+    /// <summary>"New card" or "Re-issue" (UID already exists in Records).</summary>
+    public string CardType { get => _cardType; set => Set(ref _cardType, value); }
+
+    /// <summary>"Replaces card issued dd/MM/yyyy" for re-issue rows.</summary>
+    public string ReplacesText { get => _replacesText; set => Set(ref _replacesText, value); }
+
+    /// <summary>Message column: validation error, re-issue note, duplicate flag.</summary>
+    public string Message { get => _message; set => Set(ref _message, value); }
 
     /// <summary>Review-list label: "Name — UID<digits>" (see Core.RowLabels).</summary>
     public string ReviewLabel => Core.RowLabels.For(_name, _uid);

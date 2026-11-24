@@ -2,6 +2,8 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -39,6 +41,9 @@ public partial class MainWindow : Window
 
     // Batch state — rows are persisted to BatchSessions/BatchRows (plan §7).
     private readonly System.Collections.ObjectModel.ObservableCollection<BatchRow> _batchRows = new();
+    private string _batchFilter = "all";
+    private string _batchSessionName = "";
+    private bool _batchIssuing;
     private long _batchSessionId;
     private CancellationTokenSource? _batchCts;
     private readonly List<string> _batchLog = new();
@@ -73,6 +78,7 @@ public partial class MainWindow : Window
         // Batch grid combo columns are DataGridTemplateColumns now (ItemsSource
         // bound in XAML); nothing to wire here.
         DgBatch.ItemsSource = _batchRows;
+        CollectionViewSource.GetDefaultView(_batchRows).Filter = BatchRowFilter;
         InitShell();
 
         RefreshRecords();
@@ -84,12 +90,16 @@ public partial class MainWindow : Window
 
     internal CardService Svc => _svc;
     internal string OutputDir => AppPaths.OutputDir;
+    internal System.Collections.ObjectModel.ObservableCollection<BatchRow> BatchRows => _batchRows;
     private string? _batchOutputDir;
 
     private void EnsureBatchSession()
     {
         if (_batchSessionId == 0)
-            _batchSessionId = _svc.Store.CreateBatchSession($"Batch {DateTime.Now:yyyy-MM-dd HH:mm}");
+        {
+            _batchSessionName = $"Batch {DateTime.Now:yyyy-MM-dd HH:mm}";
+            _batchSessionId = _svc.Store.CreateBatchSession(_batchSessionName);
+        }
     }
 
     /// <summary>Persists a row's current state to BatchRows (called on every change).</summary>
@@ -124,6 +134,7 @@ public partial class MainWindow : Window
             "Unfinished batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (r != MessageBoxResult.Yes) return;
         _batchSessionId = sess.Id;
+        _batchSessionName = sess.Name;
         foreach (var e in entries)
         {
             var row = BatchRow.FromEntry(e);
@@ -1011,6 +1022,14 @@ public partial class MainWindow : Window
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (_area == "batch" && Keyboard.FocusedElement is not TextBoxBase and not ComboBox)
+        {
+            if (e.Key == Key.F5) { StartBatch_Click(this, null!); e.Handled = true; return; }
+            if (e.Key == Key.Delete && DgBatch.SelectedItem is BatchRow)
+            {
+                BatchDelRow_Click(this, null!); e.Handled = true; return;
+            }
+        }
         if (TryHandleShortcut(e.Key, Keyboard.Modifiers)) e.Handled = true;
     }
 
@@ -1889,14 +1908,23 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateBatchSummary()
+    internal void UpdateBatchSummary()
     {
         int issued = _batchRows.Count(r => r.Status == "Issued");
         int review = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
         int failed = _batchRows.Count(r => r.Status == "Failed");
         int skipped = _batchRows.Count(r => r.Status == "Skipped");
+        int approved = _batchRows.Count(r => r.Status == "Approved");
+        int pending = _batchRows.Count - approved - issued - skipped;
         TxtBatchStatus.Text = $"Ready to review: {review}, Issued: {issued}, Failed: {failed}" +
             (skipped > 0 ? $", Skipped: {skipped}" : "");
+        TxtBatchName.Text = string.IsNullOrEmpty(_batchSessionName) ? "Batch" : _batchSessionName;
+        TxtBatchCounts.Text = _batchRows.Count == 0 ? "No rows yet"
+            : $"{approved} of {_batchRows.Count} approved" +
+              (pending > 0 ? $", {pending} more before the batch can be issued"
+                           : approved > 0 ? ", ready to issue" : ", nothing left to issue");
+        RefreshBatchDerived();
+        UpdateIssueBatchButton();
         // Auto-complete the session when every row reached a terminal state.
         if (_batchSessionId != 0 && _batchRows.Count > 0 &&
             _batchRows.All(r => r.Status is "Issued" or "Skipped"))
@@ -1904,6 +1932,161 @@ public partial class MainWindow : Window
             try { _svc.Store.CompleteBatchSession(_batchSessionId); _batchSessionId = 0; } catch { }
         }
         UpdateBatchBadge();
+    }
+
+    /// <summary>
+    /// Fills the read-only grid columns that need store lookups: row numbers,
+    /// New card/Re-issue card type with the replaced-issue date, the Message
+    /// column (error + re-issue note + within-batch duplicate flag).
+    /// </summary>
+    private void RefreshBatchDerived()
+    {
+        var empCache = new Dictionary<string, IDForge.Core.Data.Employee?>(StringComparer.OrdinalIgnoreCase);
+        IDForge.Core.Data.Employee? EmpFor(string uid)
+        {
+            var n = Core.Uid.Normalize(uid);
+            if (n == null) return null;
+            if (!empCache.TryGetValue(n, out var emp))
+            {
+                emp = _svc.Store.FindEmployeeByUid(n);
+                empCache[n] = emp;
+            }
+            return emp;
+        }
+
+        // first occurrence row number per normalized uid, for duplicate flags
+        var firstRow = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var dupOf = new Dictionary<BatchRow, int>();
+        for (int i = 0; i < _batchRows.Count; i++)
+        {
+            var r = _batchRows[i];
+            r.RowNumber = i + 1;
+            var n = Core.Uid.Normalize(r.Uid);
+            if (n == null) continue;
+            if (firstRow.TryGetValue(n, out var first)) dupOf[r] = first;
+            else firstRow[n] = i + 1;
+        }
+
+        foreach (var r in _batchRows)
+        {
+            var emp = EmpFor(r.Uid);
+            r.CardType = emp != null ? "Re-issue" : "New card";
+            var issue = emp != null ? _svc.Store.LatestIssue(emp.Id) : null;
+            r.ReplacesText = issue != null
+                ? $"Replaces card issued {issue.IssuedAt.ToString("dd/MM/yyyy")}" : "";
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(r.Error)) parts.Add(r.Error);
+            if (r.ReplacesText.Length > 0) parts.Add(r.ReplacesText);
+            if (dupOf.TryGetValue(r, out var first)) parts.Add($"Duplicate of row {first}");
+            r.Message = string.Join(" · ", parts);
+        }
+    }
+
+    private bool BatchRowFilter(object o)
+    {
+        if (o is not BatchRow r) return false;
+        return _batchFilter switch
+        {
+            "attention" => r.Status is "Failed" or "NeedsPhoto",
+            "review" => r.Status == "NeedsReview",
+            "approved" => r.Status == "Approved",
+            "reissue" => r.CardType == "Re-issue",
+            _ => true,
+        };
+    }
+
+    private void BatchFilter_Changed(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioButton { Tag: string tag })
+        {
+            _batchFilter = tag;
+            CollectionViewSource.GetDefaultView(_batchRows).Refresh();
+        }
+    }
+
+    /// <summary>Issue batch stays disabled until every row is approved, issued, or skipped.</summary>
+    private void UpdateIssueBatchButton()
+    {
+        var pending = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft"
+            or "NeedsPhoto" or "Failed" or "Processing");
+        var approved = _batchRows.Count(r => r.Status == "Approved");
+        BtnIssueBatch.IsEnabled = !_batchIssuing && pending == 0 && approved > 0;
+        TxtIssueBatchReason.Text = BtnIssueBatch.IsEnabled ? ""
+            : pending > 0 ? $"{pending} row(s) still need review or have errors"
+            : approved == 0 ? (_batchRows.Count == 0 ? "Add rows to begin" : "No approved cards to issue")
+            : "";
+    }
+
+    /// <summary>Issues every Approved row sequentially through the single issue path.</summary>
+    private async void IssueBatch_Click(object sender, RoutedEventArgs e)
+    {
+        var targets = _batchRows.Where(r => r.Status == "Approved").ToList();
+        if (targets.Count == 0) return;
+        var ans = MessageBox.Show(this,
+            $"Issue {targets.Count} approved card(s) to the output folder?",
+            "Issue batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (ans != MessageBoxResult.Yes) return;
+
+        _batchIssuing = true;
+        UpdateIssueBatchButton();
+        int ok = 0, fail = 0;
+        var failures = new List<string>();
+        try
+        {
+            foreach (var row in targets)
+            {
+                if (row.Status != "Approved") continue;
+                TxtBatchStatus.Text = $"Issuing {Core.RowLabels.For(row.Name, row.Uid)} ({ok + fail + 1}/{targets.Count})...";
+                // rows resumed from disk have no runtime bitmap — reload the cached cutout
+                if (row.Cutout == null && row.CutoutPath != null && File.Exists(row.CutoutPath))
+                    row.Cutout = await Task.Run(() => SKBitmap.Decode(row.CutoutPath));
+                string Label() => Core.RowLabels.For(row.Name, row.Uid);
+                if (row.Cutout == null)
+                {
+                    fail++; failures.Add($"{Label()}: photo not processed");
+                    row.Status = "Failed"; row.Error = "photo not processed";
+                    PersistBatchRow(row); continue;
+                }
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var r in _batchRows)
+                    if (!ReferenceEquals(r, row) && Core.Uid.Normalize(r.Uid) is { } nu) seen.Add(nu);
+                var problem = BatchValidator.Validate(
+                    new BatchRowData(row.Uid, row.Name, row.Blood, row.Position, row.Contract,
+                        row.PrintDateText, row.PhotoPath),
+                    seen, uid => _svc.Store.FindEmployeeByUid(uid) != null);
+                if (problem != null)
+                {
+                    fail++; failures.Add($"{Label()}: {problem}");
+                    row.Status = "Failed"; row.Error = problem;
+                    PersistBatchRow(row); continue;
+                }
+                row.AttemptCount++;
+                PersistBatchRow(row);
+                var key = $"batchrow:{row.RowId}:attempt:{row.AttemptCount}";
+                var outcome = await IssueBatchRowAsync(row, key);
+                if (outcome.Success)
+                {
+                    row.Status = "Issued"; row.Error = "";
+                    row.CardIssueId = outcome.Issue?.Id;
+                    PersistBatchRow(row); ok++;
+                }
+                else
+                {
+                    row.Status = "Failed"; row.Error = outcome.Error ?? "unknown";
+                    PersistBatchRow(row); fail++;
+                    failures.Add($"{Label()}: {outcome.Error ?? "unknown"}");
+                }
+            }
+        }
+        finally
+        {
+            _batchIssuing = false;
+            TxtBatchStatus.Text = $"Batch issue done: {ok} issued, {fail} failed.";
+            if (failures.Count > 0)
+                MessageBox.Show(this, "Some cards failed:\n\n" + string.Join("\n", failures),
+                    "Issue batch", MessageBoxButton.OK, MessageBoxImage.Warning);
+            UpdateBatchSummary();
+        }
     }
 
     // ---- process photos stage (no approval, no issuing) ----
@@ -1960,7 +2143,7 @@ public partial class MainWindow : Window
         BtnStartBatch.IsEnabled = false;
         BtnBatchCancel.IsEnabled = true;
         BatchProgress.Visibility = Visibility.Visible;
-        TxtBatchStatus.Text = $"Processing photos for {withPhoto.Count} row(s)...";
+        TxtBatchStatus.Text = $"Preparing photos for {withPhoto.Count} row(s)...";
         try
         {
             await ProcessPhotosAsync(withPhoto, _batchCts.Token);
@@ -1985,10 +2168,17 @@ public partial class MainWindow : Window
     private async Task ProcessPhotosAsync(List<BatchRow> rows, CancellationToken ct)
     {
         int done = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         foreach (var row in rows)
         {
             ct.ThrowIfCancellationRequested();
             row.Status = "Processing";
+            if (done > 0)
+            {
+                var avg = sw.Elapsed.TotalSeconds / done;
+                var eta = TimeSpan.FromSeconds(avg * (rows.Count - done));
+                TxtBatchStatus.Text = $"Preparing photos: {done} of {rows.Count}, about {eta.TotalSeconds:F0} seconds left";
+            }
             DgBatch.Items.Refresh();
             try
             {

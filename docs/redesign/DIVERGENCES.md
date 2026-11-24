@@ -27,3 +27,4 @@
 | V8 | "Show print edges" toggle | Omitted | D8 — deferred/left out by decision |
 | V9 | Position nudge as drag/slider only | Shared PhotoPositionPanel: arrows (1 px, Shift = 10 px), X/Y numeric boxes, zoom slider + % box, Reset | Existing transform values and clamps unchanged; slider kept per V4-open note |
 | V10 | Settings sections Backup & restore, Data protection, About | Deferred to phase 7 | Phase 3 scope — settings page keeps Phase 2 sections only |
+| V11 | Batch grid column list has no Blood group | Blood group column removed per spec column list | Blood is still set via paste/import (defaults N/A); flag to owner if in-grid editing is wanted back |
