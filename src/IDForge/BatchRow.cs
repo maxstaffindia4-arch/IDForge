@@ -83,7 +83,7 @@ public sealed class BatchRow : INotifyPropertyChanged
         "Issued" => "✔",
         "Failed" => "✖",
         "Skipped" => "⤼",
-        "NeedsReview" => "👁",
+        "NeedsReview" => "◉",
         "Processing" => "…",
         "Approved" => "…",
         _ => "·"

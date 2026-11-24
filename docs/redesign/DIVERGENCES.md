@@ -27,4 +27,5 @@
 | V8 | "Show print edges" toggle | Omitted | D8 — deferred/left out by decision |
 | V9 | Position nudge as drag/slider only | Shared PhotoPositionPanel: arrows (1 px, Shift = 10 px), X/Y numeric boxes, zoom slider + % box, Reset | Existing transform values and clamps unchanged; slider kept per V4-open note |
 | V10 | Settings sections Backup & restore, Data protection, About | Deferred to phase 7 | Phase 3 scope — settings page keeps Phase 2 sections only |
-| V11 | Batch grid column list has no Blood group | Blood group column removed per spec column list | Blood is still set via paste/import (defaults N/A); flag to owner if in-grid editing is wanted back |
+| V11 | ~~Batch grid column list has no Blood group~~ **CLOSED (Fix A)** — Blood group column restored (~90 px, Config.BloodGroups, default N/A); paste/import unchanged | n/a | — |
+| V12 | Batch screen had an "Issue batch" button issuing every Approved row at once | Button removed — cards are issued one at a time from Review ("Approve & Issue"), per plan stage 4 | Approved stays in the data model as a transient state only; Review-row double-click selects, never issues |

@@ -187,7 +187,7 @@
                             Background="{StaticResource WhiteBrush}" BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1" Cursor="Hand" Visibility="Collapsed"
                             MouseLeftButtonUp="NavBackup_Click">
-                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" FontSize="18"
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74E;" FontSize="18"
                                    VerticalAlignment="Center" HorizontalAlignment="Center"/>
                     </Border>
                     <StackPanel Margin="8">

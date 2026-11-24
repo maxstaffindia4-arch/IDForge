@@ -351,6 +351,34 @@ public class Phase5Tests
         });
     }
 
+    [Fact]
+    public void Sidebar_Backup_Icon_Is_Mdl2_Not_Emoji()
+    {
+        OnSta(() =>
+        {
+            var w = FixPassTests.NewWindow();
+            try
+            {
+                var panel = (Border)w.FindName("PnlBackupCompact")!;
+                var tb = (TextBlock)System.Windows.LogicalTreeHelper
+                    .GetChildren(panel).OfType<TextBlock>().First();
+                Assert.Equal("Segoe MDL2 Assets", tb.FontFamily.Source);
+                Assert.DoesNotContain("💾", tb.Text);
+                Assert.InRange(tb.Text[0], '\uE000', '\uF8FF');   // private-use MDL2 glyph
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Review_Flow_Doc_Exists()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..",
+            "docs", "redesign", "batch_review_flow_plan.md");
+        path = Path.GetFullPath(path);
+        Assert.True(File.Exists(path), $"missing {path}");
+    }
+
     private static T? FindByType<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T t) return t;

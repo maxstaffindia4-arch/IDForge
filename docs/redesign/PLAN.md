@@ -199,6 +199,9 @@ The owner reviews each phase by running the app. No installer is needed.
 
 **Commit:** `Phase 5: redesign review window`
 
+> The batch/review flow this phase implements is specified in
+> [`batch_review_flow_plan.md`](batch_review_flow_plan.md) (stages 1–6).
+
 ---
 
 ### Phase 6: Records screen
