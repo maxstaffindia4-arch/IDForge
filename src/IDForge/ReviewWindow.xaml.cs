@@ -43,6 +43,28 @@ public partial class ReviewWindow : Window
         InitializeComponent();
         _owner = owner;
         _rows = rows;
+
+        // Window size: remembered bounds, else 90% of work area centred on the
+        // owner; below 1280x800 it opens maximised. Minimum 860x620.
+        var wa = SystemParameters.WorkArea;
+        var saved = AppSettings.ReviewBounds;
+        if (saved is { } b && b.Width >= MinWidth && b.Height >= MinHeight
+            && wa.Left <= b.Left && b.Left + b.Width <= wa.Right + 1
+            && wa.Top <= b.Top && b.Top + b.Height <= wa.Bottom + 1)
+        {
+            Left = b.Left; Top = b.Top; Width = b.Width; Height = b.Height;
+        }
+        else if (wa.Width < 1280 || wa.Height < 800)
+        {
+            WindowState = WindowState.Maximized;
+        }
+        else
+        {
+            Width = wa.Width * 0.9;
+            Height = wa.Height * 0.9;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
+
         _view = new ListCollectionView(rows);
         _view.Filter = FilterRow;
         LstRows.ItemsSource = _view;
@@ -58,12 +80,14 @@ public partial class ReviewWindow : Window
         UpdateBatchIssueButton();
     }
 
+    internal BatchRow? CurrentForTest => _current;
+
     private bool FilterRow(object obj)
     {
         if (obj is not BatchRow r) return false;
         return CmbFilter.SelectedIndex switch
         {
-            1 => r.Status == "NeedsReview",
+            1 => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto",
             2 => r.Status == "Failed",
             3 => r.Status == "Issued",
             4 => r.Status == "Skipped",
@@ -179,6 +203,8 @@ public partial class ReviewWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         if (_current != null) _owner.PersistBatchRow(_current);
+        if (WindowState == WindowState.Normal)
+            AppSettings.ReviewBounds = (Left, Top, Width, Height);
         base.OnClosed(e);
     }
 

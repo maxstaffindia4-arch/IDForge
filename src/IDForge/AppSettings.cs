@@ -14,6 +14,7 @@ public static class AppSettings
     private static string _defaultPrintDate = "today";
     private static DateTime? _lastBackupAt;
     private static double? _winLeft, _winTop, _winWidth, _winHeight;
+    private static double? _revLeft, _revTop, _revWidth, _revHeight;
     static AppSettings() => Load();
 
     /// <summary>Re-issue confirmations can never be disabled (locked on).</summary>
@@ -86,6 +87,20 @@ public static class AppSettings
         }
     }
 
+    /// <summary>Last Review-window bounds, or null when never saved.</summary>
+    public static (double Left, double Top, double Width, double Height)? ReviewBounds
+    {
+        get => _revLeft.HasValue && _revTop.HasValue && _revWidth.HasValue && _revHeight.HasValue
+            ? (_revLeft.Value, _revTop.Value, _revWidth.Value, _revHeight.Value)
+            : null;
+        set
+        {
+            _revLeft = value?.Left; _revTop = value?.Top;
+            _revWidth = value?.Width; _revHeight = value?.Height;
+            Save();
+        }
+    }
+
     internal sealed class SettingsFile
     {
         [System.Text.Json.Serialization.JsonPropertyName("confirmBeforeIssue")]
@@ -101,6 +116,10 @@ public static class AppSettings
         [System.Text.Json.Serialization.JsonPropertyName("winTop")] public double? WinTop { get; set; }
         [System.Text.Json.Serialization.JsonPropertyName("winWidth")] public double? WinWidth { get; set; }
         [System.Text.Json.Serialization.JsonPropertyName("winHeight")] public double? WinHeight { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("revLeft")] public double? RevLeft { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("revTop")] public double? RevTop { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("revWidth")] public double? RevWidth { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("revHeight")] public double? RevHeight { get; set; }
     }
 
     private static void Load()
@@ -122,6 +141,8 @@ public static class AppSettings
                     _lastBackupAt = s.LastBackupAt;
                     _winLeft = s.WinLeft; _winTop = s.WinTop;
                     _winWidth = s.WinWidth; _winHeight = s.WinHeight;
+                    _revLeft = s.RevLeft; _revTop = s.RevTop;
+                    _revWidth = s.RevWidth; _revHeight = s.RevHeight;
                 }
             }
         }
@@ -141,7 +162,8 @@ public static class AppSettings
                 DefaultBgMode = _defaultBgMode,
                 DefaultPrintDate = _defaultPrintDate,
                 LastBackupAt = _lastBackupAt,
-                WinLeft = _winLeft, WinTop = _winTop, WinWidth = _winWidth, WinHeight = _winHeight
+                WinLeft = _winLeft, WinTop = _winTop, WinWidth = _winWidth, WinHeight = _winHeight,
+                RevLeft = _revLeft, RevTop = _revTop, RevWidth = _revWidth, RevHeight = _revHeight
             }));
         }
         catch { }
