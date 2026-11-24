@@ -121,6 +121,9 @@ public partial class MainWindow : Window
     /// <summary>Test hook: skip the modal "resume batch?" prompt (headless tests).</summary>
     public static bool SkipResumePrompt;
 
+    /// <summary>Test hook: skip re-processing the draft's photo (native pipeline, headless tests).</summary>
+    public static bool SkipDraftPhotoRestore;
+
     private void MaybeOfferResume()
     {
         if (SkipResumePrompt) return;
@@ -447,7 +450,17 @@ public partial class MainWindow : Window
         RadBgKeep.IsChecked = tag == "Keep";
     }
 
+    private static int _photoBusy;
+
+    /// <summary>Serializes photo jobs — the native pipeline is not re-entrant.</summary>
     private async void ProcessPhotoAsync(string path, bool keepNudge = false)
+    {
+        if (System.Threading.Interlocked.Exchange(ref _photoBusy, 1) == 1) return;
+        try { await ProcessPhotoCoreAsync(path, keepNudge); }
+        finally { _photoBusy = 0; }
+    }
+
+    private async Task ProcessPhotoCoreAsync(string path, bool keepNudge = false)
     {
         float keepZoom = _nudgeZoom, keepX = _nudgeX, keepY = _nudgeY;
         TxtPhotoStatus.Text = "Processing photo (background removal)...";
@@ -460,43 +473,54 @@ public partial class MainWindow : Window
         {
             var mode = CurrentBgMode;
             var job = await Task.Run(() => _svc.ProcessPhoto(path, mode));
-            lock (_photoLock)
+            // Continuations can land off the UI thread (tests, shutdown) — run all
+            // UI work inside InvokeAsync so it always executes on the dispatcher.
+            if (Dispatcher.HasShutdownStarted) { job.Cutout?.Dispose(); job.WindowImage?.Dispose(); return; }
+            await Dispatcher.InvokeAsync(() =>
             {
-                _cutout?.Dispose(); _windowImage?.Dispose();
-                _cutout = job.Cutout;
-                _windowImage = job.WindowImage;
-                _autoTransform = job.AutoTransform ?? WindowTransform.Identity;
-            }
-            if (keepNudge)
-            {
-                _nudgeZoom = keepZoom; _nudgeX = keepX; _nudgeY = keepY;
-            }
-            else
-            {
-                _nudgeZoom = 1f; _nudgeX = 0; _nudgeY = 0;
-            }
-            PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
-            var bgNote = job.BgMethod switch
-            {
-                "skipped-transparent" => "Background already transparent — removal skipped.",
-                "skipped-manual" => "Background removal off — photo used as-is.",
-                "plain-white" => "Plain-white background removed.",
-                "fallback" => "Background removal unavailable — photo used as-is.",
-                _ => null
-            };
-            TxtPhotoStatus.Text = string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — check preview, then Approve." }
-                .Where(s => s != null));
-            PosPanel.IsEnabled = job.Cutout != null;
-            BtnApprove.IsEnabled = job.Cutout != null;
-            UpdateApproveButton();
-            UpdatePhotoThumb();
-            UpdateFooterChips();
-            SchedulePreview();
-            ScheduleDraftSave();
+                lock (_photoLock)
+                {
+                    _cutout?.Dispose(); _windowImage?.Dispose();
+                    _cutout = job.Cutout;
+                    _windowImage = job.WindowImage;
+                    _autoTransform = job.AutoTransform ?? WindowTransform.Identity;
+                }
+                if (keepNudge)
+                {
+                    _nudgeZoom = keepZoom; _nudgeX = keepX; _nudgeY = keepY;
+                }
+                else
+                {
+                    _nudgeZoom = 1f; _nudgeX = 0; _nudgeY = 0;
+                }
+                PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
+                var bgNote = job.BgMethod switch
+                {
+                    "skipped-transparent" => "Background already transparent — removal skipped.",
+                    "skipped-manual" => "Background removal off — photo used as-is.",
+                    "plain-white" => "Plain-white background removed.",
+                    "fallback" => "Background removal unavailable — photo used as-is.",
+                    _ => null
+                };
+                TxtPhotoStatus.Text = string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — check preview, then Approve." }
+                    .Where(s => s != null));
+                PosPanel.IsEnabled = job.Cutout != null;
+                BtnApprove.IsEnabled = job.Cutout != null;
+                UpdateApproveButton();
+                UpdatePhotoThumb();
+                UpdateFooterChips();
+                SchedulePreview();
+                ScheduleDraftSave();
+            });
         }
         catch (Exception ex)
         {
-            TxtPhotoStatus.Text = $"Photo failed: {ex.Message}";
+            try
+            {
+                if (!Dispatcher.HasShutdownStarted)
+                    Dispatcher.Invoke(() => TxtPhotoStatus.Text = $"Photo failed: {ex.Message}");
+            }
+            catch { /* dispatcher already gone */ }
         }
     }
 
@@ -741,7 +765,7 @@ public partial class MainWindow : Window
             _nudgeZoom = (float)d.Zoom; _nudgeX = (float)d.OffsetX; _nudgeY = (float)d.OffsetY;
             PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
 
-            if (!string.IsNullOrWhiteSpace(d.PhotoPath) && File.Exists(d.PhotoPath))
+            if (!SkipDraftPhotoRestore && !string.IsNullOrWhiteSpace(d.PhotoPath) && File.Exists(d.PhotoPath))
             {
                 _photoPath = d.PhotoPath;
                 _photoAddedAt = null;
@@ -1767,15 +1791,34 @@ public partial class MainWindow : Window
         PersistBatchRow(row);
     }
 
-    private void BatchDelRow_Click(object sender, RoutedEventArgs e)
+    internal void BatchDelRow_Click(object sender, RoutedEventArgs e)
     {
         if (DgBatch.SelectedItem is not BatchRow row) return;
+        if (BatchRowHasContent(row) && !ConfirmRowRemoval(row)) return;
         if (row.RowId != 0)
         {
             try { _svc.Store.DeleteBatchRow(row.RowId); } catch { }
         }
         row.Cutout?.Dispose(); row.WindowImage?.Dispose();
         _batchRows.Remove(row);
+    }
+
+    /// <summary>Content that makes a row worth confirming before removal.</summary>
+    internal static bool BatchRowHasContent(BatchRow row) =>
+        !string.IsNullOrWhiteSpace(row.Name) || !string.IsNullOrWhiteSpace(row.Uid)
+        || !string.IsNullOrWhiteSpace(row.Position) || !string.IsNullOrWhiteSpace(row.PhotoPath);
+
+    /// <summary>Injectable confirm for tests; default shows the Remove prompt.</summary>
+    internal static Func<string, bool>? ConfirmRemoveRow;
+
+    private bool ConfirmRowRemoval(BatchRow row)
+    {
+        var n = _batchRows.IndexOf(row) + 1;
+        var label = string.IsNullOrWhiteSpace(row.Name) ? row.Uid : row.Name;
+        var prompt = $"Remove row {n} ({label})?";
+        if (ConfirmRemoveRow != null) return ConfirmRemoveRow(prompt);
+        return MessageBox.Show(this, prompt, "Remove row",
+            MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
     }
 
     private void BatchDupRow_Click(object sender, RoutedEventArgs e)
@@ -1918,7 +1961,7 @@ public partial class MainWindow : Window
         int pending = _batchRows.Count - approved - issued - skipped;
         TxtBatchStatus.Text = $"Ready to review: {review}, Issued: {issued}, Failed: {failed}" +
             (skipped > 0 ? $", Skipped: {skipped}" : "");
-        TxtBatchName.Text = string.IsNullOrEmpty(_batchSessionName) ? "Batch" : _batchSessionName;
+        TxtBatchName.Text = FormatBatchName(_batchSessionName);
         TxtBatchCounts.Text = _batchRows.Count == 0 ? "No rows yet"
             : $"{approved} of {_batchRows.Count} approved" +
               (pending > 0 ? $", {pending} more before the batch can be issued"
@@ -1974,12 +2017,34 @@ public partial class MainWindow : Window
             var issue = emp != null ? _svc.Store.LatestIssue(emp.Id) : null;
             r.ReplacesText = issue != null
                 ? $"Replaces card issued {issue.IssuedAt.ToString("dd/MM/yyyy")}" : "";
+            // Draft/NeedsPhoto rows list what is still missing instead of an error.
+            var lead = r.Error;
+            if (r.Status is "Draft" or "NeedsPhoto")
+            {
+                var missing = new List<string>();
+                if (string.IsNullOrWhiteSpace(r.Name)) missing.Add("name");
+                if (string.IsNullOrWhiteSpace(r.Uid)) missing.Add("ID");
+                if (string.IsNullOrWhiteSpace(r.Position)) missing.Add("position");
+                if (string.IsNullOrWhiteSpace(r.PhotoPath)) missing.Add("photo");
+                if (missing.Count > 0) lead = $"Missing: {string.Join(", ", missing)}";
+            }
             var parts = new List<string>();
-            if (!string.IsNullOrEmpty(r.Error)) parts.Add(r.Error);
+            if (!string.IsNullOrEmpty(lead)) parts.Add(lead);
             if (r.ReplacesText.Length > 0) parts.Add(r.ReplacesText);
             if (dupOf.TryGetValue(r, out var first)) parts.Add($"Duplicate of row {first}");
             r.Message = string.Join(" · ", parts);
         }
+    }
+
+    /// <summary>Session names store "Batch yyyy-MM-dd HH:mm" — show dd/MM/yyyy.</summary>
+    private static string FormatBatchName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "Batch";
+        var m = System.Text.RegularExpressions.Regex.Match(name, @"(\d{4})-(\d{2})-(\d{2})");
+        return m.Success
+            ? name.Substring(0, m.Index) + m.Groups[3].Value + "/" + m.Groups[2].Value
+                + "/" + m.Groups[1].Value + name.Substring(m.Index + m.Length)
+            : name;
     }
 
     private bool BatchRowFilter(object o)

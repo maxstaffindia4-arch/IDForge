@@ -65,8 +65,8 @@ public class Phase4Tests
             try
             {
                 var headers = ColumnHeaders(w);
-                Assert.Equal(new[] { "#", "Employee", "Employee ID", "Position", "Contract",
-                    "Print date", "Card type", "Photo", "Status", "Message" }, headers);
+                Assert.Equal(new[] { "#", "Employee", "Employee ID", "Blood group", "Position",
+                    "Contract", "Print date", "Card type", "Photo", "Status", "Message" }, headers);
                 foreach (var tag in new[] { "all", "attention", "review", "approved", "reissue" })
                     Assert.NotNull(FilterRadio(w, tag));
                 Assert.NotNull(w.FindName("TxtBatchCounts"));
@@ -138,9 +138,10 @@ public class Phase4Tests
             try
             {
                 var store = w.Svc.Store;
+                var uid = Random.Shared.Next(1000000000, 1999999999).ToString();
                 var empId = store.InsertEmployee(new Employee
                 {
-                    Uid = "70000021", Name = "Old Timer", BloodGroup = "O+",
+                    Uid = uid, Name = "Old Timer", BloodGroup = "O+",
                     Position = "Driver", ContractType = "Permanent"
                 });
                 store.InsertIssue(new CardIssue
@@ -151,7 +152,7 @@ public class Phase4Tests
                     IssuedAt = new DateTimeOffset(2026, 1, 10, 9, 0, 0, TimeSpan.Zero)
                 });
 
-                w.BatchRows.Add(new BatchRow { Uid = "70000021", Name = "Old Timer" });
+                w.BatchRows.Add(new BatchRow { Uid = uid, Name = "Old Timer" });
                 w.BatchRows.Add(new BatchRow { Uid = "70000022", Name = "New Person" });
                 w.UpdateBatchSummary();
                 var rows = w.BatchRows.ToList();
@@ -192,6 +193,107 @@ public class Phase4Tests
                 Assert.Equal(3, dg.Items.Count);
             }
             finally { w.Close(); }
+        });
+    }
+
+    // ---- Phase 4 fix A ----
+
+    [Fact]
+    public void Print_Date_Displays_DdMmYyyy_While_Stored_Iso()
+    {
+        OnSta(() =>
+        {
+            var row = new BatchRow { PrintDateText = "2026-08-31" };
+            Assert.Equal("31/08/2026", row.PrintDateDisplay);
+            row.PrintDateDisplay = "05/01/2026";
+            Assert.Equal("2026-01-05", row.PrintDateText);
+            row.PrintDateDisplay = "2026-03-09";
+            Assert.Equal("09/03/2026", row.PrintDateDisplay);
+            Assert.Equal("2026-03-09", row.PrintDateText);
+        });
+    }
+
+    [Fact]
+    public void Draft_And_NeedsPhoto_Rows_List_Missing_Fields()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                w.BatchRows.Add(new BatchRow { Uid = "70000101", Status = "Draft" });
+                w.BatchRows.Add(new BatchRow
+                {
+                    Uid = "70000102", Name = "Full", Position = "Driver",
+                    PhotoPath = @"C:\nope.jpg", Status = "NeedsPhoto"
+                });
+                w.BatchRows.Add(new BatchRow
+                {
+                    Uid = "70000103", Name = "Bad", Status = "Failed", Error = "bad uid"
+                });
+                w.UpdateBatchSummary();
+                var rows = w.BatchRows.ToList();
+                Assert.Equal("Missing: name, position, photo", rows[0].Message);
+                Assert.Equal("", rows[1].Message);
+                Assert.Equal("bad uid", rows[2].Message);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Blood_Group_Column_Sits_After_Employee_Id()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            try
+            {
+                var headers = ColumnHeaders(w);
+                Assert.Equal("Blood group", headers[3]);
+                Assert.Equal("Position", headers[4]);
+            }
+            finally { w.Close(); }
+        });
+    }
+
+    [Fact]
+    public void Del_Asks_Only_When_Row_Has_Content()
+    {
+        OnSta(() =>
+        {
+            var w = NewWindow();
+            var prompts = new List<string>();
+            MainWindow.ConfirmRemoveRow = p => { prompts.Add(p); return false; };
+            try
+            {
+                var empty = new BatchRow();
+                w.BatchRows.Add(empty);
+                w.UpdateBatchSummary();
+                var dg = (DataGrid)w.FindName("DgBatch")!;
+
+                // empty row: removed without asking
+                dg.SelectedItem = empty;
+                w.BatchDelRow_Click(null!, null!);
+                Assert.Empty(prompts);
+                Assert.DoesNotContain(empty, w.BatchRows);
+
+                // row with content: prompt shown, Cancel keeps it
+                var filled = new BatchRow { Uid = "70000111", Name = "Keep Me" };
+                w.BatchRows.Add(filled);
+                w.UpdateBatchSummary();
+                dg.SelectedItem = filled;
+                w.BatchDelRow_Click(null!, null!);
+                Assert.Single(prompts);
+                Assert.Contains("Remove row 1 (Keep Me)?", prompts[0]);
+                Assert.Contains(filled, w.BatchRows);
+
+                // confirm Remove → row goes away
+                MainWindow.ConfirmRemoveRow = _ => true;
+                w.BatchDelRow_Click(null!, null!);
+                Assert.DoesNotContain(filled, w.BatchRows);
+            }
+            finally { MainWindow.ConfirmRemoveRow = null; w.Close(); }
         });
     }
 }

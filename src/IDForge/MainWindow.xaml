@@ -10,6 +10,19 @@
         WindowStartupLocation="CenterScreen"
         SizeChanged="Window_SizeChanged" KeyDown="Window_KeyDown">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <Style x:Key="BatchCellFocus" TargetType="Control">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2" Margin="-2"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BatchCell" TargetType="DataGridCell">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource BatchCellFocus}"/>
+        </Style>
         <!-- Left-nav item: blue accent bar + light blue background when checked -->
         <Style x:Key="NavItem" TargetType="RadioButton">
             <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
@@ -595,19 +608,35 @@
                         <Button Content="Remove selected (Del)" Click="BatchDelRow_Click" Margin="6,0,0,0" Height="30"/>
                     </StackPanel>
                     <DataGrid x:Name="DgBatch" Grid.Row="3" Margin="8,0,8,0" AutoGenerateColumns="False"
-                              CanUserAddRows="False" SelectionMode="Single"
+                              CanUserAddRows="False" SelectionMode="Single" CellStyle="{StaticResource BatchCell}"
                               HeadersVisibility="Column" MouseDoubleClick="DgBatch_MouseDoubleClick"
                               CellEditEnding="DgBatch_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="36" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="*"/>
                             <DataGridTextColumn Header="Employee ID" Binding="{Binding Uid}" Width="110"/>
+                            <DataGridTemplateColumn Header="Blood group" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding Source={x:Static core:Config.BloodGroups}}"
+                                                  SelectedItem="{Binding Blood, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  BorderThickness="0" Background="Transparent"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Position" Width="130">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <ComboBox ItemsSource="{Binding Source={x:Static core:Config.Positions}}"
-                                                  SelectedItem="{Binding Position, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                  BorderThickness="0" Background="Transparent"/>
+                                        <Grid>
+                                            <ComboBox ItemsSource="{Binding Source={x:Static core:Config.Positions}}"
+                                                      SelectedItem="{Binding Position, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      BorderThickness="0" Background="Transparent"/>
+                                            <TextBlock Text="Choose position" Foreground="{StaticResource MutedBrush}"
+                                                       FontStyle="Italic" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left" Margin="6,0,0,0"
+                                                       IsHitTestVisible="False"
+                                                       Visibility="{Binding PositionEmpty, Converter={StaticResource BoolToVis}}"/>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -620,7 +649,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Print date" Binding="{Binding PrintDateText}" Width="95"/>
+                            <DataGridTextColumn Header="Print date" Binding="{Binding PrintDateDisplay}" Width="95"/>
                             <DataGridTextColumn Header="Card type" Binding="{Binding CardType}" Width="85" IsReadOnly="True"/>
                             <DataGridTemplateColumn Header="Photo" Width="70">
                                 <DataGridTemplateColumn.CellTemplate>

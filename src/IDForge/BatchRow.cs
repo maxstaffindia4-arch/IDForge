@@ -32,9 +32,27 @@ public sealed class BatchRow : INotifyPropertyChanged
     public string Uid { get => _uid; set { Set(ref _uid, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); } }
     public string Name { get => _name; set { Set(ref _name, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); } }
     public string Blood { get => _blood; set => Set(ref _blood, value); }
-    public string Position { get => _position; set => Set(ref _position, value); }
+    public string Position { get => _position; set { Set(ref _position, value); OnPropertyChanged(nameof(PositionEmpty)); } }
+    /// <summary>True when no position is chosen — drives the "Choose position" placeholder.</summary>
+    public bool PositionEmpty => string.IsNullOrWhiteSpace(_position);
     public string Contract { get => _contract; set => Set(ref _contract, value); }
-    public string PrintDateText { get => _printDateText; set => Set(ref _printDateText, value); }
+    public string PrintDateText { get => _printDateText; set { Set(ref _printDateText, value); OnPropertyChanged(nameof(PrintDateDisplay)); } }
+    /// <summary>Print date as shown in the grid (dd/MM/yyyy); the stored value stays ISO.</summary>
+    public string PrintDateDisplay
+    {
+        get => DateOnly.TryParse(PrintDateText, out var d) ? d.ToString("dd/MM/yyyy") : PrintDateText;
+        set
+        {
+            var v = (value ?? "").Trim();
+            if (DateOnly.TryParseExact(v, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var dmy))
+                PrintDateText = dmy.ToString("yyyy-MM-dd");
+            else if (DateOnly.TryParse(v, out var d))
+                PrintDateText = d.ToString("yyyy-MM-dd");
+            else
+                PrintDateText = v;
+        }
+    }
     public string? PhotoPath { get => _photoPath; set => Set(ref _photoPath, value); }
     public string? CutoutPath { get => _cutoutPath; set => Set(ref _cutoutPath, value); }
     public bool Approved { get => _approved; set => Set(ref _approved, value); }

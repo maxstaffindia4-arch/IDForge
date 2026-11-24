@@ -22,6 +22,8 @@ public static class WpfTestHost
                 var app = new App();
                 app.InitializeComponent();   // merges all theme dictionaries
             }
+            MainWindow.SkipResumePrompt = true;
+            MainWindow.SkipDraftPhotoRestore = true;
             _ready = true;
         }
     }
