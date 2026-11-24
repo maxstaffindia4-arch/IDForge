@@ -322,26 +322,16 @@ public class Phase4Tests
     }
 
     [Fact]
-    public void Footer_Has_Only_The_Panel_Approve_Action()
+    public void New_Card_Has_No_Separate_Approve_Action()
     {
         OnSta(() =>
         {
             var w = NewWindow();
             try
             {
+                Assert.Null(w.FindName("BtnApprove"));
                 Assert.Null(w.FindName("BtnApproveFooter"));
-                var approveButtons = new List<Button>();
-                void Walk(object node)
-                {
-                    if (node is Button b && (b.Name.Contains("Approve") ||
-                        b.Content?.ToString() == "Approve photo" ||
-                        b.Content?.ToString() == "✓ Photo approved")) approveButtons.Add(b);
-                    if (node is DependencyObject d)
-                        foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(d)) Walk(c);
-                }
-                Walk(w);
-                Assert.Single(approveButtons);
-                Assert.Equal("BtnApprove", approveButtons[0].Name);
+                Assert.NotNull(w.FindName("BtnSave"));   // Issue card is the only approval step
             }
             finally { w.Close(); }
         });

@@ -104,9 +104,8 @@ public class FixPassTests
                 emp.Id = store.InsertEmployee(emp);
                 try
                 {
-                    // Photo approved must NOT re-enable Issue for a duplicate:
-                    // approve first, then enter the duplicate UID.
-                    main._photoApproved = true;
+                    // A duplicate UID blocks Issue even with a photo present:
+                    // set the cutout (photo ready), then enter the duplicate UID.
                     var uidBox = (TextBox)main.FindName("TxtUid")!;
                     uidBox.Text = uid;
 
@@ -190,9 +189,11 @@ public class FixPassTests
                     Assert.Equal(ResColor(main, "SuccessBrush"), ChipColor(main, "TxtChipUidNew"));
                     Assert.Equal(ResColor(main, "MutedBrush"), ChipColor(main, "TxtChipPhoto"));
 
-                    // 2 · Photo approved → photo chip goes green.
-                    main._photoApproved = true;
+                    // 2 · Photo present → "Photo ready" chip goes green.
+                    main._cutout = new SkiaSharp.SKBitmap(1, 1);
                     name.Text = "Chip Test ";   // retrigger chip refresh
+                    Assert.Equal("Photo ready",
+                        ((TextBlock)main.FindName("TxtChipPhoto")!).Text);
                     Assert.Equal(ResColor(main, "SuccessBrush"), ChipColor(main, "TxtChipPhoto"));
 
                     // 3 · Duplicate ID → details amber, ID chip red with reason.
@@ -302,7 +303,7 @@ public class FixPassTests
     }
 
     [Fact]
-    public void Issue_Card_Stays_Disabled_Until_Photo_Approved()
+    public void Issue_Card_Enabled_With_Photo_No_Separate_Approve()
     {
         OnSta(() =>
         {
@@ -311,21 +312,14 @@ public class FixPassTests
             var window = new SkiaSharp.SKBitmap(4, 4);
             try
             {
-                // Fresh UID so the duplicate-block doesn't mask the approve result.
+                // No separate approve step: photo present + valid UID → Issue enabled.
                 ((TextBox)main.FindName("TxtUid")!).Text = FreshUid(main.Svc.Store);
-                var panelBtn = (Button)main.FindName("BtnApprove")!;
                 var issue = (Button)main.FindName("BtnSave")!;
+                Assert.Null(main.FindName("BtnApprove"));   // approve button removed (F-A)
 
-                // Photo loaded but not approved → Issue stays disabled.
                 main._cutout = cutout;
                 main._windowImage = window;
-                panelBtn.IsEnabled = true;
                 main.UpdateApproveButton();
-                Assert.False(issue.IsEnabled);
-
-                // Approving via the panel button enables Issue.
-                panelBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Assert.True(main._photoApproved);
                 Assert.True(issue.IsEnabled);
             }
             finally

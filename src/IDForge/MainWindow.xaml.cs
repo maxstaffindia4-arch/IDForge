@@ -29,7 +29,7 @@ public partial class MainWindow : Window
     private string? _photoPath;
     private DateTime? _photoAddedAt;
     private float _nudgeZoom = 1f, _nudgeX, _nudgeY;
-    internal bool _photoApproved;   // internal for tests
+    
     private Employee? _editingEmployee;
     private bool _restoringDraft;
     private int _previewZoomMode; // 0=Fit, 1=100%, 2=200%
@@ -476,8 +476,6 @@ public partial class MainWindow : Window
     {
         float keepZoom = _nudgeZoom, keepX = _nudgeX, keepY = _nudgeY;
         SetPhotoStatus("Processing photo (background removal)...");
-        BtnApprove.IsEnabled = false;
-        _photoApproved = false;
         UpdateApproveButton();
         BtnSave.IsEnabled = false;
         PosPanel.IsEnabled = false;
@@ -514,10 +512,9 @@ public partial class MainWindow : Window
                     "fallback" => "Background removal unavailable — photo used as-is.",
                     _ => null
                 };
-                SetPhotoStatus(string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — check preview, then Approve." }
+                SetPhotoStatus(string.Join(" ", new[] { bgNote, job.Warning ?? "Photo ready — check the preview, then Issue card." }
                     .Where(s => s != null)));
                 PosPanel.IsEnabled = job.Cutout != null;
-                BtnApprove.IsEnabled = job.Cutout != null;
                 UpdateApproveButton();
                 UpdatePhotoThumb();
                 UpdateFooterChips();
@@ -558,8 +555,6 @@ public partial class MainWindow : Window
     private void PhotoAdjusted()
     {
         PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
-        _photoApproved = false;
-        BtnApprove.IsEnabled = _cutout != null;
         UpdateApproveButton();
         UpdateFooterChips();
         SchedulePreview();
@@ -629,32 +624,14 @@ public partial class MainWindow : Window
 
     private Employee? _uidDuplicate;
 
+    /// <summary>Issue card is enabled when details are valid and a photo is present.
+    /// Photo approval is gone — issuing is the only approval step (Fix F-A).</summary>
     internal void UpdateApproveButton()
     {
-        if (_photoApproved)
-        {
-            BtnApprove.Content = "✓ Photo approved";
-            BtnApprove.Style = FindResource("SuccessButton") as Style;
-        }
-        else
-        {
-            BtnApprove.Content = "Approve photo";
-            BtnApprove.Style = null;
-        }
-        ChkPhoto.Visibility = _photoApproved ? Visibility.Visible : Visibility.Collapsed;
-        // Issue stays blocked on a duplicate UID even after photo approval.
-        BtnSave.IsEnabled = _photoApproved && _uidDuplicate == null;
+        ChkPhoto.Visibility = _cutout != null ? Visibility.Visible : Visibility.Collapsed;
+        BtnSave.IsEnabled = _cutout != null && _uidDuplicate == null;
         if (TxtIssueBlocked != null)
             TxtIssueBlocked.Visibility = _uidDuplicate != null ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    internal void ApprovePhoto_Click(object sender, RoutedEventArgs e)
-    {
-        if (_windowImage == null) { SetStatus("Process a photo first."); return; }
-        _photoApproved = true;
-        UpdateApproveButton();
-        UpdateFooterChips();
-        SetStatus("Photo approved.");
     }
 
     // ---------------- New Card: validity, chips, output line ----------------
@@ -716,8 +693,8 @@ public partial class MainWindow : Window
         SetChip(ChipUidNew, TxtChipUidNew,
             dup != null ? "Employee ID already exists" : "Employee ID is new",
             uidNew ? ChipState.Ok : dup != null ? ChipState.Err : ChipState.Idle);
-        SetChip(ChipPhoto, TxtChipPhoto, "Photo approved",
-            _photoApproved ? ChipState.Ok : ChipState.Idle);
+        SetChip(ChipPhoto, TxtChipPhoto, "Photo ready",
+            _cutout != null ? ChipState.Ok : ChipState.Idle);
     }
 
     /// <summary>"Saves image + PDF" when PDF is on in Settings, else "Saves image · change in Settings".</summary>
@@ -811,8 +788,6 @@ public partial class MainWindow : Window
                 _cutout?.Dispose(); _windowImage?.Dispose();
                 _cutout = _windowImage = null;
             }
-            _photoApproved = false;
-            BtnApprove.IsEnabled = false;
             UpdateApproveButton();
             PosPanel.IsEnabled = false;
             PosPanel.SetState(1, 0, 0);
@@ -1050,7 +1025,6 @@ public partial class MainWindow : Window
             case Key.NumPad0 when inNewCard && !shift: ResetPhotoPosition(); break;
             case Key.S when inNewCard && !shift: SaveDraftNow(); break;
             case Key.Enter when inNewCard && !shift: Save_Click(this, null!); break;
-            case Key.A when inNewCard && shift: ApprovePhoto_Click(this, null!); break;
             default: return false;
         }
         return true;
@@ -1171,7 +1145,7 @@ public partial class MainWindow : Window
 
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (!_photoApproved) { SetStatus("Approve the photo first."); return; }
+        if (_cutout == null) { SetStatus("Add a photo first."); return; }
         if (_uidDuplicate != null) { SetStatus("Employee ID already exists — open the record to re-issue."); return; }
         if (!FormValid(out var err)) { SetStatus(err); return; }
         var f = GetForm();
@@ -1252,8 +1226,6 @@ public partial class MainWindow : Window
                 _cutout?.Dispose(); _windowImage?.Dispose();
                 _cutout = _windowImage = null;
             }
-            _photoApproved = false;
-            BtnApprove.IsEnabled = false;
             UpdateApproveButton();
             PosPanel.IsEnabled = false;
             PosPanel.SetState(1, 0, 0);
@@ -1272,7 +1244,7 @@ public partial class MainWindow : Window
         {
             SetStatus($"Save failed: {ex.Message}");
         }
-        finally { BtnSave.IsEnabled = _photoApproved && _uidDuplicate == null; }
+        finally { UpdateApproveButton(); }
     }
 
     // ---------------- records ----------------

@@ -437,7 +437,7 @@
                                 <StackPanel Margin="12,0,12,12">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="2 · Photo" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock x:Name="ChkPhoto" Text="  ✓ approved" FontSize="11"
+                                        <TextBlock x:Name="ChkPhoto" Text="  ✓ ready" FontSize="11"
                                                    Foreground="{StaticResource SuccessBrush}"
                                                    VerticalAlignment="Center" Margin="8,0,0,0"
                                                    Visibility="Collapsed"/>
@@ -471,17 +471,6 @@
 
                                     <controls:PhotoPositionPanel x:Name="PosPanel" Margin="0,12,0,0"/>
 
-                                    <Border Background="{StaticResource PanelLightBrush}" CornerRadius="6"
-                                            Padding="10" Margin="0,12,0,0">
-                                        <StackPanel>
-                                            <TextBlock x:Name="TxtApproveHint"
-                                                       Text="Approve the photo to issue the card."
-                                                       FontSize="12" TextWrapping="Wrap"/>
-                                            <Button x:Name="BtnApprove" Content="Approve photo"
-                                                    Click="ApprovePhoto_Click" Margin="0,8,0,0"
-                                                    HorizontalAlignment="Left" IsEnabled="False"/>
-                                        </StackPanel>
-                                    </Border>
                                     <TextBlock x:Name="TxtPhotoStatus"
                                                Foreground="{StaticResource MutedBrush}"
                                                TextWrapping="Wrap" Margin="0,6,0,0"/>
@@ -512,7 +501,7 @@
                                 <Border x:Name="ChipPhoto" CornerRadius="10" Padding="10,4"
                                         Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="1">
-                                    <TextBlock x:Name="TxtChipPhoto" Text="Photo approved"
+                                    <TextBlock x:Name="TxtChipPhoto" Text="Photo ready"
                                                FontSize="11" Foreground="{StaticResource MutedBrush}"/>
                                 </Border>
                                 <TextBlock x:Name="TxtStatus" VerticalAlignment="Center"

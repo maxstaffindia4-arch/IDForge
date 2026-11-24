@@ -652,10 +652,32 @@ public static class Dialogs
     {
         if (!isReissue && !AppSettings.ConfirmBeforeIssue) return true;
         if (ConfirmOverride != null) return ConfirmOverride(owner, name, uid, validUntil, isReissue);
-        var r = MessageBox.Show(owner,
-            $"Issue card for {name}, UID {uid}, valid until {validUntil:MMMM yyyy}?",
-            "Confirm issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        return r == MessageBoxResult.Yes;
+        // Custom dialog so the buttons read "Issue" / "Cancel" (not Yes/No).
+        var next = false; var cancel = false;
+        var dlg = new Window
+        {
+            Owner = owner, Title = "Confirm issue", Width = 400,
+            SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Text = $"Issue card for {name},\nUID {uid},\nvalid until {validUntil:dd/MM/yyyy}?",
+            Margin = new Thickness(0, 0, 0, 14)
+        });
+        var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var bCancel = new Button { Content = "Cancel", Padding = new Thickness(12, 4, 12, 4), IsCancel = true, Margin = new Thickness(0, 0, 8, 0) };
+        bCancel.Click += (_, _) => { cancel = true; dlg.Close(); };
+        var bIssue = new Button { Content = "Issue", Padding = new Thickness(12, 4, 12, 4), IsDefault = true };
+        bIssue.Click += (_, _) => { next = true; dlg.Close(); };
+        btns.Children.Add(bCancel);
+        btns.Children.Add(bIssue);
+        panel.Children.Add(btns);
+        dlg.Content = panel;
+        dlg.ShowDialog();
+        return next && !cancel;
     }
 
     public static void ShowIssued(Window owner, string uid, DateOnly validUntil, string? png, string? pdf)
