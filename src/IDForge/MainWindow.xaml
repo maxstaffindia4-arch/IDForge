@@ -35,7 +35,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <!-- Left-nav item: blue accent bar + light blue background when checked -->
+        <!-- Left-nav item: light blue background when checked; blue ring only on keyboard focus -->
         <Style x:Key="NavItem" TargetType="RadioButton">
             <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -51,15 +51,12 @@
                                 Padding="{TemplateBinding Padding}"
                                 Background="Transparent" BorderBrush="Transparent" BorderThickness="2">
                             <Grid>
-                                <Rectangle x:Name="accent" Width="3" Height="18" RadiusX="1.5"
-                                           HorizontalAlignment="Left" Fill="Transparent"/>
                                 <ContentPresenter VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
-                                <Setter TargetName="accent" Property="Fill" Value="{StaticResource PrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
@@ -517,8 +514,15 @@
                     <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="0,1,0,0" Background="{StaticResource PanelLightBrush}"
                             Padding="14,8">
-                        <DockPanel>
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left"
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal"
                                         VerticalAlignment="Center">
                                 <Border x:Name="ChipDetails" CornerRadius="10" Padding="10,4"
                                         Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
@@ -538,35 +542,39 @@
                                     <TextBlock x:Name="TxtChipPhoto" Text="Photo ready"
                                                FontSize="11" Foreground="{StaticResource MutedBrush}"/>
                                 </Border>
-                                <TextBlock x:Name="TxtStatus" VerticalAlignment="Center"
-                                           Margin="14,0,0,0" TextWrapping="Wrap" MaxWidth="380"
-                                           Foreground="{StaticResource TextBrush}"/>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right"
+                            <TextBlock x:Name="TxtStatus" Grid.Column="1"
+                                       VerticalAlignment="Center"
+                                       Margin="14,0,0,0" TextWrapping="Wrap" MaxWidth="380"
+                                       Foreground="{StaticResource TextBrush}"/>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal"
                                         VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtOutputText" Text="Saves image"
-                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                                    <TextBlock x:Name="TxtOutputPdf" Text=" + PDF" FontSize="11"
-                                               Foreground="{StaticResource MutedBrush}"
-                                               Visibility="Collapsed"/>
-                                    <TextBlock Text=" · " FontSize="11"
-                                               Foreground="{StaticResource MutedBrush}"/>
-                                    <Button x:Name="BtnOutputSettings" Content="change in Settings"
-                                            Style="{StaticResource GhostButton}" Height="24"
-                                            Padding="4,0" FontSize="11" Click="GoSettings_Click"
-                                            Visibility="Collapsed"/>
-                                </StackPanel>
-                                <TextBlock x:Name="TxtIssueBlocked"
-                                           Text="Employee ID already exists. Open the record to re-issue."
-                                           FontSize="11" Foreground="{StaticResource ErrorBrush}"
-                                           VerticalAlignment="Center" Margin="0,0,10,0"
-                                           TextWrapping="Wrap" MaxWidth="280" Visibility="Collapsed"/>
-                                <Button x:Name="BtnSave" Content="Issue card" Click="Save_Click"
-                                        Style="{StaticResource PrimaryButton}" Height="40"
-                                        Margin="14,0,0,0" IsEnabled="False" ToolTip="Ctrl+Enter"/>
+                                <TextBlock x:Name="TxtOutputText" Text="Saves image"
+                                           FontSize="11" Foreground="{StaticResource MutedBrush}"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtOutputPdf" Text=" + PDF" FontSize="11"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           Visibility="Collapsed" VerticalAlignment="Center"/>
+                                <TextBlock Text=" · " FontSize="11"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           VerticalAlignment="Center"/>
+                                <Button x:Name="BtnOutputSettings" Content="change in Settings"
+                                        Style="{StaticResource GhostButton}" Height="20"
+                                        Padding="4,0" FontSize="11" VerticalAlignment="Center"
+                                        Click="GoSettings_Click"
+                                        Visibility="Collapsed"/>
                             </StackPanel>
-                        </DockPanel>
+                            <TextBlock x:Name="TxtIssueBlocked"
+                                       Text="Employee ID already exists. Open the record to re-issue."
+                                       FontSize="11" Foreground="{StaticResource ErrorBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0"
+                                       TextWrapping="Wrap" MaxWidth="280" Visibility="Collapsed"
+                                       Grid.Column="3"/>
+                            <Button x:Name="BtnSave" Content="Issue card" Click="Save_Click"
+                                    Style="{StaticResource PrimaryButton}" Height="40"
+                                    Margin="14,0,0,0" IsEnabled="False" ToolTip="Ctrl+Enter"
+                                    Grid.Column="4" VerticalAlignment="Center"/>
+                        </Grid>
                     </Border>
                 </Grid>
 

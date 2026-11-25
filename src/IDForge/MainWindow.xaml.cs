@@ -2542,7 +2542,9 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         foreach (var r in _batchRows) { r.Cutout?.Dispose(); r.WindowImage?.Dispose(); }
-        _cutout?.Dispose(); _windowImage?.Dispose();
+        // Dispose under _photoLock: a preview/issue render may be reading these
+        // bitmaps on a thread-pool thread — disposing unlocked crashes SkiaSharp.
+        lock (_photoLock) { _cutout?.Dispose(); _windowImage?.Dispose(); }
         _svc.Dispose();
         base.OnClosed(e);
     }
