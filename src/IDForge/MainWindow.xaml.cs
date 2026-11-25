@@ -2122,6 +2122,7 @@ public partial class MainWindow : Window
         }
         row.Cutout?.Dispose(); row.WindowImage?.Dispose();
         _batchRows.Remove(row);
+        UpdateBatchSummary();
     }
 
     /// <summary>Content that makes a row worth confirming before removal.</summary>

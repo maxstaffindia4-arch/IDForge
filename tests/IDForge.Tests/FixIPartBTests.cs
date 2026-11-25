@@ -115,13 +115,16 @@ public class FixIPartBTests
                 Assert.Equal(new Thickness(1), nameTb.BorderThickness);
                 Assert.Equal(new Thickness(1), uidTb.BorderThickness);
 
-                // Counter is in the cell and appears for the selected row.
-                dg.SelectedIndex = 0;
-                Pump(dg);
+                // J-B: counter shows only while the UID cell is being edited.
                 var counter = Descendants(row0).OfType<TextBlock>()
                     .FirstOrDefault(t => t.Text == "8 / 15");
                 Assert.NotNull(counter);
-                Assert.Equal(Visibility.Visible, counter!.Visibility);
+                nameTb.Focus(); // leave the UID cell -> counter hides
+                Pump(dg);
+                Assert.Equal(Visibility.Collapsed, counter!.Visibility);
+                uidTb.Focus(); // editing again -> counter returns
+                Pump(dg);
+                Assert.Equal(Visibility.Visible, counter.Visibility);
 
                 // --- screenshots: one empty row + one named row ---
                 var dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(
