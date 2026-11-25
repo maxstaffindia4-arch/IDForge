@@ -178,6 +178,14 @@ public class FixHTests
                 Pump(w);
                 Assert.True(w.TestNavCollapsed);
                 AssertRailClean(w);
+                // H-A: collapsed rail hides the section headings, shows thin
+                // dividers instead, and draws only the backup icon tile.
+                Assert.Equal(Visibility.Collapsed, ((FrameworkElement)w.FindName("LblIssueCards")!).Visibility);
+                Assert.Equal(Visibility.Collapsed, ((FrameworkElement)w.FindName("LblManage")!).Visibility);
+                Assert.Equal(Visibility.Visible, ((FrameworkElement)w.FindName("DvdIssueCards")!).Visibility);
+                Assert.Equal(Visibility.Visible, ((FrameworkElement)w.FindName("DvdManage")!).Visibility);
+                Assert.Equal(Visibility.Collapsed, ((FrameworkElement)w.FindName("PnlBackupFull")!).Visibility);
+                Assert.Equal(Visibility.Visible, ((FrameworkElement)w.FindName("PnlBackupCompact")!).Visibility);
                 var badge = (FrameworkElement)w.FindName("NavBatchBadge")!;
                 Assert.Equal(Visibility.Visible, badge.Visibility);
                 w.BatchRows.Clear();
@@ -203,6 +211,11 @@ public class FixHTests
                 AssertBatchRowsClean(dg);
                 Assert.True(dg.DesiredSize.Width <= dg.ActualWidth + 0.5,
                     $"grid wants {dg.DesiredSize.Width:F1} but has {dg.ActualWidth:F1}");
+
+                // H-A: selected row text must contrast with the row background.
+                dg.SelectedIndex = 0;
+                Pump(dg); Pump(w2);
+                AssertSelectedRowTextVisible(dg);
             }
 
             // --- 3. screenshots ---
@@ -235,10 +248,58 @@ public class FixHTests
                 Pump(dg4);
                 Pump(w4);
                 SavePng(w4, Path.Combine(dir, "batch-1331x700.png"));
+                // H-A screenshot: Batch with a selected row
+                dg4.SelectedIndex = 0;
+                Pump(dg4); Pump(w4);
+                SavePng(w4, Path.Combine(dir, "batch-selected-row-1331x700.png"));
             }
 
             w.Close(); w2.Close(); w3.Close(); w4.Close();
         });
+    }
+
+    /// <summary>H-A: text inside the selected Batch row must have a foreground
+    /// that contrasts with the effective background (cells, row, grid).</summary>
+    private static void AssertSelectedRowTextVisible(DataGrid dg)
+    {
+        var row = Descendants(dg).OfType<DataGridRow>()
+            .FirstOrDefault(r => r.IsSelected);
+        Assert.True(row != null, "no selected DataGridRow realised");
+        var texts = Descendants(row!).OfType<TextBlock>().Where(t => t.Text.Length > 0).ToList();
+        Assert.True(texts.Count >= 3, $"expected cell text in selected row, found {texts.Count}");
+        foreach (var fe in texts.Cast<FrameworkElement>())
+        {
+            var fg = EffectiveBrush(fe, f => (f as TextBlock)?.Foreground, VisualTreeHelper.GetParent);
+            var bg = EffectiveBrush(row, f => (f as Panel)?.Background ?? (f as Border)?.Background, VisualTreeHelper.GetParent);
+            Assert.True(Contrast(fg!, bg!) >= 2.0,
+                $"selected-row text \"{((TextBlock)fe).Text}\" fg={fg} vs bg={bg} — contrast {Contrast(fg!, bg!):F2}");
+        }
+    }
+
+    private static Brush? EffectiveBrush(DependencyObject start,
+        Func<DependencyObject, Brush?> pick, Func<DependencyObject, DependencyObject?> parent)
+    {
+        for (var cur = start; cur != null; cur = parent(cur))
+        {
+            var b = pick(cur);
+            if (b != null && b != Brushes.Transparent) return b;
+        }
+        return Brushes.White;
+    }
+
+    private static double Contrast(Brush fg, Brush bg)
+    {
+        var f = ((SolidColorBrush)fg).Color; var b = ((SolidColorBrush)bg).Color;
+        double L1 = Lum(f), L2 = Lum(b);
+        if (L1 < L2) (L1, L2) = (L2, L1);
+        return (L1 + 0.05) / (L2 + 0.05);
+    }
+
+    private static double Lum(Color c)
+    {
+        double R = Lin(c.R), G = Lin(c.G), B = Lin(c.B);
+        return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+        static double Lin(byte v) { var s = v / 255.0; return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4); }
     }
 
     private static string ShotDir()

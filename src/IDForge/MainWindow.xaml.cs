@@ -994,6 +994,14 @@ public partial class MainWindow : Window
     {
         var collapsed = ActualWidth < 1100;
         if (collapsed == _navCollapsed) return;
+        SetNavCollapsed(collapsed);
+    }
+
+    /// <summary>Single collapse path used by auto-collapse AND the nav toggle —
+    /// the menu toggle used to set NavCol.Width directly, leaving labels and the
+    /// full backup panel visible (and clipped) at rail width.</summary>
+    internal void SetNavCollapsed(bool collapsed)
+    {
         _navCollapsed = collapsed;
         NavCol.Width = new GridLength(collapsed ? 64 : 208);
         foreach (var name in new[] { "NavLblNewCard", "NavKeyNewCard", "NavLblBatch", "NavKeyBatch",
@@ -1030,7 +1038,10 @@ public partial class MainWindow : Window
         // Badge overlays the Batch icon in both modes; hidden only at zero rows.
         NavBatchBadge.Margin = collapsed ? new Thickness(0, 0, 2, 26) : new Thickness(0, 0, 10, 0);
         NavBatchBadge.VerticalAlignment = collapsed ? VerticalAlignment.Top : VerticalAlignment.Center;
-        NavBatchBadge.HorizontalAlignment = collapsed ? HorizontalAlignment.Right : HorizontalAlignment.Right;
+        NavBatchBadge.HorizontalAlignment = HorizontalAlignment.Right;
+        // Section headings hide; thin dividers mark the groups instead.
+        foreach (var name in new[] { "DvdIssueCards", "DvdManage" })
+            if (FindName(name) is FrameworkElement dv) dv.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
         PnlBackupFull.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         PnlBackupCompact.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -1092,7 +1103,7 @@ public partial class MainWindow : Window
     private void NavSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
     private void GoSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
     private void MenuToggleNav_Click(object sender, RoutedEventArgs e)
-        => NavCol.Width = new GridLength(NavCol.Width.Value > 100 ? 64 : 208);
+        => SetNavCollapsed(NavCol.Width.Value > 100);
     private void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>

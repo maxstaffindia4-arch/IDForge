@@ -22,6 +22,7 @@
         </Style>
         <Style x:Key="BatchCell" TargetType="DataGridCell">
             <Setter Property="FocusVisualStyle" Value="{StaticResource BatchCellFocus}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridCell">
@@ -214,6 +215,8 @@
                     <StackPanel Margin="8">
                         <TextBlock x:Name="LblIssueCards" Text="ISSUE CARDS" FontSize="10" FontWeight="Bold"
                                    Foreground="{StaticResource MutedBrush}" Margin="4,0,0,4"/>
+                        <Border x:Name="DvdIssueCards" Height="1" Margin="8,2"
+                                Background="{StaticResource BorderBrush}" Visibility="Collapsed"/>
                         <RadioButton x:Name="NavNewCard" Style="{StaticResource NavItem}" GroupName="nav"
                                      IsChecked="True" Click="NavNewCard_Click" ToolTip="New card (Ctrl+1)">
                             <StackPanel x:Name="NavPnlNewCard" Orientation="Horizontal">
@@ -244,6 +247,8 @@
                         </RadioButton>
                         <TextBlock x:Name="LblManage" Text="MANAGE" FontSize="10" FontWeight="Bold"
                                    Foreground="{StaticResource MutedBrush}" Margin="4,14,0,4"/>
+                        <Border x:Name="DvdManage" Height="1" Margin="8,2"
+                                Background="{StaticResource BorderBrush}" Visibility="Collapsed"/>
                         <RadioButton x:Name="NavRecords" Style="{StaticResource NavItem}" GroupName="nav"
                                      Click="NavRecords_Click" ToolTip="Records (Ctrl+3)">
                             <StackPanel x:Name="NavPnlRecords" Orientation="Horizontal">

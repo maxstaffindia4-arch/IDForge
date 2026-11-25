@@ -20,4 +20,13 @@
     </Style>
 <Style TargetType="DataGrid" BasedOn="{StaticResource ThemedDataGrid}"/>
     <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource ThemedDataGridColumnHeader}"/>
+    <!-- Selection uses the app's light-blue tint so dark TextBrush stays readable
+         (the stock HighlightBrush blue made cell text look blank). -->
+    <Style TargetType="DataGridRow">
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
 </ResourceDictionary>
