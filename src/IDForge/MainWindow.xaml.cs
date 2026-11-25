@@ -1080,6 +1080,7 @@ public partial class MainWindow : Window
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (TryHandleAppKey(e.Key)) { e.Handled = true; return; }
         if (_area == "batch" && Keyboard.FocusedElement is not TextBoxBase and not ComboBox)
         {
             if (e.Key == Key.F5) { StartBatch_Click(this, null!); e.Handled = true; return; }
@@ -1096,6 +1097,16 @@ public partial class MainWindow : Window
             { DeleteRecord_Click(this, null!); e.Handled = true; return; }
         }
         if (TryHandleShortcut(e.Key, Keyboard.Modifiers)) e.Handled = true;
+    }
+
+    internal bool TryHandleAppKey(Key key)
+    {
+        if (key == Key.F1)
+        {
+            MenuHelp.IsSubmenuOpen = true;
+            return true;
+        }
+        return false;
     }
 
     private void NavNewCard_Click(object sender, RoutedEventArgs e) => ShowArea("newcard");
@@ -1574,6 +1585,48 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Error"); }
     }
+
+    private void ShowHelpDialog(string title, string text)
+    {
+        var dlg = new Window
+        {
+            Title = title, Width = 520, SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this, ResizeMode = ResizeMode.NoResize
+        };
+        dlg.Content = new TextBlock
+        {
+            Text = text, Margin = new Thickness(20), FontSize = 12,
+            TextWrapping = TextWrapping.Wrap
+        };
+        dlg.ShowDialog();
+    }
+
+    private void HelpShortcuts_Click(object sender, RoutedEventArgs e) =>
+        ShowHelpDialog("Keyboard shortcuts",
+            "Ctrl+1  New card\nCtrl+2  Batch\nCtrl+3  Records\nCtrl+,  Settings\n" +
+            "Ctrl+B  Back up now\nCtrl+F  Search records\nCtrl+Enter  Issue card\n" +
+            "F2  Edit record\nDel  Delete row / record\nF5  Start batch\nF1  Help");
+
+    private void HelpQuickGuide_Click(object sender, RoutedEventArgs e) =>
+        ShowHelpDialog("Quick guide",
+            "Issuing a card: fill in the New card form (or pick a photo), " +
+            "then click Issue card or press Ctrl+Enter. The card image and " +
+            "PDF are saved to the folder chosen in Settings.\n\n" +
+            "Batch: add rows on the Batch page, fill in name, ID, position " +
+            "and photo for each, then click Approve & Issue to issue them all.\n\n" +
+            "Backup and restore: use Tools > Back up now or Settings > " +
+            "Back up to file… / Restore from file….");
+
+    private void HelpTroubleshooting_Click(object sender, RoutedEventArgs e) =>
+        ShowHelpDialog("Troubleshooting",
+            "Missing output folder: issue is blocked until the \"Save cards " +
+            "to\" folder in Settings exists and is writable. Choose a valid " +
+            "folder there.\n\n" +
+            "Dates: enter dates as DD/MM/YYYY or pick them from the calendar.\n\n" +
+            "Backup: automatic backups are kept in the backup folder " +
+            "(Settings > Open backup folder). Restore replaces all card data " +
+            "after backing up the current data first.");
 
     private void About_Click(object sender, RoutedEventArgs e)
     {

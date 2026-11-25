@@ -569,16 +569,15 @@ public class Phase4Tests
             try
             {
                 var rb = (RadioButton)w.FindName("NavNewCard")!;
-                // Dotted default FocusVisualStyle removed.
-                Assert.Null(rb.FocusVisualStyle);
+                // Fix J-A: ring comes from FocusVisualStyle (keyboard-only in
+                // WPF), not from IsKeyboardFocused template triggers.
+                var fvs = rb.FocusVisualStyle as Style;
+                Assert.NotNull(fvs);
                 var tpl = (ControlTemplate)rb.Template;
-                var focusTrigger = tpl.Triggers.OfType<Trigger>()
-                    .FirstOrDefault(t => t.Property == UIElement.IsKeyboardFocusedProperty);
-                Assert.NotNull(focusTrigger);
-                var setter = focusTrigger!.Setters.OfType<Setter>()
-                    .FirstOrDefault(s => s.Property == Border.BorderBrushProperty);
-                Assert.NotNull(setter);
-                // Setter value is a DynamicResource to PrimaryBrush — resolve it.
+                Assert.DoesNotContain(tpl.Triggers.OfType<Trigger>(),
+                    t => t.Property == UIElement.IsKeyboardFocusedProperty
+                      || t.Property == UIElement.IsKeyboardFocusWithinProperty);
+                // Ring brush is the app blue.
                 var brush = w.TryFindResource("PrimaryBrush") as SolidColorBrush;
                 Assert.NotNull(brush);
                 Assert.Equal(Color.FromRgb(0x3B, 0x82, 0xF6), brush!.Color);

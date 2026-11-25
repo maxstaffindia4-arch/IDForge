@@ -36,6 +36,19 @@
             </Setter>
         </Style>
         <!-- Left-nav item: light blue background when checked; blue ring only on keyboard focus -->
+        <!-- Keyboard-only focus ring: WPF shows FocusVisualStyle only after
+             keyboard navigation, never after a mouse click. -->
+        <Style x:Key="NavFocusRing" TargetType="RadioButton">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2"
+                                CornerRadius="6" Margin="-3"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="NavItem" TargetType="RadioButton">
             <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -43,7 +56,7 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,1"/>
             <Setter Property="Padding" Value="18,7,10,7"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource NavFocusRing}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
@@ -60,12 +73,6 @@
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -175,8 +182,14 @@
             <MenuItem Header="_Tools">
                 <MenuItem Header="_Back up now  Ctrl+B" Click="NavBackup_Click"/>
             </MenuItem>
-            <MenuItem Header="_Help">
-                <MenuItem Header="_About  F1" Click="About_Click"/>
+            <MenuItem x:Name="MenuHelp" Header="_Help">
+                <MenuItem Header="_Keyboard shortcuts" Click="HelpShortcuts_Click"/>
+                <MenuItem Header="_Quick guide: issuing a card, using Batch, backup and restore"
+                          Click="HelpQuickGuide_Click"/>
+                <MenuItem Header="_Troubleshooting: missing output folder, dates, backup"
+                          Click="HelpTroubleshooting_Click"/>
+                <Separator/>
+                <MenuItem Header="_About IDForge…" Click="About_Click"/>
             </MenuItem>
         </Menu>
 
@@ -209,7 +222,7 @@
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74E;" FontSize="18"
                                    VerticalAlignment="Center" HorizontalAlignment="Center"/>
                     </Border>
-                    <StackPanel Margin="8">
+                    <StackPanel x:Name="PnlNavItems" Margin="8">
                         <TextBlock x:Name="LblIssueCards" Text="ISSUE CARDS" FontSize="10" FontWeight="Bold"
                                    Foreground="{StaticResource MutedBrush}" Margin="4,0,0,4"/>
                         <Border x:Name="DvdIssueCards" Height="1" Margin="8,2"
@@ -979,7 +992,7 @@
                     <TextBlock Text=" | " Foreground="{StaticResource MutedBrush}" FontSize="11"/>
                     <TextBlock x:Name="TxtStatusVersion" VerticalAlignment="Center"
                                Foreground="{StaticResource MutedBrush}" FontSize="11"
-                               Text="IDForge · About (F1)"/>
+                               Text="IDForge · Help (F1)"/>
                 </StackPanel>
             </DockPanel>
         </Border>
