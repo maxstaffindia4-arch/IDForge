@@ -21,6 +21,9 @@ public static class WpfTestHost
             {
                 var app = new App();
                 app.InitializeComponent();   // merges all theme dictionaries
+                // Tests share one Application on the WpfSta dispatcher; closing
+                // the last window must not shut it down between tests.
+                app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             }
             MainWindow.SkipResumePrompt = true;
             MainWindow.SkipDraftPhotoRestore = true;

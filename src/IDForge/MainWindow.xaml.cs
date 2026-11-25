@@ -97,8 +97,6 @@ public partial class MainWindow : Window
     internal CardService Svc => _svc;
     internal string OutputDir => AppPaths.OutputDir;
     internal System.Collections.ObjectModel.ObservableCollection<BatchRow> BatchRows => _batchRows;
-    private string? _batchOutputDir;
-
     private void EnsureBatchSession()
     {
         if (_batchSessionId == 0)
@@ -174,7 +172,7 @@ public partial class MainWindow : Window
             row.PrintDate, row.Cutout, t, issueKey,
             Detail: $"Batch row {row.RowId}", RequireNewUid: true,
             IncludePdf: AppSettings.IncludePdf);
-        return await Task.Run(() => new IDForge.Core.Issuing.CardIssuer(_svc.Store, _batchOutputDir ?? OutputDir).Issue(req));
+        return await Task.Run(() => new IDForge.Core.Issuing.CardIssuer(_svc.Store, AppSettings.SaveFolder).Issue(req));
     }
 
     // ---------------- helpers ----------------
@@ -1170,7 +1168,47 @@ public partial class MainWindow : Window
         {
             AppSettings.SaveFolder = dlg.FolderName;
             TxtSaveFolder.Text = dlg.FolderName;
+            try { Directory.CreateDirectory(dlg.FolderName); } catch { }
         }
+    }
+
+    /// <summary>Test hook: replaces the "output folder missing" prompt.
+    /// Args: owner, path — returns true when the user chose to open Settings.</summary>
+    internal static Func<Window, string, bool>? OutputFolderPrompt;
+
+    /// <summary>
+    /// H-C: issuing never asks for a folder — cards go to Settings "Save cards
+    /// to". If that folder is missing or not writable, block BEFORE anything is
+    /// written (no files, no Records entry) and offer to open Settings.
+    /// </summary>
+    internal bool EnsureIssueOutputFolder(Window owner)
+    {
+        var dir = AppSettings.SaveFolder;
+        if (IsWritableDir(dir)) return true;
+        var open = OutputFolderPrompt?.Invoke(owner, dir) ?? ShowOutputFolderMissing(owner, dir);
+        if (open) ShowArea("settings");
+        return false;
+    }
+
+    private static bool ShowOutputFolderMissing(Window owner, string dir)
+    {
+        var r = MessageBox.Show(owner,
+            $"Output folder not found: {dir}.\n\nChange it in Settings.",
+            "Output folder", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        return r == MessageBoxResult.Yes;
+    }
+
+    private static bool IsWritableDir(string dir)
+    {
+        try
+        {
+            if (!Directory.Exists(dir)) return false;
+            var probe = Path.Combine(dir, $".idforge-write-test-{Guid.NewGuid():N}");
+            File.WriteAllBytes(probe, [0]);
+            File.Delete(probe);
+            return true;
+        }
+        catch { return false; }
     }
 
     // ---------------- save / issue ----------------
@@ -1229,10 +1267,8 @@ public partial class MainWindow : Window
 
         var validUntil = Validity.CalculateValidUntil(f.printDate, f.contract);
         var isReissue = existing != null;
+        if (!EnsureIssueOutputFolder(this)) return;
         if (!Dialogs.ConfirmIssue(this, f.name, f.uid, validUntil, isReissue)) return;
-
-        var savePath = PickCardImagePath($"{Core.Uid.FileToken(f.uid)}.png");
-        if (savePath == null) return;
 
         SKBitmap? cutout;
         WindowTransform? transform;
@@ -1250,14 +1286,14 @@ public partial class MainWindow : Window
         var req = new IDForge.Core.Issuing.IssueRequest(
             f.uid, f.name, f.blood, f.position, f.contract, f.printDate,
             cutout, transform, issueKey, RequireNewUid: false,
-            IncludePdf: AppSettings.IncludePdf, OutputFile: savePath);
+            IncludePdf: AppSettings.IncludePdf);
 
         BtnSave.IsEnabled = false;
         SetStatus("Issuing...");
         try
         {
             var outcome = await Task.Run(() =>
-                new IDForge.Core.Issuing.CardIssuer(_svc.Store, OutputDir).Issue(req));
+                new IDForge.Core.Issuing.CardIssuer(_svc.Store, AppSettings.SaveFolder).Issue(req));
             if (!outcome.Success)
             {
                 SetStatus($"Issue failed ({outcome.Step}): {outcome.Error}");
@@ -1675,17 +1711,14 @@ public partial class MainWindow : Window
         Core.DateInput.TryParse(txtDate.Text, out var printDate);   // validated above
         var validUntil = Validity.CalculateValidUntil(printDate, emp.ContractType);
 
+        if (!EnsureIssueOutputFolder(this)) return;
+
         // Re-issue always confirms — name, UID, new print date, new valid-until.
         var ok = MessageBox.Show(this,
             $"Re-issue card for {emp.Name}, UID {emp.Uid}?\n" +
             $"New print date: {printDate:dd/MM/yyyy}\nValid until: {validUntil:MMMM yyyy}",
             "Confirm re-issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (ok != MessageBoxResult.Yes) return;
-
-        var nextVer = _svc.Store.NextIssueVersion(emp.Id);
-        var path = PickCardImagePath(
-            $"{Core.Uid.FileToken(emp.Uid)}_v{nextVer}.png");
-        if (path == null) return;
 
         // Same issue transaction as Approve & Issue: render -> verify -> one DB
         // transaction (employee upsert + new CardIssue version + audit).
@@ -1702,12 +1735,11 @@ public partial class MainWindow : Window
             IssueKey: $"reissue:{emp.Id}:{DateTime.UtcNow.Ticks}",
             Detail: $"Re-issue of employee {emp.Id}",
             RequireNewUid: false,
-            IncludePdf: AppSettings.IncludePdf,
-            OutputFile: path);
+            IncludePdf: AppSettings.IncludePdf);
         try
         {
             var outcome = await Task.Run(() =>
-                new IDForge.Core.Issuing.CardIssuer(_svc.Store, OutputDir).Issue(req));
+                new IDForge.Core.Issuing.CardIssuer(_svc.Store, AppSettings.SaveFolder).Issue(req));
             if (!outcome.Success)
             {
                 App.LogCrash(new InvalidOperationException($"Re-issue failed ({outcome.Step}): {outcome.Error}"), notify: false);
@@ -2190,16 +2222,6 @@ public partial class MainWindow : Window
         try
         {
             if (_batchRows.Count == 0) { MessageBox.Show("Add rows first."); return; }
-            if (_batchOutputDir == null)
-            {
-                var dlg = new OpenFolderDialog
-                {
-                    Title = "Choose folder for issued card files",
-                    InitialDirectory = DefaultCardDir()
-                };
-                if (dlg.ShowDialog(this) != true) return;
-                _batchOutputDir = dlg.FolderName;
-            }
             var win = new ReviewWindow(this, _batchRows, startAt);
             win.Owner = this;
             win.ShowDialog();
@@ -2499,7 +2521,7 @@ public partial class MainWindow : Window
 
     private void BatchOpenOutput_Click(object sender, RoutedEventArgs e)
     {
-        var dir = OutputDir;
+        var dir = AppSettings.SaveFolder;   // H-C: issues write to the Settings folder
         Directory.CreateDirectory(dir);
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         { FileName = dir, UseShellExecute = true });

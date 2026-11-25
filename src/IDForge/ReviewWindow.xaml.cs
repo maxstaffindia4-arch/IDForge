@@ -544,6 +544,7 @@ public partial class ReviewWindow : Window
         var validUntil = Validity.CalculateValidUntil(row.PrintDate, row.Contract);
         var uidNorm = Core.Uid.Normalize(row.Uid);
         var isReissue = uidNorm != null && _owner.Svc.Store.FindEmployeeByUid(uidNorm) != null;
+        if (!_owner.EnsureIssueOutputFolder(this)) return null;
         if (confirm && !Dialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue))
             return null;
 
