@@ -709,42 +709,134 @@
                                        Foreground="{StaticResource MutedBrush}"/>
                         </StackPanel>
                     </DockPanel>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="8">
-                        <TextBox x:Name="TxtSearch" Width="280" ToolTip="Search UID or name"
-                                 KeyDown="Search_KeyDown"/>
-                        <Button Content="Search" Click="Search_Click" Margin="8,0,0,0"/>
-                        <Button Content="Refresh" Click="RefreshRecords_Click" Margin="8,0,0,0"/>
+                    <StackPanel Grid.Row="1" Margin="8,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="TxtSearch" Width="240" ToolTip="Search UID or name (Ctrl+F)"
+                                     KeyDown="Search_KeyDown"/>
+                            <ComboBox x:Name="CmbContractFilter" Width="120" Margin="8,0,0,0"
+                                      SelectionChanged="RecordFilter_Changed" ToolTip="Contract type">
+                                <ComboBoxItem Content="Any contract" IsSelected="True"/>
+                                <ComboBoxItem Content="Permanent"/>
+                                <ComboBoxItem Content="Contractual"/>
+                            </ComboBox>
+                            <ComboBox x:Name="CmbValidityFilter" Width="130" Margin="6,0,0,0"
+                                      SelectionChanged="RecordFilter_Changed" ToolTip="Validity">
+                                <ComboBoxItem Content="Any validity" IsSelected="True"/>
+                                <ComboBoxItem Content="Active"/>
+                                <ComboBoxItem Content="Expires soon"/>
+                                <ComboBoxItem Content="Expired"/>
+                            </ComboBox>
+                            <ComboBox x:Name="CmbIssuedFilter" Width="130" Margin="6,0,0,0"
+                                      SelectionChanged="RecordFilter_Changed" ToolTip="Issued date">
+                                <ComboBoxItem Content="Any time" IsSelected="True"/>
+                                <ComboBoxItem Content="Today"/>
+                                <ComboBoxItem Content="Last 7 days"/>
+                                <ComboBoxItem Content="Last 30 days"/>
+                            </ComboBox>
+                            <Button Content="Refresh" Click="RefreshRecords_Click" Margin="10,0,0,0"/>
+                            <TextBlock x:Name="TxtRecordCount" VerticalAlignment="Center"
+                                       Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                       Margin="12,0,0,0"/>
+                        </StackPanel>
+                        <Border x:Name="PnlUndo" Visibility="Collapsed" Margin="0,6,0,0" Padding="8,5"
+                                CornerRadius="6" Background="{StaticResource PrimaryTintBrush}"
+                                BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="1">
+                            <DockPanel>
+                                <TextBlock x:Name="TxtUndo" Text="Record deleted" VerticalAlignment="Center"
+                                           FontSize="12"/>
+                                <Button Content="Undo" DockPanel.Dock="Right" Padding="12,2"
+                                        Click="UndoDelete_Click"/>
+                            </DockPanel>
+                        </Border>
                     </StackPanel>
-                    <ListView x:Name="LstRecords" Grid.Row="2" Margin="8"
-                              SelectionChanged="Record_Selected">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="UID" Width="140" DisplayMemberBinding="{Binding Uid}"/>
-                                <GridViewColumn Header="Name" Width="220" DisplayMemberBinding="{Binding Name}"/>
-                                <GridViewColumn Header="Position" Width="160" DisplayMemberBinding="{Binding Position}"/>
-                                <GridViewColumn Header="Contract" Width="100" DisplayMemberBinding="{Binding ContractType}"/>
-                                <GridViewColumn Header="Valid Until" Width="110" DisplayMemberBinding="{Binding ValidUntil}"/>
-                                <GridViewColumn Header="Last Issued" Width="150" DisplayMemberBinding="{Binding LastIssued}"/>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                    <StackPanel Grid.Row="3">
-                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                            <Button Content="Reprint" Click="Reprint_Click" IsEnabled="False" x:Name="BtnReprint"/>
-                            <Button Content="Re-issue" Click="Reissue_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnReissue"/>
-                            <Button Content="Export PNG/PDF" Click="ExportRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnExportRec"/>
-                            <Button Content="Edit" Click="EditRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnEditRec"/>
-                            <Button Content="Delete" Click="DeleteRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnDeleteRec"/>
-                            <TextBlock x:Name="TxtRecordInfo" VerticalAlignment="Center" Margin="16,0,0,0"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                            <Button Content="Export CSV" Click="ExportCsv_Click"/>
-                            <Button Content="Export JSON" Click="ExportJson_Click" Margin="6,0,0,0"/>
-                            <Button Content="Backup DB" Click="BackupDb_Click" Margin="6,0,0,0"/>
-                            <Button Content="Restore..." Click="RestoreDb_Click" Margin="6,0,0,0"/>
-                            <Button Content="Deleted..." Click="DeletedRecords_Click" Margin="6,0,0,0"/>
-                            <Button Content="Clear All..." Style="{StaticResource DestructiveOutlineButton}" Click="ClearAll_Click" Margin="16,0,0,0" Foreground="{StaticResource ErrorBrush}"/>
-                        </StackPanel>
+                    <Grid Grid.Row="2" Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="360"/>
+                        </Grid.ColumnDefinitions>
+                        <DataGrid x:Name="LstRecords" AutoGenerateColumns="False"
+                                  CanUserAddRows="False" SelectionMode="Single"
+                                  CellStyle="{StaticResource BatchCell}"
+                                  SelectionChanged="Record_Selected">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="150">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Employee ID" Binding="{Binding Uid}" Width="100"/>
+                                <DataGridTextColumn Header="Position" Binding="{Binding Position}" Width="130">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Contract" Binding="{Binding ContractType}" Width="90"/>
+                                <DataGridTextColumn Header="Issued on" Binding="{Binding IssuedOn}" Width="95"/>
+                                <DataGridTextColumn Header="Valid until" Binding="{Binding ValidUntil}" Width="95"/>
+                                <DataGridTemplateColumn Header="Status" Width="95">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="8" Padding="7,1" HorizontalAlignment="Center"
+                                                    Background="{Binding BadgeBrush}">
+                                                <TextBlock Text="{Binding BadgeText}" FontSize="10"
+                                                           Foreground="White"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Border Grid.Column="1" Margin="10,0,0,0" CornerRadius="8" Padding="10"
+                                Background="{StaticResource WhiteBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Border Height="150" CornerRadius="6" Background="{StaticResource PanelBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <Image x:Name="ImgRecPreview" Stretch="Uniform" Margin="4"/>
+                                        <TextBlock x:Name="TxtRecPreviewEmpty" Text="No card image"
+                                                   Foreground="{StaticResource MutedBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                                <TabControl Grid.Row="1" Margin="0,8,0,0">
+                                    <TabItem Header="Details">
+                                        <StackPanel x:Name="DtlDetails" Margin="4"/>
+                                    </TabItem>
+                                    <TabItem Header="Files">
+                                        <StackPanel x:Name="DtlFiles" Margin="4"/>
+                                    </TabItem>
+                                    <TabItem Header="History">
+                                        <ListBox x:Name="LstHistory" Margin="4"/>
+                                    </TabItem>
+                                </TabControl>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="8,4,8,4" VerticalAlignment="Center">
+                        <Button Content="Reprint" Click="Reprint_Click" IsEnabled="False" x:Name="BtnReprint"/>
+                        <Button Content="Re-issue" Click="Reissue_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnReissue"/>
+                        <Button Content="Edit" Click="EditRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnEditRec"/>
+                        <Button Content="Save card as" Click="ExportRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnExportRec"/>
+                        <Button Content="Show card file" Click="ShowCardFile_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnShowFile"/>
+                        <Button Content="Delete" Click="DeleteRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnDeleteRec"/>
+                        <TextBlock x:Name="TxtRecordInfo" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="8,0,8,8">
+                        <Button Content="Export CSV" Click="ExportCsv_Click"/>
+                        <Button Content="Export JSON" Click="ExportJson_Click" Margin="6,0,0,0"/>
+                        <Button Content="Back up now" Click="BackupDb_Click" Margin="6,0,0,0"/>
+                        <Button Content="Restore..." Click="RestoreDb_Click" Margin="6,0,0,0"/>
+                        <Button Content="Deleted records..." Click="DeletedRecords_Click" Margin="6,0,0,0"/>
+                        <Button Content="Clear all..." Style="{StaticResource DestructiveOutlineButton}" Click="ClearAll_Click" Margin="16,0,0,0" Foreground="{StaticResource ErrorBrush}"/>
                     </StackPanel>
                 </Grid>
 

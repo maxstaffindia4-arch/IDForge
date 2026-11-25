@@ -73,6 +73,12 @@ public partial class MainWindow : Window
         CmbPosition.SelectedIndex = 0;
         DpPrintDate.SelectedDate = Validity.TodayInDhaka().ToDateTime(TimeOnly.MinValue);
         _draftTimer.Tick += (_, _) => { _draftTimer.Stop(); SaveDraftNow(); };
+        _undoTimer.Tick += (_, _) =>
+        {
+            _undoTimer.Stop();
+            _undoEmployeeId = 0;
+            PnlUndo.Visibility = Visibility.Collapsed;
+        };
 
         // Batch grid combo columns are DataGridTemplateColumns now (ItemsSource
         // bound in XAML); nothing to wire here.
@@ -1044,6 +1050,12 @@ public partial class MainWindow : Window
             case Key.D3: ShowArea("records"); break;
             case Key.OemComma: ShowArea("settings"); break;
             case Key.B when !shift: NavBackup_Click(this, null!); break;
+            case Key.F when _area == "records" && !shift:
+                TxtSearch.Focus(); TxtSearch.SelectAll(); break;
+            case Key.P when _area == "records" && !shift:
+                if (BtnReprint.IsEnabled) Reprint_Click(this, null!); break;
+            case Key.R when _area == "records" && shift:
+                if (BtnReissue.IsEnabled) Reissue_Click(this, null!); break;
             case Key.O when inNewCard && !shift: BrowsePhoto_Click(this, null!); break;
             case Key.D0 when inNewCard && !shift:
             case Key.NumPad0 when inNewCard && !shift: ResetPhotoPosition(); break;
@@ -1063,6 +1075,13 @@ public partial class MainWindow : Window
             {
                 BatchDelRow_Click(this, null!); e.Handled = true; return;
             }
+        }
+        if (_area == "records" && Keyboard.FocusedElement is not TextBoxBase and not ComboBox)
+        {
+            if (e.Key == Key.F2 && BtnEditRec.IsEnabled)
+            { EditRecord_Click(this, null!); e.Handled = true; return; }
+            if (e.Key == Key.Delete && BtnDeleteRec.IsEnabled)
+            { DeleteRecord_Click(this, null!); e.Handled = true; return; }
         }
         if (TryHandleShortcut(e.Key, Keyboard.Modifiers)) e.Handled = true;
     }
@@ -1280,51 +1299,216 @@ public partial class MainWindow : Window
         public string Position => Emp.Position;
         public string ContractType => Emp.ContractType;
         public string ValidUntil => Issue?.ValidUntil.ToString("dd/MM/yyyy") ?? "-";
+        public string IssuedOn => Issue?.IssuedAt.LocalDateTime.ToString("dd/MM/yyyy") ?? "-";
         public string LastIssued => Issue?.IssuedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm") ?? "-";
+        public string ValidityKind { get; init; } = "None";
+        public string BadgeText => ValidityKind == "None" ? "-" : ValidityKind;
+        public SolidColorBrush BadgeBrush { get; init; } = new(Color.FromRgb(0x9C, 0xA3, 0xAF));
     }
 
-    private void RefreshRecords()
+    /// <summary>Active / Expires soon (≤30 days) / Expired / None.</summary>
+    internal static string ValidityKindFor(DateOnly? validUntil, DateOnly today)
     {
-        var rows = _svc.Store.AllEmployees()
-            .Select(e => new RecordRow(e, _svc.Store.LatestIssue(e.Id)))
-            .ToList();
-        LstRecords.ItemsSource = rows;
+        if (validUntil == null) return "None";
+        if (validUntil < today) return "Expired";
+        if (validUntil <= today.AddDays(30)) return "Expires soon";
+        return "Active";
     }
 
-    private void Search_Click(object sender, RoutedEventArgs e) => ApplySearch();
+    private static SolidColorBrush BadgeBrushFor(string kind) => kind switch
+    {
+        "Active" => new(Color.FromRgb(0x16, 0xA3, 0x4A)),
+        "Expires soon" => new(Color.FromRgb(0xB4, 0x53, 0x09)),
+        "Expired" => new(Color.FromRgb(0xDC, 0x26, 0x26)),
+        _ => new(Color.FromRgb(0x9C, 0xA3, 0xAF))
+    };
+
+    private long _undoEmployeeId;
+    private readonly DispatcherTimer _undoTimer = new() { Interval = TimeSpan.FromSeconds(10) };
+
+    private void RecordFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_svc == null) return;   // combo init fires before the ctor finishes
+        ApplyRecordFilters();
+    }
+
+    private void ApplyRecordFilters()
+    {
+        // 30-day retention for deleted records.
+        try { _svc.Store.PurgeDeletedOlderThan(30); } catch { }
+
+        var term = TxtSearch.Text.Trim();
+        var contract = CmbContractFilter.SelectedItem as ComboBoxItem;
+        var validity = CmbValidityFilter.SelectedItem as ComboBoxItem;
+        var issued = CmbIssuedFilter.SelectedItem as ComboBoxItem;
+        var contractF = contract?.Content?.ToString() ?? "Any contract";
+        var validityF = validity?.Content?.ToString() ?? "Any validity";
+        var issuedF = issued?.Content?.ToString() ?? "Any time";
+        var today = Validity.TodayInDhaka();
+        var rows = new List<RecordRow>();
+        foreach (var emp in _svc.Store.AllEmployees())
+        {
+            if (term.Length > 0 &&
+                emp.Uid.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0 &&
+                emp.Name.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+            if (contractF is "Permanent" or "Contractual" && emp.ContractType != contractF)
+                continue;
+            var issue = _svc.Store.LatestIssue(emp.Id);
+            var kind = ValidityKindFor(issue?.ValidUntil, today);
+            if (validityF is "Active" or "Expires soon" or "Expired" && kind != validityF)
+                continue;
+            if (issuedF is "Today" or "Last 7 days" or "Last 30 days")
+            {
+                if (issue == null) continue;
+                var days = issuedF == "Today" ? 0 : issuedF == "Last 7 days" ? 7 : 30;
+                if (issue.IssuedAt.LocalDateTime.Date < today.ToDateTime(TimeOnly.MinValue).Date.AddDays(-days))
+                    continue;
+            }
+            rows.Add(new RecordRow(emp, issue)
+            {
+                ValidityKind = kind,
+                BadgeBrush = BadgeBrushFor(kind)
+            });
+        }
+        LstRecords.ItemsSource = rows;
+        TxtRecordCount.Text = $"{rows.Count} record{(rows.Count == 1 ? "" : "s")}";
+        if (LstRecords.SelectedItem == null) UpdateRecordButtons(null);
+    }
+
+    private void RefreshRecords() => ApplyRecordFilters();
+
+    private void Search_Click(object sender, RoutedEventArgs e) => ApplyRecordFilters();
     private void Search_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == System.Windows.Input.Key.Enter) ApplySearch();
-    }
-
-    private void ApplySearch()
-    {
-        var term = TxtSearch.Text.Trim();
-        var emps = string.IsNullOrEmpty(term)
-            ? _svc.Store.AllEmployees()
-            : _svc.Store.SearchEmployees(term);
-        LstRecords.ItemsSource = emps
-            .Select(e => new RecordRow(e, _svc.Store.LatestIssue(e.Id)))
-            .ToList();
+        if (e.Key == System.Windows.Input.Key.Enter) ApplyRecordFilters();
     }
 
     private void RefreshRecords_Click(object sender, RoutedEventArgs e)
     {
         TxtSearch.Clear();
-        RefreshRecords();
+        ApplyRecordFilters();
     }
 
     private void Record_Selected(object sender, SelectionChangedEventArgs e)
     {
-        if (LstRecords.SelectedItem is not RecordRow row) { BtnReprint.IsEnabled = false; BtnReissue.IsEnabled = false; BtnExportRec.IsEnabled = false; BtnEditRec.IsEnabled = false; BtnDeleteRec.IsEnabled = false; return; }
+        if (LstRecords.SelectedItem is not RecordRow row) { UpdateRecordButtons(null); return; }
         _selectedEmployee = row.Emp;
         _selectedIssue = row.Issue;
-        BtnReprint.IsEnabled = row.Issue != null;
-        BtnReissue.IsEnabled = true;
-        BtnExportRec.IsEnabled = row.Issue != null;
-        BtnEditRec.IsEnabled = true;
-        BtnDeleteRec.IsEnabled = true;
+        UpdateRecordButtons(row);
         TxtRecordInfo.Text = $"{row.Emp.Name} — {row.Emp.Position}, {row.Emp.ContractType}";
+        ShowRecordDetails(row);
+    }
+
+    private void UpdateRecordButtons(RecordRow? row)
+    {
+        BtnReprint.IsEnabled = row?.Issue != null;
+        BtnReissue.IsEnabled = row != null;
+        BtnExportRec.IsEnabled = row?.Issue != null;
+        BtnEditRec.IsEnabled = row != null;
+        BtnDeleteRec.IsEnabled = row != null;
+        BtnShowFile.IsEnabled = row?.Issue?.OutputPngPath != null && File.Exists(row.Issue.OutputPngPath);
+        if (row == null)
+        {
+            ImgRecPreview.Source = null;
+            TxtRecPreviewEmpty.Visibility = Visibility.Visible;
+            DtlDetails.Children.Clear();
+            DtlFiles.Children.Clear();
+            LstHistory.ItemsSource = null;
+        }
+    }
+
+    private void ShowRecordDetails(RecordRow row)
+    {
+        var emp = row.Emp;
+        var issue = row.Issue;
+        // Card preview: the saved PNG when it exists.
+        if (issue?.OutputPngPath != null && File.Exists(issue.OutputPngPath))
+        {
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.UriSource = new Uri(issue.OutputPngPath);
+                bmp.EndInit();
+                ImgRecPreview.Source = bmp;
+                TxtRecPreviewEmpty.Visibility = Visibility.Collapsed;
+            }
+            catch { ImgRecPreview.Source = null; TxtRecPreviewEmpty.Visibility = Visibility.Visible; }
+        }
+        else { ImgRecPreview.Source = null; TxtRecPreviewEmpty.Visibility = Visibility.Visible; }
+
+        void AddPair(string label, string value)
+        {
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
+            sp.Children.Add(new TextBlock { Text = label + ":", Width = 90,
+                Foreground = (Brush)FindResource("MutedBrush"), FontSize = 12 });
+            sp.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(value) ? "-" : value,
+                FontSize = 12, TextWrapping = TextWrapping.Wrap });
+            DtlDetails.Children.Add(sp);
+        }
+        DtlDetails.Children.Clear();
+        AddPair("Name", emp.Name);
+        AddPair("Employee ID", emp.Uid);
+        AddPair("Position", emp.Position);
+        AddPair("Blood group", emp.BloodGroup);
+        AddPair("Contract", emp.ContractType);
+        AddPair("Issued on", row.IssuedOn);
+        AddPair("Valid until", row.ValidUntil);
+        AddPair("Card version", issue != null ? $"v{issue.Version}" : "-");
+        AddPair("Added", emp.CreatedAt.LocalDateTime.ToString("dd/MM/yyyy"));
+
+        DtlFiles.Children.Clear();
+        void AddFile(string label, string? path)
+        {
+            var sp = new StackPanel { Margin = new Thickness(0, 2, 0, 2) };
+            sp.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold, FontSize = 12 });
+            sp.Children.Add(new TextBlock { Text = path ?? "-", FontSize = 11,
+                Foreground = (Brush)FindResource("MutedBrush"), TextWrapping = TextWrapping.Wrap });
+            DtlFiles.Children.Add(sp);
+        }
+        AddFile("Card PNG", issue?.OutputPngPath);
+        AddFile("Card PDF", issue?.OutputPdfPath);
+        AddFile("Photo", emp.PhotoPath);
+
+        try
+        {
+            LstHistory.ItemsSource = _svc.Store.AuditForEmployee(emp.Id)
+                .Select(a => $"{a.At.LocalDateTime:dd/MM/yyyy HH:mm}  {a.Action}  {a.Detail}")
+                .ToList();
+        }
+        catch { LstHistory.ItemsSource = null; }
+    }
+
+    private void ShowCardFile_Click(object sender, RoutedEventArgs e)
+    {
+        var path = _selectedIssue?.OutputPngPath;
+        if (path == null || !File.Exists(path))
+        { SetStatus("No card file for this record."); return; }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Show file"); }
+    }
+
+    private void UndoDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (_undoEmployeeId == 0) return;
+        var id = _undoEmployeeId;
+        _undoEmployeeId = 0;
+        _undoTimer.Stop();
+        PnlUndo.Visibility = Visibility.Collapsed;
+        try
+        {
+            var emp = _svc.Store.FindEmployeeById(id);
+            _svc.Store.RestoreEmployee(id);
+            _svc.Store.LogAudit(id, "restore", $"Undid delete of {emp?.Name} ({emp?.Uid})");
+            SetStatus($"Restored {emp?.Name}.");
+        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Undo failed"); }
+        ApplyRecordFilters();
     }
 
     private void Reprint_Click(object sender, RoutedEventArgs e)
@@ -1658,18 +1842,32 @@ public partial class MainWindow : Window
         return dlg;
     }
 
+    /// <summary>Injectable confirm for tests; null shows the Yes/No prompt.</summary>
+    internal static Func<string, bool>? ConfirmDeleteRecord;
+
     private void DeleteRecord_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedEmployee == null) return;
         var emp = _selectedEmployee;
-        var r = MessageBox.Show($"Delete record for {emp.Name} ({emp.Uid})?\nIt will be hidden but kept for audit and can be restored from 'Deleted...'.",
-            "Delete record", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        var prompt = $"Delete record for {emp.Name} ({emp.Uid})?\nIt moves to Deleted records for 30 days — you can undo for 10 seconds.";
+        var r = ConfirmDeleteRecord?.Invoke(prompt) == true
+            ? MessageBoxResult.Yes
+            : ConfirmDeleteRecord != null ? MessageBoxResult.No
+            : MessageBox.Show(this, prompt, "Delete record", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (r != MessageBoxResult.Yes) return;
         _svc.Store.SoftDeleteEmployee(emp.Id);
         _svc.Store.LogAudit(emp.Id, "delete", $"Soft-deleted {emp.Name} ({emp.Uid})");
-        SetStatus($"Deleted {emp.Name}. Restore via Records → Deleted... .");
+        // Undo banner for 10 seconds.
+        _undoEmployeeId = emp.Id;
+        TxtUndo.Text = $"Deleted {emp.Name} ({emp.Uid})";
+        PnlUndo.Visibility = Visibility.Visible;
+        _undoTimer.Stop();
+        _undoTimer.Start();
+        SetStatus($"Deleted {emp.Name}. Restore via Records → Deleted records, or Undo.");
         _selectedEmployee = null;
-        RefreshRecords();
+        _selectedIssue = null;
+        UpdateRecordButtons(null);
+        ApplyRecordFilters();
     }
 
     private void DeletedRecords_Click(object sender, RoutedEventArgs e)
@@ -1677,24 +1875,40 @@ public partial class MainWindow : Window
         var deleted = _svc.Store.DeletedEmployees();
         if (deleted.Count == 0) { MessageBox.Show("No deleted records."); return; }
         var list = new StackPanel { Margin = new Thickness(10) };
+        Window? dlg = null;
         foreach (var emp in deleted)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 3) };
             row.Children.Add(new TextBlock { Text = $"{emp.Name} ({emp.Uid})", Width = 280, VerticalAlignment = VerticalAlignment.Center });
             var btn = new Button { Content = "Restore" };
+            var btnPurge = new Button { Content = "Remove", Margin = new Thickness(6, 0, 0, 0) };
             var id = emp.Id;
             btn.Click += (_, _) =>
             {
                 _svc.Store.RestoreEmployee(id);
                 _svc.Store.LogAudit(id, "restore", $"Restored {emp.Name} ({emp.Uid})");
                 MessageBox.Show($"Restored {emp.Name}.");
+                dlg?.Close();
+                ApplyRecordFilters();
+            };
+            btnPurge.Click += (_, _) =>
+            {
+                var ok = MessageBox.Show($"Permanently delete {emp.Name} ({emp.Uid}) and all their card issues?\nThis cannot be undone.",
+                    "Remove for good", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (ok != MessageBoxResult.Yes) return;
+                _svc.Store.PurgeEmployee(id);
+                _svc.Store.LogAudit(id, "purge", $"Permanently removed {emp.Name} ({emp.Uid})");
+                MessageBox.Show($"{emp.Name} permanently removed.");
+                dlg?.Close();
+                ApplyRecordFilters();
             };
             row.Children.Add(btn);
+            row.Children.Add(btnPurge);
             list.Children.Add(row);
         }
-        var dlg = new Window
+        dlg = new Window
         {
-            Title = "Deleted records", Width = 420, Height = Math.Min(120 + deleted.Count * 36, 500),
+            Title = "Deleted records", Width = 460, Height = Math.Min(120 + deleted.Count * 36, 500),
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = list }
         };
         dlg.ShowDialog();

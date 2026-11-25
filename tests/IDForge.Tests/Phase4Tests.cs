@@ -460,7 +460,7 @@ public class Phase4Tests
                     IssuedAt = new DateTimeOffset(2026, 2, 3, 14, 30, 0, TimeSpan.Zero)
                 });
                 w.RefreshRecordsPublic();
-                var list = (ListView)w.FindName("LstRecords")!;
+                var list = (DataGrid)w.FindName("LstRecords")!;
                 var row = list.Items.Cast<object>()
                     .First(i => i.GetType().GetProperty("Uid")!.GetValue(i) as string == uid);
                 var validUntil = row.GetType().GetProperty("ValidUntil")!.GetValue(row) as string;

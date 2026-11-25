@@ -339,6 +339,73 @@ public sealed class CardStore : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>Permanently deletes an employee and their card issues
+    /// ("Remove for good" in Deleted records). Audit entries are kept.</summary>
+    public void PurgeEmployee(long id)
+    {
+        using var tx = _conn.BeginTransaction();
+        try
+        {
+            using (var cmd = _conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = "DELETE FROM CardIssues WHERE EmployeeId=$id";
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.ExecuteNonQuery();
+            }
+            using (var cmd = _conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = "DELETE FROM Employees WHERE Id=$id";
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+        catch { tx.Rollback(); throw; }
+    }
+
+    /// <summary>Hard-deletes soft-deleted employees older than <paramref name="days"/>.
+    /// Returns the number purged. Called on Records refresh for the 30-day retention.</summary>
+    public int PurgeDeletedOlderThan(int days)
+    {
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-days);
+        var ids = new List<long>();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT Id FROM Employees WHERE DeletedAt IS NOT NULL AND DeletedAt < $c";
+            cmd.Parameters.AddWithValue("$c", cutoff.ToString("O"));
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) ids.Add(r.GetInt64(0));
+        }
+        foreach (var id in ids) PurgeEmployee(id);
+        return ids.Count;
+    }
+
+    /// <summary>Audit history for one employee, newest first.</summary>
+    public List<AuditEntry> AuditForEmployee(long employeeId, int limit = 50)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM AuditLog WHERE EmployeeId=$e ORDER BY Id DESC LIMIT $n";
+        cmd.Parameters.AddWithValue("$e", employeeId);
+        cmd.Parameters.AddWithValue("$n", limit);
+        var list = new List<AuditEntry>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new AuditEntry
+            {
+                Id = r.GetInt64(0),
+                EmployeeId = r.IsDBNull(1) ? null : r.GetInt64(1),
+                Action = r.GetString(2),
+                Detail = r.GetString(3),
+                User = r.GetString(4),
+                At = DateTimeOffset.Parse(r.GetString(5))
+            });
+        }
+        return list;
+    }
+
     /// <summary>Hard-deletes every employee, issue, and batch row. Audit log kept.</summary>
     public void ClearAll()
     {
