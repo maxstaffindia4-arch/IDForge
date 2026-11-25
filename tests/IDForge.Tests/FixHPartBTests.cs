@@ -121,7 +121,7 @@ public class FixHPartBTests
                 win2.UpdateBatchSummary();
                 var counts = ((TextBlock)win2.FindName("TxtBatchCounts")!).Text;
                 Assert.DoesNotContain("to review", counts);
-                Assert.Equal("No rows yet", counts);
+                Assert.Equal("Add details to begin", counts);   // I-C wording
                 Assert.Equal("", empty.Message);
 
                 // Once it has any content it counts again, with the Missing hint.

@@ -2390,9 +2390,10 @@ public partial class MainWindow : Window
     /// <summary>Counts line: "3 issued, 5 to review, 1 failed" — "All rows done" at the end.</summary>
     private string BatchCountsText()
     {
-        // H-B: rows with no content don't count and show no Message.
+        // I-B: rows with no content don't count and show no Message.
         var rows = _batchRows.Where(BatchRowHasContent).ToList();
-        if (rows.Count == 0) return "No rows yet";
+        // I-C: rows exist but all are empty -> prompt for details, not "No rows yet".
+        if (rows.Count == 0) return _batchRows.Count == 0 ? "No rows yet" : "Add details to begin";
         if (rows.All(r => r.Status is "Issued" or "Skipped")) return "All rows done";
         var parts = new List<string>();
         var issued = rows.Count(r => r.Status == "Issued");

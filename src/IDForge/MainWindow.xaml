@@ -678,7 +678,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Position" Width="125">
+                            <DataGridTemplateColumn Header="Position" Width="140">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
@@ -688,7 +688,8 @@
                                                       DropDownClosed="BatchCellCombo_Closed"/>
                                             <TextBlock Text="Choose position" Foreground="{StaticResource MutedBrush}"
                                                        FontStyle="Italic" VerticalAlignment="Center"
-                                                       HorizontalAlignment="Left" Margin="6,0,0,0"
+                                                       HorizontalAlignment="Left" Margin="6,0,28,0"
+                                                       TextTrimming="CharacterEllipsis"
                                                        IsHitTestVisible="False"
                                                        Visibility="{Binding PositionEmpty, Converter={StaticResource BoolToVis}}"/>
                                         </Grid>
