@@ -349,8 +349,11 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private bool _closed;
+
     private async Task UpdatePreviewAsync()
     {
+        if (_closed) return;   // shared test dispatcher keeps timers alive after Close
         var f = GetForm();
         if (f.name.Length < 2 || !Core.Uid.IsValid(f.uid))
         {
@@ -2179,6 +2182,38 @@ public partial class MainWindow : Window
         catch (Exception ex) { App.LogCrash(ex, notify: false); }
     }
 
+    /// <summary>I-B: the Employee/Employee ID cells are always-editable text
+    /// boxes. Arrows/Enter still move between cells — Left/Right only leave the
+    /// field at the caret boundary so normal caret movement is preserved.</summary>
+    private void BatchText_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        var (dRow, dCol) = e.Key switch
+        {
+            Key.Up => (-1, 0),
+            Key.Down => (1, 0),
+            Key.Enter => (1, 0),
+            Key.Left when tb.SelectionStart == 0 && tb.SelectionLength == 0 => (0, -1),
+            Key.Right when tb.SelectionStart == tb.Text.Length && tb.SelectionLength == 0 => (0, 1),
+            _ => (0, 0)
+        };
+        if (dRow == 0 && dCol == 0) return;
+        e.Handled = true;
+        tb.MoveFocus(new TraversalRequest(dCol < 0 ? FocusNavigationDirection.Left
+            : dCol > 0 ? FocusNavigationDirection.Right
+            : dRow < 0 ? FocusNavigationDirection.Up : FocusNavigationDirection.Down));
+    }
+
+    /// <summary>I-B: normalize the Employee ID to digits when the cell loses focus.</summary>
+    private void BatchUid_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb && tb.DataContext is BatchRow row)
+        {
+            var n = Core.Uid.Normalize(tb.Text);
+            if (n != null && n != row.Uid) row.Uid = n;
+        }
+    }
+
     // ---- review ----
 
     private void BatchReview_Click(object sender, RoutedEventArgs e)
@@ -2541,10 +2576,14 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
+        _previewDebounce.Stop();
+        _draftTimer.Stop();
         foreach (var r in _batchRows) { r.Cutout?.Dispose(); r.WindowImage?.Dispose(); }
-        // Dispose under _photoLock: a preview/issue render may be reading these
-        // bitmaps on a thread-pool thread — disposing unlocked crashes SkiaSharp.
-        lock (_photoLock) { _cutout?.Dispose(); _windowImage?.Dispose(); }
+        // Dispose under _photoLock AND null the fields: a preview/issue render
+        // may be reading these bitmaps on a thread-pool thread — disposing
+        // unlocked (or leaving disposed refs) crashes SkiaSharp.
+        lock (_photoLock) { _cutout?.Dispose(); _windowImage?.Dispose(); _cutout = _windowImage = null; }
         _svc.Dispose();
         base.OnClosed(e);
     }

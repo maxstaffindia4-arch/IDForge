@@ -626,15 +626,48 @@
                               CellEditEnding="DgBatch_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="36" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Employee" Binding="{Binding Name}" Width="108">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                        <Setter Property="ToolTip" Value="{Binding Name}"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            <DataGridTextColumn Header="Employee ID" Binding="{Binding Uid}" Width="100"/>
+                            <DataGridTemplateColumn Header="Employee" Width="108">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                     Background="Transparent" Padding="5,0" FontSize="12"
+                                                     VerticalContentAlignment="Center" CaretBrush="{StaticResource TextBrush}"
+                                                     KeyDown="BatchText_KeyDown"/>
+                                            <TextBlock Text="Full name" FontStyle="Italic"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"
+                                                       IsHitTestVisible="False"
+                                                       Visibility="{Binding NameEmpty, Converter={StaticResource BoolToVis}}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Employee ID" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <TextBox Text="{Binding Uid, UpdateSourceTrigger=PropertyChanged}"
+                                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                     Background="Transparent" Padding="5,0" FontSize="12"
+                                                     VerticalContentAlignment="Center" CaretBrush="{StaticResource TextBrush}"
+                                                     KeyDown="BatchText_KeyDown"
+                                                     LostFocus="BatchUid_LostFocus"/>
+                                            <TextBlock Text="Employee ID" FontStyle="Italic"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       Margin="8,0,0,0" VerticalAlignment="Center"
+                                                       IsHitTestVisible="False"
+                                                       Visibility="{Binding UidEmpty, Converter={StaticResource BoolToVis}}"/>
+                                            <TextBlock Text="{Binding UidCounterText}" FontSize="10"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                       Margin="0,0,7,1"
+                                                       Visibility="{Binding DataContext.IsSelected, RelativeSource={RelativeSource AncestorType=DataGridCell}, Converter={StaticResource BoolToVis}}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Blood group" Width="105">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>

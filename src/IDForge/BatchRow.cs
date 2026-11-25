@@ -29,8 +29,13 @@ public sealed class BatchRow : INotifyPropertyChanged
     private double _zoom = 1, _offsetX, _offsetY;
     private double _autoScale = 1, _autoOffsetX, _autoOffsetY;
 
-    public string Uid { get => _uid; set { Set(ref _uid, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); } }
-    public string Name { get => _name; set { Set(ref _name, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); } }
+    public string Uid { get => _uid; set { Set(ref _uid, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); OnPropertyChanged(nameof(UidEmpty)); OnPropertyChanged(nameof(UidCounterText)); } }
+    public string Name { get => _name; set { Set(ref _name, value); OnPropertyChanged(nameof(DisplayText)); OnPropertyChanged(nameof(ReviewLabel)); OnPropertyChanged(nameof(NameEmpty)); } }
+    /// <summary>Placeholder visibility for the grid inputs (I-B).</summary>
+    public bool NameEmpty => string.IsNullOrWhiteSpace(_name);
+    public bool UidEmpty => string.IsNullOrWhiteSpace(_uid);
+    /// <summary>"8 / 15" digit counter under the Employee ID input (I-B).</summary>
+    public string UidCounterText => $"{_uid.Length} / {Core.Uid.MaxLength}";
     public string Blood { get => _blood; set => Set(ref _blood, value); }
     public string Position { get => _position; set { Set(ref _position, value); OnPropertyChanged(nameof(PositionEmpty)); } }
     /// <summary>True when no position is chosen — drives the "Choose position" placeholder.</summary>
