@@ -984,7 +984,7 @@ public partial class MainWindow : Window
         var n = _batchRows.Count;
         TxtNavBatchCount.Text = n.ToString();
         NavBatchBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
-        var review = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
+        var review = _batchRows.Count(r => BatchRowHasContent(r) && r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
         NavBatch.ToolTip = _navCollapsed
             ? $"Batch — {(review > 0 ? $"{review} to review" : "nothing to review")} (Ctrl+2)"
             : $"Batch (Ctrl+2){(n > 0 ? $" — {n} row{(n == 1 ? "" : "s")}" : "")}";
@@ -2157,8 +2157,33 @@ public partial class MainWindow : Window
         OpenReview(first);
     }
 
-    private void DgBatch_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        => OpenReview(DgBatch.SelectedItem as BatchRow);
+    /// <summary>H-B: the click that dismisses an open dropdown popup is
+    /// swallowed, so clicking a second combo used to need a double-click.
+    /// When a batch combo's popup closes, reopen whichever combo is under the
+    /// pointer — one click now opens it.</summary>
+    private void BatchCellCombo_Closed(object sender, EventArgs e)
+    {
+        if (sender is not ComboBox closed) return;
+        var pos = Mouse.GetPosition(DgBatch);
+        Dispatcher.BeginInvoke(() => TryOpenComboUnderMouse(closed, pos),
+            DispatcherPriority.Input);
+    }
+
+    /// <summary>Opens the combo under <paramref name="posInGrid"/> unless it is
+    /// the one that just closed. Internal for tests.</summary>
+    internal void TryOpenComboUnderMouse(ComboBox closed, Point posInGrid)
+    {
+        if (DgBatch.InputHitTest(posInGrid) is not DependencyObject hit) return;
+        for (var cur = hit; cur != null && cur != DgBatch; cur = VisualTreeHelper.GetParent(cur))
+        {
+            if (cur is ComboBox cb)
+            {
+                if (!ReferenceEquals(cb, closed) && !cb.IsDropDownOpen)
+                    cb.IsDropDownOpen = true;
+                return;
+            }
+        }
+    }
 
     private void OpenReview(BatchRow? startAt)
     {
@@ -2191,19 +2216,21 @@ public partial class MainWindow : Window
 
     internal void UpdateBatchSummary()
     {
-        int issued = _batchRows.Count(r => r.Status == "Issued");
-        int review = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
-        int failed = _batchRows.Count(r => r.Status == "Failed");
-        int skipped = _batchRows.Count(r => r.Status == "Skipped");
+        // H-B: empty rows (no content) don't count toward any tally.
+        var active = _batchRows.Where(BatchRowHasContent).ToList();
+        int issued = active.Count(r => r.Status == "Issued");
+        int review = active.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
+        int failed = active.Count(r => r.Status == "Failed");
+        int skipped = active.Count(r => r.Status == "Skipped");
         TxtBatchStatus.Text = $"Ready to review: {review}, Issued: {issued}, Failed: {failed}" +
             (skipped > 0 ? $", Skipped: {skipped}" : "");
         TxtBatchName.Text = FormatBatchName(_batchSessionName);
         TxtBatchCounts.Text = BatchCountsText();
         RefreshBatchDerived();
         UpdateReviewButton();
-        // Auto-complete the session when every row reached a terminal state.
-        if (_batchSessionId != 0 && _batchRows.Count > 0 &&
-            _batchRows.All(r => r.Status is "Issued" or "Skipped"))
+        // Auto-complete the session when every content row reached a terminal state.
+        if (_batchSessionId != 0 && active.Count > 0 &&
+            active.All(r => r.Status is "Issued" or "Skipped"))
         {
             try { _svc.Store.CompleteBatchSession(_batchSessionId); _batchSessionId = 0; } catch { }
         }
@@ -2251,8 +2278,9 @@ public partial class MainWindow : Window
             r.ReplacesText = issue != null
                 ? $"Replaces card issued {issue.IssuedAt.ToString("dd/MM/yyyy")}" : "";
             // Draft/NeedsPhoto rows list what is still missing instead of an error.
+            // H-B: a row with no content at all shows no Message.
             var lead = r.Error;
-            if (r.Status is "Draft" or "NeedsPhoto")
+            if (BatchRowHasContent(r) && r.Status is "Draft" or "NeedsPhoto")
             {
                 var missing = new List<string>();
                 if (string.IsNullOrWhiteSpace(r.Name)) missing.Add("name");
@@ -2305,13 +2333,15 @@ public partial class MainWindow : Window
     /// <summary>Counts line: "3 issued, 5 to review, 1 failed" — "All rows done" at the end.</summary>
     private string BatchCountsText()
     {
-        if (_batchRows.Count == 0) return "No rows yet";
-        if (_batchRows.All(r => r.Status is "Issued" or "Skipped")) return "All rows done";
+        // H-B: rows with no content don't count and show no Message.
+        var rows = _batchRows.Where(BatchRowHasContent).ToList();
+        if (rows.Count == 0) return "No rows yet";
+        if (rows.All(r => r.Status is "Issued" or "Skipped")) return "All rows done";
         var parts = new List<string>();
-        var issued = _batchRows.Count(r => r.Status == "Issued");
-        var review = _batchRows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
-        var failed = _batchRows.Count(r => r.Status == "Failed");
-        var skipped = _batchRows.Count(r => r.Status == "Skipped");
+        var issued = rows.Count(r => r.Status == "Issued");
+        var review = rows.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
+        var failed = rows.Count(r => r.Status == "Failed");
+        var skipped = rows.Count(r => r.Status == "Skipped");
         if (issued > 0) parts.Add($"{issued} issued");
         if (review > 0) parts.Add($"{review} to review");
         if (failed > 0) parts.Add($"{failed} failed");
@@ -2322,7 +2352,7 @@ public partial class MainWindow : Window
     /// <summary>Review opens on the first row that needs review; disabled with a reason otherwise.</summary>
     private void UpdateReviewButton()
     {
-        var first = _batchRows.FirstOrDefault(NeedsReview);
+        var first = _batchRows.FirstOrDefault(r => BatchRowHasContent(r) && NeedsReview(r));
         BtnReview.IsEnabled = first != null;
         TxtReviewReason.Text = first != null ? "" : _batchRows.Count == 0 ? "Add rows to begin" : "No rows to review";
 
@@ -2343,7 +2373,8 @@ public partial class MainWindow : Window
             if (e.PropertyName is not ("Uid" or "Name" or "Blood" or "Position"
                 or "Contract" or "PrintDateText" or "PhotoPath")) return;
             if (row.RowId == 0) return;   // not yet persisted — PersistBatchRow assigns RowId
-            if (row.Status is "Draft" or "Failed" or "NeedsPhoto")
+            if (!BatchRowHasContent(row)) { row.Status = "Draft"; row.Error = ""; }
+            else if (row.Status is "Draft" or "Failed" or "NeedsPhoto")
             {
                 var err = ValidateBatchRow(row, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                 row.Status = err == null ? "Draft" : "Failed";
@@ -2367,6 +2398,7 @@ public partial class MainWindow : Window
         var toProcess = new List<BatchRow>();
         foreach (var row in _batchRows)
         {
+            if (!BatchRowHasContent(row)) continue;   // H-B: empty rows aren't work
             if (row.Status is "Issued" or "Skipped" or "NeedsReview" or "Processing") continue;
             var err = ValidateBatchRow(row, seen);
             if (err == null) { row.Status = "Draft"; toProcess.Add(row); }

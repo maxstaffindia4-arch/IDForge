@@ -22,21 +22,7 @@ public class Phase5Tests
         return win;
     }
 
-    private static void OnSta(Action work)
-    {
-        Exception? error = null;
-        var thread = new Thread(() =>
-        {
-            try { work(); }
-            catch (Exception ex) { error = ex; }
-            finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA thread timed out");
-        Assert.Null(error);
-    }
+    private static void OnSta(Action work) => WpfSta.Run(work);
 
     private static BatchRow Row(string uid, string name, string status = "NeedsReview", long id = 1)
         => new() { RowId = id, Uid = uid, Name = name, Status = status };
@@ -424,21 +410,7 @@ public class Phase5Tests
         return null;
     }
 
-    private static async Task OnStaAsync(Func<Task> work)
-    {
-        Exception? error = null;
-        var thread = new Thread(() =>
-        {
-            try { work().GetAwaiter().GetResult(); }
-            catch (Exception ex) { error = ex; }
-            finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA thread timed out");
-        Assert.Null(error);
-    }
+    private static Task OnStaAsync(Func<Task> work) => WpfSta.RunAsync(work);
 
     // ---------- helpers ----------
 

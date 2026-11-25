@@ -12,21 +12,7 @@ namespace IDForge.Tests;
 [Collection("Wpf")]
 public class Phase4Tests
 {
-    private static void OnSta(Action work)
-    {
-        Exception? error = null;
-        var thread = new Thread(() =>
-        {
-            try { work(); }
-            catch (Exception ex) { error = ex; }
-            finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA thread timed out");
-        Assert.Null(error);
-    }
+    private static void OnSta(Action work) => WpfSta.Run(work);
 
     private static MainWindow NewWindow()
     {

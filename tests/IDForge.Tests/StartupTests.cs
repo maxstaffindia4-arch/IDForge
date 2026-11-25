@@ -20,39 +20,28 @@ public class StartupTests
     [Fact]
     public void App_Resources_Load_And_Windows_Construct()
     {
-        Exception? error = null;
-        var thread = new Thread(() =>
+        WpfSta.Run(() =>
         {
-            try
+            WpfTestHost.EnsureApp();      // shared Application (one per AppDomain)
+            MainWindow.SkipResumePrompt = true;  // no modal dialogs headless
+            var main = new MainWindow();          // InitializeComponent inside ctor
+            var rows = new ObservableCollection<BatchRow>
             {
-                WpfTestHost.EnsureApp();      // shared Application (one per AppDomain)
-                MainWindow.SkipResumePrompt = true;  // no modal dialogs headless
-                var main = new MainWindow();          // InitializeComponent inside ctor
-                var rows = new ObservableCollection<BatchRow>
-                {
-                    new() { Uid = "20250101", Name = "Test User", Blood = "A+",
-                            Position = "Nurse", Contract = "Permanent", Status = "NeedsReview" }
-                };
-                var review = new ReviewWindow(main, rows);
-                review.Close();
+                new() { Uid = "20250101", Name = "Test User", Blood = "A+",
+                        Position = "Nurse", Contract = "Permanent", Status = "NeedsReview" }
+            };
+            var review = new ReviewWindow(main, rows);
+            review.Close();
 
-                // Phase 2: area switching keeps per-page state
-                main.ShowArea("batch");
-                Assert.Equal("batch", main.CurrentArea);
-                Assert.Equal(Visibility.Collapsed, main.FindName("PageNewCard") is Grid g1 ? g1.Visibility : Visibility.Visible);
-                main.ShowArea("settings");
-                Assert.Equal("settings", main.CurrentArea);
-                main.ShowArea("newcard");
-                Assert.Equal("newcard", main.CurrentArea);
-                main.Close();
-                Dispatcher.CurrentDispatcher.InvokeShutdown();
-            }
-            catch (Exception ex) { error = ex; }
+            // Phase 2: area switching keeps per-page state
+            main.ShowArea("batch");
+            Assert.Equal("batch", main.CurrentArea);
+            Assert.Equal(Visibility.Collapsed, main.FindName("PageNewCard") is Grid g1 ? g1.Visibility : Visibility.Visible);
+            main.ShowArea("settings");
+            Assert.Equal("settings", main.CurrentArea);
+            main.ShowArea("newcard");
+            Assert.Equal("newcard", main.CurrentArea);
+            main.Close();
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "startup thread timed out");
-        Assert.Null(error);
     }
 }

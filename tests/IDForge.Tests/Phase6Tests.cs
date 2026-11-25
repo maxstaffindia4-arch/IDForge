@@ -12,21 +12,7 @@ namespace IDForge.Tests;
 [Collection("Wpf")]
 public class Phase6Tests
 {
-    private static void OnSta(Action work)
-    {
-        Exception? error = null;
-        var thread = new Thread(() =>
-        {
-            try { work(); }
-            catch (Exception ex) { error = ex; }
-            finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA thread timed out");
-        Assert.Null(error);
-    }
+    private static void OnSta(Action work) => WpfSta.Run(work);
 
     private static Employee Emp(string uid, string name, string contract = "Permanent")
         => new() { Uid = uid, Name = name, BloodGroup = "N/A", Position = "Tech",

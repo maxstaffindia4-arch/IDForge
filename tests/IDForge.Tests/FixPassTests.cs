@@ -14,23 +14,7 @@ namespace IDForge.Tests;
 [Collection("Wpf")]
 public class FixPassTests
 {
-    internal static T OnSta<T>(Func<T> work)
-    {
-        T? result = default;
-        Exception? error = null;
-        var thread = new Thread(() =>
-        {
-            try { result = work(); }
-            catch (Exception ex) { error = ex; }
-            finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA thread timed out");
-        Assert.Null(error);
-        return result!;
-    }
+    internal static T OnSta<T>(Func<T> work) => WpfSta.Run(work);
 
     internal static MainWindow NewWindow()
     {
