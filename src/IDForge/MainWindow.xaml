@@ -767,6 +767,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <DockPanel Grid.Row="0" Margin="14,10,14,4">
                         <StackPanel>
@@ -899,7 +900,9 @@
                             </Grid>
                         </Border>
                     </Grid>
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="8,4,8,4" VerticalAlignment="Center">
+                    <StackPanel x:Name="PnlRecActions" Grid.Row="3" Orientation="Horizontal"
+                                Margin="8,4,8,0" VerticalAlignment="Center"
+                                Background="{StaticResource PanelBrush}">
                         <Button Content="Reprint" Click="Reprint_Click" IsEnabled="False" x:Name="BtnReprint"/>
                         <Button Content="Re-issue" Click="Reissue_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnReissue"/>
                         <Button Content="Edit" Click="EditRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnEditRec"/>
@@ -908,7 +911,8 @@
                         <Button Content="Delete" Click="DeleteRecord_Click" Margin="8,0,0,0" IsEnabled="False" x:Name="BtnDeleteRec"/>
                         <TextBlock x:Name="TxtRecordInfo" VerticalAlignment="Center" Margin="16,0,0,0"/>
                     </StackPanel>
-                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="8,0,8,8">
+                    <StackPanel x:Name="PnlRecTools" Grid.Row="4" Orientation="Horizontal"
+                                Margin="8,0,8,8" Background="{StaticResource PanelBrush}">
                         <Button Content="Export CSV" Click="ExportCsv_Click"/>
                         <Button Content="Export JSON" Click="ExportJson_Click" Margin="6,0,0,0"/>
                         <Button Content="Back up now" Click="BackupDb_Click" Margin="6,0,0,0"/>
