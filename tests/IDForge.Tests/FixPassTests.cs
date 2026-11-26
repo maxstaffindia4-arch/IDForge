@@ -337,10 +337,11 @@ public class FixPassTests
             {
                 var title = FindTextBlocks(main).First(t => t.Text == "Live preview");
                 var subtitle = FindTextBlocks(main).First(t => t.Text == "Updates as you type");
-                var fit = (RadioButton)main.FindName("RadZoomFit")!;
+                var fit = (Button)main.FindName("BtnZoomFit")!;
 
-                // Subtitle shares the title's row; zoom chips are on a different row.
-                Assert.Equal(title.Parent, subtitle.Parent);
+                // Parity §5.4: title and chip share the header's left group;
+                // the zoom group sits in the header's right group.
+                Assert.Equal(title.Parent, (subtitle.Parent as FrameworkElement)?.Parent);
                 Assert.NotEqual(title.Parent, fit.Parent);
 
                 // Parity plan §5.1: draft note sits in the header button group.

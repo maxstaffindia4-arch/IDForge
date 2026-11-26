@@ -32,7 +32,8 @@ public partial class MainWindow : Window
     
     private Employee? _editingEmployee;
     private bool _restoringDraft;
-    private int _previewZoomMode; // 0=Fit, 1=100%, 2=200%
+    private bool _previewZoomFit = true;   // Fit resets; −/+ step a factor on top of fit
+    private double _previewZoom = 1.0;
     private readonly DispatcherTimer _draftTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
 
     // Records state
@@ -426,6 +427,7 @@ public partial class MainWindow : Window
         {
             ImgPreview.Source = null;
             TxtPreviewHint.Visibility = Visibility.Visible;
+            UpdateCardChrome();
             return;
         }
 
@@ -462,7 +464,17 @@ public partial class MainWindow : Window
         if (req != _previewRequest || pixels == null) return; // stale render
         ImgPreview.Source = ToWriteableBitmap(pixels, pw, ph);
         TxtPreviewHint.Visibility = Visibility.Collapsed;
+        UpdateCardChrome();
         ApplyPreviewZoom();
+    }
+
+    /// <summary>Card ring + print-edge overlay only exist when a card is shown.</summary>
+    private void UpdateCardChrome()
+    {
+        var has = ImgPreview.Source != null;
+        RctCardRing.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        RctPrintEdges.Visibility = has && ChkPrintEdges.IsChecked == true
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ---------------- photo ----------------
@@ -783,6 +795,8 @@ public partial class MainWindow : Window
     {
         TxtOutputPdf.Visibility = AppSettings.IncludePdf ? Visibility.Visible : Visibility.Collapsed;
         BtnOutputSettings.Visibility = AppSettings.IncludePdf ? Visibility.Collapsed : Visibility.Visible;
+        TxtPrintFormat.Text = AppSettings.IncludePdf
+            ? "Print-quality image + PDF" : "Print-quality image";
     }
 
     // ---------------- New Card: draft ----------------
@@ -897,40 +911,47 @@ public partial class MainWindow : Window
 
     // ---------------- New Card: preview zoom, arrows, drag-drop ----------------
 
-    private void ZoomMode_Changed(object sender, RoutedEventArgs e)
+    /// <summary>Preview zoom (§5.4): Fit fits the card to the pane; −/+ step
+    /// the zoom in 25 % increments on top of the fit scale.</summary>
+    private void PreviewZoomFit_Click(object sender, RoutedEventArgs e)
     {
-        _previewZoomMode = RadZoomFit.IsChecked == true ? 0 : RadZoom100.IsChecked == true ? 1 : 2;
+        _previewZoomFit = true;
+        _previewZoom = 1.0;
         ApplyPreviewZoom();
     }
+
+    private void PreviewZoomOut_Click(object sender, RoutedEventArgs e) => StepPreviewZoom(-0.25);
+    private void PreviewZoomIn_Click(object sender, RoutedEventArgs e) => StepPreviewZoom(0.25);
+
+    private void StepPreviewZoom(double delta)
+    {
+        if (_previewZoomFit) { _previewZoomFit = false; _previewZoom = 1.0; }
+        _previewZoom = Math.Clamp(_previewZoom + delta, 0.25, 4.0);
+        ApplyPreviewZoom();
+    }
+
+    /// <summary>"Show print edges" is preview-only — the saved PNG/PDF never change.</summary>
+    private void PrintEdges_Changed(object sender, RoutedEventArgs e) => UpdateCardChrome();
 
     private void ApplyPreviewZoom()
     {
         if (ImgPreview?.Source == null) return;   // ImgPreview still null during InitializeComponent
-        switch (_previewZoomMode)
-        {
-            case 1: ImgPreview.Width = Config.CardWidth; ImgPreview.Height = Config.CardHeight; break;
-            case 2: ImgPreview.Width = Config.CardWidth * 2; ImgPreview.Height = Config.CardHeight * 2; break;
-            default:
-                var w = PreviewArea.ActualWidth - 24;
-                var h = PreviewArea.ActualHeight - 24;
-                if (w <= 0 || h <= 0) { ImgPreview.Width = double.NaN; ImgPreview.Height = double.NaN; return; }
-                var s = Math.Min(w / Config.CardWidth, h / Config.CardHeight);
-                ImgPreview.Width = Config.CardWidth * s;
-                ImgPreview.Height = Config.CardHeight * s;
-                break;
-        }
+        var w = PreviewArea.ActualWidth - 24;
+        var h = PreviewArea.ActualHeight - 24;
+        if (w <= 0 || h <= 0) { ImgPreview.Width = double.NaN; ImgPreview.Height = double.NaN; return; }
+        var s = Math.Min(w / Config.CardWidth, h / Config.CardHeight)
+                * (_previewZoomFit ? 1.0 : _previewZoom);
+        ImgPreview.Width = Config.CardWidth * s;
+        ImgPreview.Height = Config.CardHeight * s;
     }
 
     private void PreviewArea_SizeChanged(object sender, SizeChangedEventArgs e) => ApplyPreviewZoom();
 
-    /// <summary>Ctrl+wheel cycles Fit → 100% → 200% → Fit.</summary>
+    /// <summary>Ctrl+wheel steps the preview zoom, same as the −/+ buttons.</summary>
     private void Preview_MouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (Keyboard.Modifiers != ModifierKeys.Control) return;
-        _previewZoomMode = (_previewZoomMode + (e.Delta > 0 ? 1 : 2)) % 3;
-        RadZoomFit.IsChecked = _previewZoomMode == 0;
-        RadZoom100.IsChecked = _previewZoomMode == 1;
-        RadZoom200.IsChecked = _previewZoomMode == 2;
+        StepPreviewZoom(e.Delta > 0 ? 0.25 : -0.25);
         e.Handled = true;
     }
 

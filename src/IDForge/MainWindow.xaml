@@ -462,6 +462,83 @@
                             </Setter>
                         </Style>
 
+                        <!-- §5.4 preview zoom group button -->
+                        <Style x:Key="ZoomGroupButton" TargetType="Button">
+                            <Setter Property="Width" Value="28"/>
+                            <Setter Property="Height" Value="28"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bd" CornerRadius="4" BorderThickness="1"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background"
+                                                        Value="{StaticResource SecondaryBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.5"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+
+                        <!-- §5.4/5.5 design checkbox: 14 px box, FA check when on -->
+                        <Style x:Key="DesignCheckBox" TargetType="CheckBox">
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="CheckBox">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border x:Name="Box" Width="14" Height="14"
+                                                    CornerRadius="3" VerticalAlignment="Center"
+                                                    Background="{StaticResource BackgroundBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                    BorderThickness="1">
+                                                <TextBlock x:Name="Chk" Text="&#xF00C;"
+                                                           FontFamily="{StaticResource IconFont}"
+                                                           FontSize="9" Foreground="White"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Visibility="Collapsed"/>
+                                            </Border>
+                                            <ContentPresenter Margin="8,0,0,0"
+                                                              VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Box" Property="Background"
+                                                        Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter TargetName="Box" Property="BorderBrush"
+                                                        Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter TargetName="Chk" Property="Visibility"
+                                                        Value="Visible"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Box" Property="BorderBrush"
+                                                        Value="{StaticResource PrimaryBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+
                         <!-- §5.3 contract segmented control option -->
                         <Style x:Key="SegOption" TargetType="RadioButton">
                             <Setter Property="Height" Value="48"/>
@@ -718,39 +795,49 @@
                                 </StackPanel>
                             </ScrollViewer>
 
-                            <!-- ===== LIVE PREVIEW ===== -->
+                            <!-- ===== LIVE PREVIEW (§5.4) ===== -->
                             <Grid Grid.Column="1">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <Grid Grid.Row="0" Margin="12,0,12,4">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <StackPanel Grid.Row="0" Orientation="Horizontal"
-                                                VerticalAlignment="Center">
-                                        <TextBlock Text="Live preview" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock Text="Updates as you type" FontSize="11"
-                                                   Foreground="{StaticResource MutedBrush}"
-                                                   VerticalAlignment="Center" Margin="10,0,0,0"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,4,0,0">
-                                        <RadioButton x:Name="RadZoomFit" Content="Fit" GroupName="pzoom"
-                                                     Style="{StaticResource ZoomButton}" IsChecked="True"
-                                                     Checked="ZoomMode_Changed"/>
-                                        <RadioButton x:Name="RadZoom100" Content="100%" GroupName="pzoom"
-                                                     Style="{StaticResource ZoomButton}"
-                                                     Checked="ZoomMode_Changed" Margin="4,0,0,0"/>
-                                        <RadioButton x:Name="RadZoom200" Content="200%" GroupName="pzoom"
-                                                     Style="{StaticResource ZoomButton}"
-                                                     Checked="ZoomMode_Changed" Margin="4,0,0,0"/>
-                                    </StackPanel>
-                                </Grid>
+                                <Border Grid.Row="0" Height="44" Padding="20,0"
+                                        Background="{StaticResource BackgroundBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,0,0,1">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                            <TextBlock Text="Live preview" FontSize="13"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            <Border Margin="8,0,0,0" Padding="8,2" CornerRadius="10"
+                                                    Background="{StaticResource AccentBrush}">
+                                                <TextBlock Text="Updates as you type" FontSize="11"
+                                                           Foreground="{StaticResource AccentTextBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <CheckBox x:Name="ChkPrintEdges" Content="Show print edges"
+                                                      Style="{StaticResource DesignCheckBox}"
+                                                      Margin="0,0,16,0"
+                                                      Checked="PrintEdges_Changed"
+                                                      Unchecked="PrintEdges_Changed"/>
+                                            <Button x:Name="BtnZoomOut" Style="{StaticResource ZoomGroupButton}"
+                                                    Content="&#xF068;" FontFamily="{StaticResource IconFont}"
+                                                    ToolTip="Zoom out" Click="PreviewZoomOut_Click"/>
+                                            <Button x:Name="BtnZoomFit" Style="{StaticResource ZoomGroupButton}"
+                                                    Content="Fit" Width="48" Margin="-1,0,0,0"
+                                                    ToolTip="Fit card to pane" Click="PreviewZoomFit_Click"/>
+                                            <Button x:Name="BtnZoomIn" Style="{StaticResource ZoomGroupButton}"
+                                                    Content="&#xF067;" FontFamily="{StaticResource IconFont}"
+                                                    ToolTip="Zoom in" Margin="-1,0,0,0"
+                                                    Click="PreviewZoomIn_Click"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
                                 <Border x:Name="PreviewArea" Grid.Row="1" Margin="12,0,12,4"
-                                        CornerRadius="6" Background="{StaticResource PanelLightBrush}"
+                                        CornerRadius="6" Background="{StaticResource PanelBrush}"
                                         Focusable="True" AllowDrop="True"
                                         Drop="Preview_Drop" DragOver="Preview_DragOver"
                                         PreviewKeyDown="Preview_KeyDown"
@@ -760,7 +847,31 @@
                                         <ScrollViewer x:Name="PreviewScroll"
                                                       HorizontalScrollBarVisibility="Auto"
                                                       VerticalScrollBarVisibility="Auto">
-                                            <Image x:Name="ImgPreview" Stretch="Uniform"/>
+                                            <Grid MinWidth="{Binding ViewportWidth, ElementName=PreviewScroll}"
+                                                  MinHeight="{Binding ViewportHeight, ElementName=PreviewScroll}">
+                                                <Grid HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center">
+                                                    <Image x:Name="ImgPreview" Stretch="Uniform">
+                                                        <Image.Effect>
+                                                            <DropShadowEffect BlurRadius="24"
+                                                                              ShadowDepth="6"
+                                                                              Opacity="0.25"/>
+                                                        </Image.Effect>
+                                                    </Image>
+                                                    <!-- 2 px ring, 30 % opacity, 4 px off the card edge -->
+                                                    <Rectangle x:Name="RctCardRing" Margin="-6"
+                                                               Stroke="{StaticResource PrimaryBrush}"
+                                                               StrokeThickness="2" Opacity="0.3"
+                                                               IsHitTestVisible="False"/>
+                                                    <!-- dashed trim line; preview only, never saved -->
+                                                    <Rectangle x:Name="RctPrintEdges" Margin="1"
+                                                               Stroke="{StaticResource MutedBrush}"
+                                                               StrokeThickness="1"
+                                                               StrokeDashArray="4,3"
+                                                               Visibility="Collapsed"
+                                                               IsHitTestVisible="False"/>
+                                                </Grid>
+                                            </Grid>
                                         </ScrollViewer>
                                         <TextBlock x:Name="TxtPreviewHint" Text="Preview appears here"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -768,10 +879,29 @@
                                                    IsHitTestVisible="False"/>
                                     </Grid>
                                 </Border>
-                                <TextBlock Grid.Row="2" Margin="12,0,12,10" FontSize="11"
-                                           Foreground="{StaticResource MutedBrush}">
-                                    <Run Text="Printed size 54 × 86 mm"/>
-                                </TextBlock>
+                                <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,16,0,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="&#xF545;" FontFamily="{StaticResource IconFont}"
+                                                   FontSize="12" Margin="0,0,6,0"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="Printed size 54 × 86 mm" FontSize="12"
+                                                   Foreground="{StaticResource MutedBrush}"
+                                                   VerticalAlignment="Center"/>
+                                        <Ellipse Width="4" Height="4"
+                                                 Fill="{StaticResource BorderBrush}"
+                                                 Margin="12,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="&#xF03E;" FontFamily="{StaticResource IconFont}"
+                                                   FontSize="12" Margin="0,0,6,0"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtPrintFormat" FontSize="12"
+                                                   Text="Print-quality image"
+                                                   Foreground="{StaticResource MutedBrush}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock Text="Click the photo and use the arrow keys to move it."
+                                               FontSize="11" Foreground="{StaticResource MutedBrush}"
+                                               HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                </StackPanel>
                             </Grid>
 
                             <!-- ===== 2 · PHOTO ===== -->
