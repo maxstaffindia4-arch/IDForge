@@ -929,6 +929,11 @@ public partial class MainWindow : Window
         SetConfirm.IsChecked = AppSettings.ConfirmBeforeIssue;
         SetPdf.IsChecked = AppSettings.IncludePdf;
         TxtSaveFolder.Text = AppSettings.SaveFolder;
+        // IsSelected in XAML raced ComboBox TextSearch during BAML load (crash.log
+        // NRE); select the first item here instead — same default, safe timing.
+        CmbContractFilter.SelectedIndex = 0;
+        CmbValidityFilter.SelectedIndex = 0;
+        CmbIssuedFilter.SelectedIndex = 0;
         SetContract.ItemsSource = Config.ContractTypes;
         SetContract.SelectedItem = AppSettings.DefaultContract;
         SetPrintDate.SelectedIndex = 0;
@@ -1719,7 +1724,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show(ex.Message, "Error"); }
     }
 
-    private void ShowHelpDialog(string title, string text)
+    internal Window BuildHelpDialog(string title, string text)
     {
         var dlg = new Window
         {
@@ -1732,8 +1737,11 @@ public partial class MainWindow : Window
             Text = text, Margin = new Thickness(20), FontSize = 12,
             TextWrapping = TextWrapping.Wrap
         };
-        dlg.ShowDialog();
+        return dlg;
     }
+
+    private void ShowHelpDialog(string title, string text) =>
+        BuildHelpDialog(title, text).ShowDialog();
 
     private void HelpShortcuts_Click(object sender, RoutedEventArgs e) =>
         ShowHelpDialog("Keyboard shortcuts",
@@ -1761,7 +1769,7 @@ public partial class MainWindow : Window
             "(Settings > Open backup folder). Restore replaces all card data " +
             "after backing up the current data first.");
 
-    private void About_Click(object sender, RoutedEventArgs e)
+    internal Window BuildAboutDialog()
     {
         var version = System.Reflection.Assembly.GetExecutingAssembly()
             .GetName().Version?.ToString(3) ?? "?";
@@ -1795,8 +1803,11 @@ public partial class MainWindow : Window
             Content = panel
         };
         dlg.Owner = this;
-        dlg.ShowDialog();
+        return dlg;
     }
+
+    private void About_Click(object sender, RoutedEventArgs e) =>
+        BuildAboutDialog().ShowDialog();
 
     /// <summary>
     /// Sizes the window to the primary work area (taskbar excluded) and restores
@@ -2696,7 +2707,8 @@ public partial class MainWindow : Window
         if (sender is RadioButton { Tag: string tag })
         {
             _batchFilter = tag;
-            CollectionViewSource.GetDefaultView(_batchRows).Refresh();
+            // Checked can fire during InitializeComponent before the view exists.
+            CollectionViewSource.GetDefaultView(_batchRows)?.Refresh();
         }
     }
 

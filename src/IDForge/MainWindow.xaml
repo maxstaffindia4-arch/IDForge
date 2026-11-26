@@ -38,7 +38,9 @@
         <!-- Left-nav item: light blue background when checked; blue ring only on keyboard focus -->
         <!-- Keyboard-only focus ring: WPF shows FocusVisualStyle only after
              keyboard navigation, never after a mouse click. -->
-        <Style x:Key="NavFocusRing" TargetType="RadioButton">
+        <!-- Must target Control: WPF's FocusVisualAdorner applies this style to
+             an internal Control, so a narrower TargetType crashes on keyboard focus. -->
+        <Style x:Key="NavFocusRing" TargetType="Control">
             <Setter Property="Control.Template">
                 <Setter.Value>
                     <ControlTemplate>
@@ -779,20 +781,20 @@
                                      KeyDown="Search_KeyDown"/>
                             <ComboBox x:Name="CmbContractFilter" Width="120" Margin="8,0,0,0"
                                       SelectionChanged="RecordFilter_Changed" ToolTip="Contract type">
-                                <ComboBoxItem Content="Any contract" IsSelected="True"/>
+                                <ComboBoxItem Content="Any contract"/>
                                 <ComboBoxItem Content="Permanent"/>
                                 <ComboBoxItem Content="Contractual"/>
                             </ComboBox>
                             <ComboBox x:Name="CmbValidityFilter" Width="130" Margin="6,0,0,0"
                                       SelectionChanged="RecordFilter_Changed" ToolTip="Validity">
-                                <ComboBoxItem Content="Any validity" IsSelected="True"/>
+                                <ComboBoxItem Content="Any validity"/>
                                 <ComboBoxItem Content="Active"/>
                                 <ComboBoxItem Content="Expires soon"/>
                                 <ComboBoxItem Content="Expired"/>
                             </ComboBox>
                             <ComboBox x:Name="CmbIssuedFilter" Width="130" Margin="6,0,0,0"
                                       SelectionChanged="RecordFilter_Changed" ToolTip="Issued date">
-                                <ComboBoxItem Content="Any time" IsSelected="True"/>
+                                <ComboBoxItem Content="Any time"/>
                                 <ComboBoxItem Content="Today"/>
                                 <ComboBoxItem Content="Last 7 days"/>
                                 <ComboBoxItem Content="Last 30 days"/>
@@ -960,12 +962,12 @@
                                 <TextBlock Text="Print date default" Margin="0,10,0,2"/>
                                 <ComboBox x:Name="SetPrintDate" Width="220" HorizontalAlignment="Left"
                                           SelectionChanged="Setting_Changed">
-                                    <ComboBoxItem Content="Today" IsSelected="True"/>
+                                    <ComboBoxItem Content="Today"/>
                                 </ComboBox>
                                 <TextBlock Text="Photo background" Margin="0,10,0,2"/>
                                 <ComboBox x:Name="SetBg" Width="220" HorizontalAlignment="Left"
                                           SelectionChanged="Setting_Changed">
-                                    <ComboBoxItem Content="Plain white" Tag="PlainWhite" IsSelected="True"/>
+                                    <ComboBoxItem Content="Plain white" Tag="PlainWhite"/>
                                     <ComboBoxItem Content="Model (complex background)" Tag="Model"/>
                                     <ComboBoxItem Content="Keep as is" Tag="Keep"/>
                                 </ComboBox>
