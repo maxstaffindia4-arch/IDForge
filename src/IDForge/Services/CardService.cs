@@ -3,6 +3,7 @@ using System.Windows.Media.Imaging;
 using IDForge.Core;
 using IDForge.Core.Backup;
 using IDForge.Core.Data;
+using IDForge.Core.Issuing;
 using IDForge.Core.Photo;
 using SkiaSharp;
 
@@ -13,7 +14,10 @@ public sealed class CardService : IDisposable
 {
     public CardStore Store { get; private set; }
     public PhotoPipeline Pipeline { get; }
-    public string PhotoCacheDir { get; }
+    /// <summary>Test seam: redirect the photo store location.</summary>
+    internal string? PhotoCacheDirOverride;
+    public string PhotoCacheDir => PhotoCacheDirOverride ?? _photoCacheDir;
+    private readonly string _photoCacheDir;
 
     // In-memory cache keyed by (path, file stamp, bg mode, pipeline version).
     // Bump PipelineVersion whenever processing logic changes.
@@ -27,8 +31,8 @@ public sealed class CardService : IDisposable
         _dbPath = dbPath ?? AppPaths.DbPath;
         Store = new CardStore(_dbPath);
         Pipeline = new PhotoPipeline();
-        PhotoCacheDir = AppPaths.PhotosDir;
-        Directory.CreateDirectory(PhotoCacheDir);
+        _photoCacheDir = AppPaths.PhotosDir;
+        Directory.CreateDirectory(_photoCacheDir);
         CleanupStalePhotoCache();
     }
 
@@ -234,7 +238,18 @@ public sealed class CardService : IDisposable
         }
 
         SKBitmap? window = null;
-        if (cutout != null)
+        // J-D: the stored per-issue photo is canonical — it reproduces the
+        // original issue exactly and survives the source photo being moved.
+        var storedCutout = issue.PhotoCutoutPath != null
+            ? StoredPhotos.LoadCutout(PhotoCacheDir, issue.PhotoCutoutPath) : null;
+        if (storedCutout != null)
+        {
+            var t = StoredPhotos.ReadSettings(issue.PhotoSettingsJson)?.Transform
+                ?? WindowComposer.CenterCover(storedCutout);
+            window = PhotoPipeline.ComposeWindow(storedCutout, t);
+            storedCutout.Dispose();
+        }
+        else if (cutout != null)
             window = PhotoPipeline.ComposeWindow(cutout, WindowComposer.CenterCover(cutout));
         else if (emp.PhotoPath != null)
         {

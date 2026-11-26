@@ -1,3 +1,4 @@
+using System.Text.Json;
 using IDForge.Core.Data;
 using IDForge.Core.Photo;
 using SkiaSharp;
@@ -21,7 +22,20 @@ public sealed record IssueRequest(
     /// <summary>Write the PDF alongside the PNG (default off — PNG is the primary output).</summary>
     bool IncludePdf = false,
     /// <summary>User-chosen PNG destination; null = auto name in the issuer's output dir.</summary>
-    string? OutputFile = null);
+    string? OutputFile = null,
+    /// <summary>Photo details to store with the issue (Fix J-D); null = don't store.</summary>
+    IssuePhotoInfo? PhotoInfo = null);
+
+/// <summary>
+/// Operator-facing photo settings stored with each issue so re-issue and
+/// reprint reproduce the same photo. Zoom/offsets are the manual nudge;
+/// Auto* is the auto-fit the nudge is relative to.
+/// </summary>
+public sealed record IssuePhotoInfo(
+    string? OriginalPath,
+    string BgMode,
+    double Zoom, double OffsetX, double OffsetY,
+    double AutoScale = 1.0, double AutoOffsetX = 0.0, double AutoOffsetY = 0.0);
 
 public sealed record IssueOutcome(
     bool Success,
@@ -128,6 +142,24 @@ public sealed class CardIssuer
         }
         if (!pdfExpected) pdf = null!;
 
+        // 3b. Store the approved cutout, original photo, and settings (J-D).
+        //     Written before the DB transaction; any failure aborts the issue.
+        IssuePhotoRefs? photoRefs = null;
+        string? photoDirAbs = null;
+        if (req.PhotoInfo != null)
+        {
+            try
+            {
+                photoDirAbs = Path.Combine(_photoDir, "issues", $"{token}_v{version}");
+                photoRefs = StoreIssuePhotos(req, photoDirAbs);
+            }
+            catch (Exception ex)
+            {
+                Cleanup(png, pdf);
+                return new IssueOutcome(false, "photo-store", ex.Message, null, null, null, null);
+            }
+        }
+
         // 4. Single DB transaction.
         try
         {
@@ -135,7 +167,7 @@ public sealed class CardIssuer
                 req.Uid, req.Name, req.BloodGroup, req.Position, req.ContractType,
                 req.PrintDate,
                 req.Cutout != null ? CacheCutout(req.Cutout, req.Uid) : null,
-                req.IssueKey, req.Detail);
+                req.IssueKey, req.Detail, photoRefs);
             // Record the real output paths on the issue (best-effort update).
             _store.SetIssueOutputs(issue.Id, pdf, png);
             return new IssueOutcome(true, null, null, emp, issue, png, pdf,
@@ -144,6 +176,8 @@ public sealed class CardIssuer
         catch (Exception ex)
         {
             Cleanup(png, pdf);
+            if (photoDirAbs != null)
+                try { Directory.Delete(photoDirAbs, recursive: true); } catch { }
             return new IssueOutcome(false, "save", ex.Message, null, null, null, null);
         }
     }
@@ -170,6 +204,65 @@ public sealed class CardIssuer
     {
         foreach (var p in paths)
             try { if (File.Exists(p)) File.Delete(p); } catch { }
+    }
+
+    /// <summary>
+    /// Writes the per-issue photo set into &lt;photoDir&gt;/issues/&lt;token&gt;_v&lt;n&gt;/:
+    /// cutout (WebP with alpha, PNG fallback), a copy of the original photo,
+    /// and settings.json. Returns DB-relative paths. Throws on any failure —
+    /// the caller aborts the issue before touching Records.
+    /// </summary>
+    private IssuePhotoRefs StoreIssuePhotos(IssueRequest req, string dirAbs)
+    {
+        Directory.CreateDirectory(dirAbs);
+        var pi = req.PhotoInfo!;
+        var relDir = Path.GetRelativePath(_photoDir, dirAbs).Replace('\\', '/');
+
+        // 1. Cutout — WebP keeps transparency and is much smaller; PNG fallback.
+        string cutoutFile;
+        using (var image = SKImage.FromBitmap(req.Cutout!))
+        {
+            SKData? webp = null;
+            try { webp = image.Encode(SKEncodedImageFormat.Webp, 90); } catch { }
+            if (webp != null && webp.Size > 0)
+            {
+                cutoutFile = "cutout.webp";
+                File.WriteAllBytes(Path.Combine(dirAbs, cutoutFile), webp.ToArray());
+                webp.Dispose();
+            }
+            else
+            {
+                webp?.Dispose();
+                using var png = image.Encode(SKEncodedImageFormat.Png, 100)
+                    ?? throw new InvalidOperationException("Could not encode stored cutout.");
+                cutoutFile = "cutout.png";
+                File.WriteAllBytes(Path.Combine(dirAbs, cutoutFile), png.ToArray());
+            }
+        }
+
+        // 2. Original photo copy — a missing source fails the issue.
+        string? originalFile = null;
+        if (!string.IsNullOrEmpty(pi.OriginalPath))
+        {
+            if (!File.Exists(pi.OriginalPath))
+                throw new FileNotFoundException("Original photo not found.", pi.OriginalPath);
+            var ext = Path.GetExtension(pi.OriginalPath);
+            originalFile = "original" + (string.IsNullOrEmpty(ext) ? ".jpg" : ext);
+            File.Copy(pi.OriginalPath, Path.Combine(dirAbs, originalFile), overwrite: true);
+        }
+
+        // 3. Settings used for this issue.
+        var t = req.Transform ?? WindowComposer.CenterCover(req.Cutout!);
+        var settingsJson = JsonSerializer.Serialize(new StoredPhotoSettings(
+            pi.BgMode, pi.Zoom, pi.OffsetX, pi.OffsetY,
+            pi.AutoScale, pi.AutoOffsetX, pi.AutoOffsetY, Config.PipelineVersion,
+            t.Scale, t.OffsetX, t.OffsetY));
+        File.WriteAllText(Path.Combine(dirAbs, "settings.json"), settingsJson);
+
+        return new IssuePhotoRefs(
+            $"{relDir}/{cutoutFile}",
+            originalFile == null ? null : $"{relDir}/{originalFile}",
+            settingsJson);
     }
 
     /// <summary>Copies the cutout into the photo cache; returns cached path.</summary>

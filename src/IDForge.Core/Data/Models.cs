@@ -26,7 +26,16 @@ public sealed class CardIssue
     public string? OutputPngPath { get; set; }
     /// <summary>Idempotency key (e.g. "batchrow:42:attempt:1"). Unique when set.</summary>
     public string? IssueKey { get; set; }
+    /// <summary>Stored cutout path, relative to the photos dir (issues/&lt;token&gt;_v&lt;n&gt;/).</summary>
+    public string? PhotoCutoutPath { get; set; }
+    /// <summary>Stored original-photo copy, relative to the photos dir.</summary>
+    public string? PhotoOriginalPath { get; set; }
+    /// <summary>JSON: bg mode, zoom/offsets, auto transform, pipeline version.</summary>
+    public string? PhotoSettingsJson { get; set; }
 }
+
+/// <summary>Paths (relative to the photos dir) + settings written with an issue.</summary>
+public sealed record IssuePhotoRefs(string CutoutPath, string? OriginalPath, string SettingsJson);
 
 public sealed class BatchJob
 {

@@ -167,11 +167,16 @@ public partial class MainWindow : Window
                 auto.Scale * (float)row.Zoom,
                 auto.OffsetX + (float)row.OffsetX,
                 auto.OffsetY + (float)row.OffsetY);
+        var photoInfo = row.Cutout != null
+            ? new IDForge.Core.Issuing.IssuePhotoInfo(
+                row.PhotoPath, row.BgMode, row.Zoom, row.OffsetX, row.OffsetY,
+                row.AutoScale, row.AutoOffsetX, row.AutoOffsetY)
+            : null;
         var req = new IDForge.Core.Issuing.IssueRequest(
             row.Uid, row.Name, row.Blood, row.Position, row.Contract,
             row.PrintDate, row.Cutout, t, issueKey,
             Detail: $"Batch row {row.RowId}", RequireNewUid: true,
-            IncludePdf: AppSettings.IncludePdf);
+            IncludePdf: AppSettings.IncludePdf, PhotoInfo: photoInfo);
         return await Task.Run(() => new IDForge.Core.Issuing.CardIssuer(_svc.Store, AppSettings.SaveFolder).Issue(req));
     }
 
@@ -298,7 +303,12 @@ public partial class MainWindow : Window
             else
             {
                 var existing = _svc?.Store.FindEmployeeByUid(digits);
-                if (existing != null)
+                if (existing != null && existing.Id == _editingEmployee?.Id)
+                {
+                    msg = "Existing record — issuing saves a new card version";
+                    color = FindResource("MutedBrush") as Brush;
+                }
+                else if (existing != null)
                 {
                     dup = existing;
                     var issue = _svc.Store.LatestIssue(existing.Id);
@@ -1249,6 +1259,62 @@ public partial class MainWindow : Window
         return dlg.ShowDialog(this) == true ? dlg.FileName : null;
     }
 
+    /// <summary>
+    /// Loads an employee into the New card form. When the latest issue has a
+    /// stored photo (J-D), the cutout, transform, nudges and bg mode are
+    /// restored so the operator can adjust settings and issue a new version.
+    /// </summary>
+    private void LoadEmployeeIntoNewCard(Employee emp)
+    {
+        ShowArea("newcard");
+        _editingEmployee = emp;
+        TxtName.Text = emp.Name;
+        TxtUid.Text = emp.Uid;
+        CmbBlood.SelectedItem = emp.BloodGroup;
+        CmbPosition.SelectedItem = emp.Position;
+        RadContractPerm.IsChecked = emp.ContractType == "Permanent";
+        RadContractContract.IsChecked = emp.ContractType != "Permanent";
+
+        var issue = _svc.Store.LatestIssue(emp.Id);
+        var settings = IDForge.Core.Issuing.StoredPhotos.ReadSettings(issue?.PhotoSettingsJson);
+        var cutout = issue?.PhotoCutoutPath != null
+            ? IDForge.Core.Issuing.StoredPhotos.LoadCutout(_svc.PhotoCacheDir, issue.PhotoCutoutPath)
+            : null;
+        if (cutout != null && settings != null)
+        {
+            var t = settings.Transform;
+            _photoPath = issue!.PhotoOriginalPath != null
+                ? IDForge.Core.Issuing.StoredPhotos.Resolve(_svc.PhotoCacheDir, issue.PhotoOriginalPath)
+                : null;
+            _photoAddedAt = issue!.IssuedAt.LocalDateTime;
+            lock (_photoLock)
+            {
+                _cutout?.Dispose(); _windowImage?.Dispose();
+                _cutout = cutout;
+                _windowImage = PhotoPipeline.ComposeWindow(cutout, t);
+                _autoTransform = new WindowTransform(
+                    (float)settings.AutoScale, (float)settings.AutoOffsetX, (float)settings.AutoOffsetY);
+            }
+            _nudgeZoom = (float)settings.Zoom;
+            _nudgeX = (float)settings.OffsetX; _nudgeY = (float)settings.OffsetY;
+            PosPanel.SetState(_nudgeZoom, _nudgeX, _nudgeY);
+            PosPanel.IsEnabled = true;
+            SetBgModeFromTag(settings.BgMode);
+            TxtPhotoName.Text = "Stored photo";
+            TxtPhotoMeta.Text = $"from issued v{issue!.Version}";
+            UpdatePhotoThumb();
+            UpdateApproveButton();
+            SchedulePreview();
+            SetStatus($"Record loaded with stored photo (v{issue.Version}). Adjust and Issue card to save a new version.");
+        }
+        else
+        {
+            SetStatus("Record loaded. No stored photo — choose a photo, then Issue card to save a new version.");
+        }
+        RefreshRecords();
+        UpdateUidStatus();
+    }
+
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         if (_cutout == null) { SetStatus("Add a photo first."); return; }
@@ -1265,15 +1331,7 @@ public partial class MainWindow : Window
             if (r == MessageBoxResult.Cancel) return;
             if (r == MessageBoxResult.Yes)
             {
-                _editingEmployee = existing;
-                // Load into form
-                TxtName.Text = existing.Name;
-                CmbBlood.SelectedItem = existing.BloodGroup;
-                CmbPosition.SelectedItem = existing.Position;
-                RadContractPerm.IsChecked = existing.ContractType == "Permanent";
-                RadContractContract.IsChecked = existing.ContractType != "Permanent";
-                RefreshRecords();
-                SetStatus("Existing record loaded. Adjust and Save to issue a new version.");
+                LoadEmployeeIntoNewCard(existing);
                 return;
             }
             // No -> continue as re-issue on same employee below
@@ -1286,6 +1344,7 @@ public partial class MainWindow : Window
 
         SKBitmap? cutout;
         WindowTransform? transform;
+        IDForge.Core.Issuing.IssuePhotoInfo? photoInfo = null;
         lock (_photoLock)
         {
             cutout = _cutout;
@@ -1295,12 +1354,17 @@ public partial class MainWindow : Window
                     _autoTransform.OffsetX + _nudgeX,
                     _autoTransform.OffsetY + _nudgeY)
                 : null;
+            if (cutout != null)
+                photoInfo = new IDForge.Core.Issuing.IssuePhotoInfo(
+                    _photoPath, CurrentBgModeTag,
+                    _nudgeZoom, _nudgeX, _nudgeY,
+                    _autoTransform.Scale, _autoTransform.OffsetX, _autoTransform.OffsetY);
         }
         var issueKey = $"single:{f.uid}:{DateTime.UtcNow.Ticks}";
         var req = new IDForge.Core.Issuing.IssueRequest(
             f.uid, f.name, f.blood, f.position, f.contract, f.printDate,
             cutout, transform, issueKey, RequireNewUid: false,
-            IncludePdf: AppSettings.IncludePdf);
+            IncludePdf: AppSettings.IncludePdf, PhotoInfo: photoInfo);
 
         BtnSave.IsEnabled = false;
         SetStatus("Issuing...");
@@ -1322,6 +1386,7 @@ public partial class MainWindow : Window
 
             // reset form (same fields as before: name, UID, photo)
             TxtName.Clear(); TxtUid.Clear();
+            _editingEmployee = null;
             _photoPath = null; _photoAddedAt = null;
             TxtPhotoName.Text = "No photo chosen"; TxtPhotoMeta.Text = "";
             ImgPhotoThumb.Source = null;
@@ -1530,7 +1595,32 @@ public partial class MainWindow : Window
         }
         AddFile("Card PNG", issue?.OutputPngPath);
         AddFile("Card PDF", issue?.OutputPdfPath);
-        AddFile("Photo", emp.PhotoPath);
+        // J-D: the Files tab shows the stored per-issue copies, not the
+        // original photo path — records survive the source file moving.
+        if (issue?.PhotoCutoutPath != null)
+        {
+            string SizeOf(string rel)
+            {
+                var p = IDForge.Core.Issuing.StoredPhotos.Resolve(_svc.PhotoCacheDir, rel);
+                return File.Exists(p) ? $"  ({new FileInfo(p).Length / 1024.0:0.#} KB)" : "  (missing)";
+            }
+            AddFile("Stored cutout", IDForge.Core.Issuing.StoredPhotos.Resolve(_svc.PhotoCacheDir, issue.PhotoCutoutPath) + SizeOf(issue.PhotoCutoutPath));
+            if (issue.PhotoOriginalPath != null)
+                AddFile("Stored original", IDForge.Core.Issuing.StoredPhotos.Resolve(_svc.PhotoCacheDir, issue.PhotoOriginalPath) + SizeOf(issue.PhotoOriginalPath));
+            var ps = IDForge.Core.Issuing.StoredPhotos.ReadSettings(issue.PhotoSettingsJson);
+            if (ps != null)
+                AddFile("Photo settings", $"{ps.BgMode}, zoom {ps.Zoom:0.##}, model {ps.ModelVersion}");
+        }
+        else
+        {
+            DtlFiles.Children.Add(new TextBlock
+            {
+                Text = "No stored photo. Re-issue to create one.",
+                FontStyle = FontStyles.Italic, FontSize = 12,
+                Foreground = (Brush)FindResource("MutedBrush"),
+                Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap
+            });
+        }
 
         try
         {
@@ -1735,7 +1825,12 @@ public partial class MainWindow : Window
         {
             Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right
         };
+        var btnAdjust = new Button { Content = "Adjust photo…", Padding = new Thickness(14, 4, 14, 4),
+            Margin = new Thickness(0, 0, 8, 0),
+            ToolTip = "Load this record on the New card page to change photo settings" };
         btnRow.Children.Add(new Button { Content = "Cancel", Margin = new Thickness(0, 0, 8, 0), IsCancel = true });
+        btnRow.Children.Add(btnAdjust);
+        btnReissue.Margin = new Thickness(8, 0, 0, 0);
         btnRow.Children.Add(btnReissue);
         panel.Children.Add(btnRow);
         var dlg = new Window
@@ -1747,6 +1842,11 @@ public partial class MainWindow : Window
         };
         dlg.Owner = this;
 
+        btnAdjust.Click += (_, _) =>
+        {
+            dlg.DialogResult = false;
+            LoadEmployeeIntoNewCard(emp);
+        };
         btnReissue.Click += (_, _) =>
         {
             if (!Core.DateInput.TryParse(txtDate.Text, out var newPrint))
@@ -1776,22 +1876,67 @@ public partial class MainWindow : Window
             "Confirm re-issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (ok != MessageBoxResult.Yes) return;
 
-        // Same issue transaction as Approve & Issue: render -> verify -> one DB
-        // transaction (employee upsert + new CardIssue version + audit).
-        var cutout = CardService.LoadCachedPhoto(emp.PhotoPath);
+        // J-D: re-issue reuses the stored cutout and its settings so the photo
+        // matches the original issue. Records without a stored photo must
+        // supply one — "No stored photo. Re-issue to create one."
+        var storedSettings = IDForge.Core.Issuing.StoredPhotos.ReadSettings(lastIssue?.PhotoSettingsJson);
+        SKBitmap? cutout = null;
+        WindowTransform? transform = null;
+        IDForge.Core.Issuing.IssuePhotoInfo? photoInfo = null;
+        if (lastIssue?.PhotoCutoutPath != null)
+        {
+            var bmp = IDForge.Core.Issuing.StoredPhotos.LoadCutout(_svc.PhotoCacheDir, lastIssue.PhotoCutoutPath);
+            if (bmp != null && storedSettings != null)
+            {
+                cutout = bmp;
+                transform = storedSettings.Transform;
+                photoInfo = new IDForge.Core.Issuing.IssuePhotoInfo(
+                    lastIssue.PhotoOriginalPath != null
+                        ? IDForge.Core.Issuing.StoredPhotos.Resolve(_svc.PhotoCacheDir, lastIssue.PhotoOriginalPath)
+                        : null,
+                    storedSettings.BgMode, storedSettings.Zoom,
+                    storedSettings.OffsetX, storedSettings.OffsetY,
+                    storedSettings.AutoScale, storedSettings.AutoOffsetX, storedSettings.AutoOffsetY);
+            }
+            else bmp?.Dispose();
+        }
         if (cutout == null)
         {
-            MessageBox.Show("No cached photo found for this record — cannot re-issue.",
-                "Re-issue", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            var ofd = new OpenFileDialog
+            {
+                Title = "No stored photo — choose a photo for this re-issue",
+                Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.webp"
+            };
+            if (ofd.ShowDialog(this) != true) return;
+            var bgMode = AppSettings.DefaultBgMode switch
+            {
+                "Model" => BgMode.Model, "Keep" => BgMode.Keep, _ => BgMode.PlainWhite
+            };
+            var bgTag = AppSettings.DefaultBgMode;
+            SetStatus("Processing photo...");
+            var job = await Task.Run(() => _svc.ProcessPhoto(ofd.FileName, bgMode));
+            if (job.Cutout == null)
+            {
+                MessageBox.Show($"Could not process the photo: {job.Warning ?? "unknown error"}",
+                    "Re-issue", MessageBoxButton.OK, MessageBoxImage.Warning);
+                job.WindowImage?.Dispose();
+                return;
+            }
+            cutout = job.Cutout;
+            job.WindowImage?.Dispose();
+            transform = job.AutoTransform;
+            var auto = job.AutoTransform ?? WindowTransform.Identity;
+            photoInfo = new IDForge.Core.Issuing.IssuePhotoInfo(
+                ofd.FileName, bgTag, 1.0, 0.0, 0.0,
+                auto.Scale, auto.OffsetX, auto.OffsetY);
         }
         var req = new IDForge.Core.Issuing.IssueRequest(
             emp.Uid, emp.Name, emp.BloodGroup, emp.Position, emp.ContractType,
-            printDate, cutout, null,
+            printDate, cutout, transform,
             IssueKey: $"reissue:{emp.Id}:{DateTime.UtcNow.Ticks}",
             Detail: $"Re-issue of employee {emp.Id}",
             RequireNewUid: false,
-            IncludePdf: AppSettings.IncludePdf);
+            IncludePdf: AppSettings.IncludePdf, PhotoInfo: photoInfo);
         try
         {
             var outcome = await Task.Run(() =>

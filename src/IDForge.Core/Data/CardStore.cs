@@ -110,6 +110,13 @@ public sealed class CardStore : IDisposable
         if (!ColumnExists("CardIssues", "IssueKey"))
             Exec("ALTER TABLE CardIssues ADD COLUMN IssueKey TEXT");
         Exec("CREATE UNIQUE INDEX IF NOT EXISTS IX_CardIssues_IssueKey ON CardIssues(IssueKey) WHERE IssueKey IS NOT NULL");
+        // Stored per-issue photos (Fix J-D).
+        if (!ColumnExists("CardIssues", "PhotoCutoutPath"))
+            Exec("ALTER TABLE CardIssues ADD COLUMN PhotoCutoutPath TEXT");
+        if (!ColumnExists("CardIssues", "PhotoOriginalPath"))
+            Exec("ALTER TABLE CardIssues ADD COLUMN PhotoOriginalPath TEXT");
+        if (!ColumnExists("CardIssues", "PhotoSettingsJson"))
+            Exec("ALTER TABLE CardIssues ADD COLUMN PhotoSettingsJson TEXT");
     }
 
     // ---------- UID digits migration (runs once per DB open; idempotent) ----------
@@ -758,7 +765,8 @@ public sealed class CardStore : IDisposable
     /// </summary>
     public (Employee Emp, CardIssue Issue, bool Created) SaveIssuedCard(
         string uid, string name, string blood, string position, string contract,
-        DateOnly printDate, string? photoPath, string issueKey, string? detail = null)
+        DateOnly printDate, string? photoPath, string issueKey, string? detail = null,
+        IssuePhotoRefs? issuePhoto = null)
     {
         using var tx = _conn.BeginTransaction();
         try
@@ -845,8 +853,9 @@ public sealed class CardStore : IDisposable
                 ins.Transaction = tx;
                 ins.CommandText = """
                     INSERT INTO CardIssues (EmployeeId, Version, PrintDate, ValidUntil, IssuedAt,
-                        OutputPdfPath, OutputPngPath, IssueKey)
-                    VALUES ($eid,$ver,$pd,$vu,$ia,$pdf,$png,$key) RETURNING Id
+                        OutputPdfPath, OutputPngPath, IssueKey,
+                        PhotoCutoutPath, PhotoOriginalPath, PhotoSettingsJson)
+                    VALUES ($eid,$ver,$pd,$vu,$ia,$pdf,$png,$key,$pc,$po,$ps) RETURNING Id
                     """;
                 ins.Parameters.AddWithValue("$eid", issue.EmployeeId);
                 ins.Parameters.AddWithValue("$ver", issue.Version);
@@ -856,7 +865,13 @@ public sealed class CardStore : IDisposable
                 ins.Parameters.AddWithValue("$pdf", DBNull.Value);
                 ins.Parameters.AddWithValue("$png", DBNull.Value);
                 ins.Parameters.AddWithValue("$key", issueKey);
+                ins.Parameters.AddWithValue("$pc", (object?)issuePhoto?.CutoutPath ?? DBNull.Value);
+                ins.Parameters.AddWithValue("$po", (object?)issuePhoto?.OriginalPath ?? DBNull.Value);
+                ins.Parameters.AddWithValue("$ps", (object?)issuePhoto?.SettingsJson ?? DBNull.Value);
                 issue.Id = (long)(ins.ExecuteScalar() ?? 0L);
+                issue.PhotoCutoutPath = issuePhoto?.CutoutPath;
+                issue.PhotoOriginalPath = issuePhoto?.OriginalPath;
+                issue.PhotoSettingsJson = issuePhoto?.SettingsJson;
             }
 
             // Audit inside the same transaction.
@@ -1050,7 +1065,10 @@ public sealed class CardStore : IDisposable
         IssuedAt = DateTimeOffset.Parse(r.GetString(r.GetOrdinal("IssuedAt"))),
         OutputPdfPath = r.IsDBNull(r.GetOrdinal("OutputPdfPath")) ? null : r.GetString(r.GetOrdinal("OutputPdfPath")),
         OutputPngPath = r.IsDBNull(r.GetOrdinal("OutputPngPath")) ? null : r.GetString(r.GetOrdinal("OutputPngPath")),
-        IssueKey = r.IsDBNull(r.GetOrdinal("IssueKey")) ? null : r.GetString(r.GetOrdinal("IssueKey"))
+        IssueKey = r.IsDBNull(r.GetOrdinal("IssueKey")) ? null : r.GetString(r.GetOrdinal("IssueKey")),
+        PhotoCutoutPath = r.IsDBNull(r.GetOrdinal("PhotoCutoutPath")) ? null : r.GetString(r.GetOrdinal("PhotoCutoutPath")),
+        PhotoOriginalPath = r.IsDBNull(r.GetOrdinal("PhotoOriginalPath")) ? null : r.GetString(r.GetOrdinal("PhotoOriginalPath")),
+        PhotoSettingsJson = r.IsDBNull(r.GetOrdinal("PhotoSettingsJson")) ? null : r.GetString(r.GetOrdinal("PhotoSettingsJson"))
     };
 
     private static BatchItem ReadBatchItem(SqliteDataReader r) => new()
