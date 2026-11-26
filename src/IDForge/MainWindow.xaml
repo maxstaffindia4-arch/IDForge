@@ -617,18 +617,20 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Three columns; scrolls horizontally on narrow windows -->
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled">
-                        <Grid MinWidth="960">
+                    <!-- §2 responsive columns: ≥1280 px → form(360) · preview(*) ·
+                         photo(330); below → form+photo stacked in the left column,
+                         preview on the right. No sideways page scroll. -->
+                    <Grid x:Name="ColsNewCard" Grid.Row="1">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="400" MinWidth="340"/>
-                                <ColumnDefinition Width="*" MinWidth="240"/>
-                                <ColumnDefinition Width="360" MinWidth="300"/>
+                                <ColumnDefinition Width="360"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="330"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- ===== 1 · EMPLOYEE DETAILS (§5.3) ===== -->
-                            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer x:Name="ScrollLeft" Grid.Column="0"
+                                          VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
                                 <StackPanel Margin="12,0,12,12">
                                     <!-- Step heading: numbered circle + title + status icon -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
@@ -793,6 +795,9 @@
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
+                                <!-- §2: below 1280 px the photo panel stacks under the form here -->
+                                <Grid x:Name="HostPhotoNarrow" Margin="12,0,12,12"/>
+                                </StackPanel>
                             </ScrollViewer>
 
                             <!-- ===== LIVE PREVIEW (§5.4) ===== -->
@@ -905,7 +910,8 @@
                             </Grid>
 
                             <!-- ===== 2 · PHOTO (§5.5) ===== -->
-                            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                            <Grid x:Name="HostPhotoWide" Grid.Column="2">
+                            <ScrollViewer x:Name="ScrollPhoto" VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="12,0,12,12">
                                     <!-- Step heading: numbered circle + title + status icon -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
@@ -960,73 +966,73 @@
                                                TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 </StackPanel>
                             </ScrollViewer>
+                            </Grid>
                         </Grid>
-                    </ScrollViewer>
 
-                    <!-- ===== FOOTER: check chips + output + issue ===== -->
-                    <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="0,1,0,0" Background="{StaticResource PanelLightBrush}"
-                            Padding="14,8">
+                    <!-- ===== FOOTER: issue bar (§6) ===== -->
+                    <Border Grid.Row="2" Padding="24,12" Background="{StaticResource BackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+                            <!-- chips: check icon + plain text, no pill borders -->
                             <StackPanel Grid.Column="0" Orientation="Horizontal"
                                         VerticalAlignment="Center">
-                                <Border x:Name="ChipDetails" CornerRadius="10" Padding="10,4"
-                                        Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1">
+                                <StackPanel x:Name="ChipDetails" Orientation="Horizontal"
+                                            Margin="0,0,16,0">
+                                    <TextBlock Text="&#xF058;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="12" Foreground="{StaticResource SuccessBrush}"
+                                               Margin="0,0,6,0" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="TxtChipDetails" Text="Details complete"
-                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                                </Border>
-                                <Border x:Name="ChipUidNew" CornerRadius="10" Padding="10,4"
-                                        Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1">
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ChipUidNew" Orientation="Horizontal"
+                                            Margin="0,0,16,0">
+                                    <TextBlock Text="&#xF058;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="12" Foreground="{StaticResource SuccessBrush}"
+                                               Margin="0,0,6,0" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="TxtChipUidNew" Text="Employee ID is new"
-                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                                </Border>
-                                <Border x:Name="ChipPhoto" CornerRadius="10" Padding="10,4"
-                                        Margin="0,0,6,0" BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1">
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ChipPhoto" Orientation="Horizontal">
+                                    <TextBlock Text="&#xF058;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="12" Foreground="{StaticResource SuccessBrush}"
+                                               Margin="0,0,6,0" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="TxtChipPhoto" Text="Photo ready"
-                                               FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                                </Border>
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock x:Name="TxtStatus" Margin="16,0,0,0"
+                                           VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="380"
+                                           Foreground="{StaticResource TextBrush}" FontSize="12"/>
                             </StackPanel>
-                            <TextBlock x:Name="TxtStatus" Grid.Column="1"
-                                       VerticalAlignment="Center"
-                                       Margin="14,0,0,0" TextWrapping="Wrap" MaxWidth="380"
-                                       Foreground="{StaticResource TextBrush}"/>
                             <StackPanel Grid.Column="2" Orientation="Horizontal"
-                                        VerticalAlignment="Center">
-                                <TextBlock x:Name="TxtOutputText" Text="Saves image"
-                                           FontSize="11" Foreground="{StaticResource MutedBrush}"
-                                           VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TxtOutputPdf" Text=" + PDF" FontSize="11"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtIssueBlocked"
+                                           Text="Employee ID already exists. Open the record to re-issue."
+                                           FontSize="11" Foreground="{StaticResource ErrorBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,10,0"
+                                           TextWrapping="Wrap" MaxWidth="280" Visibility="Collapsed"/>
+                                <TextBlock x:Name="TxtOutputText" FontSize="12"
                                            Foreground="{StaticResource MutedBrush}"
-                                           Visibility="Collapsed" VerticalAlignment="Center"/>
-                                <TextBlock Text=" · " FontSize="11"
-                                           Foreground="{StaticResource MutedBrush}"
-                                           VerticalAlignment="Center"/>
-                                <Button x:Name="BtnOutputSettings" Content="change in Settings"
-                                        Style="{StaticResource GhostButton}" Height="20"
-                                        Padding="4,0" FontSize="11" VerticalAlignment="Center"
-                                        Click="GoSettings_Click"
-                                        Visibility="Collapsed"/>
+                                           VerticalAlignment="Center">
+                                    <Run x:Name="RunSaves" Text="Saves image · "/><Hyperlink Click="GoSettings_Click"><Run Text="change in Settings"/></Hyperlink>
+                                </TextBlock>
+                                <Button x:Name="BtnSave" Click="Save_Click"
+                                        Style="{StaticResource PrimaryButton}" Margin="20,0,0,0"
+                                        IsEnabled="False">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xF02F;" FontFamily="{StaticResource IconFont}"
+                                                   Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Issue card" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Ctrl+Enter" FontSize="11" FontWeight="Normal"
+                                                   Opacity="0.8" Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
-                            <TextBlock x:Name="TxtIssueBlocked"
-                                       Text="Employee ID already exists. Open the record to re-issue."
-                                       FontSize="11" Foreground="{StaticResource ErrorBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,10,0"
-                                       TextWrapping="Wrap" MaxWidth="280" Visibility="Collapsed"
-                                       Grid.Column="3"/>
-                            <Button x:Name="BtnSave" Content="Issue card" Click="Save_Click"
-                                    Style="{StaticResource PrimaryButton}" Height="40"
-                                    Margin="14,0,0,0" IsEnabled="False" ToolTip="Ctrl+Enter"
-                                    Grid.Column="4" VerticalAlignment="Center"/>
                         </Grid>
                     </Border>
                 </Grid>

@@ -293,6 +293,7 @@ public partial class MainWindow : Window
         SchedulePreview();
         UpdateValidityLine();
         UpdateFooterChips();
+        UpdateApproveButton();
         ScheduleDraftSave();
     }
 
@@ -711,14 +712,23 @@ public partial class MainWindow : Window
 
     private Employee? _uidDuplicate;
 
-    /// <summary>Issue card is enabled when details are valid and a photo is present.
-    /// Photo approval is gone — issuing is the only approval step (Fix F-A).</summary>
+    /// <summary>Issue card is enabled when details are valid and a photo is
+    /// present. Photo approval is gone — issuing is the only approval step
+    /// (Fix F-A); the tooltip carries the blocking reason (§6).</summary>
     internal void UpdateApproveButton()
     {
         ChkPhoto.Visibility = _cutout != null ? Visibility.Visible : Visibility.Collapsed;
-        BtnSave.IsEnabled = _cutout != null && _uidDuplicate == null;
+        var f = GetForm();
+        var detailsOk = f.name.Length >= 2 && Core.Uid.IsValid(f.uid)
+            && Config.Positions.Contains(f.position) && Config.BloodGroups.Contains(f.blood);
+        BtnSave.IsEnabled = _cutout != null && _uidDuplicate == null && detailsOk;
         if (TxtIssueBlocked != null)
             TxtIssueBlocked.Visibility = _uidDuplicate != null ? Visibility.Visible : Visibility.Collapsed;
+        BtnSave.ToolTip = _uidDuplicate != null
+            ? "Employee ID already exists — open the record to re-issue"
+            : _cutout == null ? "Choose a photo to enable issuing"
+            : !detailsOk ? "Complete the employee details to enable issuing"
+            : "Issue card (Ctrl+Enter)";
     }
 
     // ---------------- New Card: validity, chips, output line ----------------
@@ -746,27 +756,21 @@ public partial class MainWindow : Window
 
     private enum ChipState { Idle, Ok, Warn, Err }
 
-    private void SetChip(Border chip, TextBlock text, string label, ChipState state)
+    /// <summary>Footer chips are plain icon+text pairs (§6) — the chip colour
+    /// now lives on the text and its icon, not a pill border.</summary>
+    private void SetChip(Panel chip, TextBlock text, string label, ChipState state)
     {
         text.Text = label;
-        var (bg, br, fg) = state switch
+        var fg = state switch
         {
-            ChipState.Ok => ((Brush?)FindResource("SuccessTintBrush"),
-                             (Brush?)FindResource("SuccessBrush"),
-                             (Brush?)FindResource("SuccessBrush")),
-            ChipState.Warn => ((Brush?)FindResource("WarningTintBrush"),
-                               (Brush?)FindResource("WarningBrush"),
-                               (Brush?)FindResource("WarningBrush")),
-            ChipState.Err => ((Brush?)FindResource("ErrorTintBrush"),
-                              (Brush?)FindResource("ErrorBrush"),
-                              (Brush?)FindResource("ErrorBrush")),
-            _ => (null,
-                  (Brush?)FindResource("BorderBrush"),
-                  (Brush?)FindResource("MutedBrush"))
+            ChipState.Ok => (Brush?)FindResource("SuccessBrush"),
+            ChipState.Warn => (Brush?)FindResource("WarningBrush"),
+            ChipState.Err => (Brush?)FindResource("ErrorBrush"),
+            _ => (Brush?)FindResource("MutedBrush")
         };
-        if (bg == null) chip.ClearValue(Border.BackgroundProperty); else chip.Background = bg;
-        chip.BorderBrush = br;
         text.Foreground = fg;
+        if (chip.Children.OfType<TextBlock>().FirstOrDefault(t => t != text) is TextBlock icon)
+            icon.Foreground = fg;
     }
 
     private void UpdateFooterChips()
@@ -790,11 +794,11 @@ public partial class MainWindow : Window
             _cutout != null ? ChipState.Ok : ChipState.Idle);
     }
 
-    /// <summary>"Saves image + PDF" when PDF is on in Settings, else "Saves image · change in Settings".</summary>
+    /// <summary>"Saves image + PDF" when PDF is on in Settings, else "Saves image";
+    /// the "change in Settings" link is always shown (§6).</summary>
     private void UpdateOutputLine()
     {
-        TxtOutputPdf.Visibility = AppSettings.IncludePdf ? Visibility.Visible : Visibility.Collapsed;
-        BtnOutputSettings.Visibility = AppSettings.IncludePdf ? Visibility.Collapsed : Visibility.Visible;
+        RunSaves.Text = AppSettings.IncludePdf ? "Saves image + PDF · " : "Saves image · ";
         TxtPrintFormat.Text = AppSettings.IncludePdf
             ? "Print-quality image + PDF" : "Print-quality image";
     }
@@ -1139,10 +1143,29 @@ public partial class MainWindow : Window
 
     internal void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        UpdateNewCardColumns();
         if (!_navManual && ActualWidth < 1100 != _navCollapsed)
             SetNavCollapsed(ActualWidth < 1100);
         else
             UpdateNavInset();
+    }
+
+    /// <summary>§2 responsive New card columns: ≥1280 px → form(360) ·
+    /// preview(*) · photo(330); below → photo stacks under the form in the
+    /// left column and the third column collapses to 0.</summary>
+    private void UpdateNewCardColumns()
+    {
+        if (ColsNewCard == null || ScrollPhoto == null) return;
+        var wide = ActualWidth >= 1280;
+        var host = wide ? (Panel)HostPhotoWide : HostPhotoNarrow;
+        if (ScrollPhoto.Parent != host)
+        {
+            (ScrollPhoto.Parent as Panel)?.Children.Remove(ScrollPhoto);
+            host.Children.Add(ScrollPhoto);
+        }
+        ScrollPhoto.VerticalScrollBarVisibility = wide
+            ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+        ColsNewCard.ColumnDefinitions[2].Width = new GridLength(wide ? 330 : 0);
     }
 
     /// <summary>Content inset = rail width when the rail pushes (wide windows,

@@ -307,8 +307,12 @@ public class FixPassTests
             var window = new SkiaSharp.SKBitmap(4, 4);
             try
             {
-                // No separate approve step: photo present + valid UID → Issue enabled.
+                // No separate approve step: valid details + photo → Issue enabled.
+                ((TextBox)main.FindName("TxtName")!).Text = "Issue Enable Test";
                 ((TextBox)main.FindName("TxtUid")!).Text = FreshUid(main.Svc.Store);
+                ((ComboBox)main.FindName("CmbPosition")!).SelectedItem = "Manager";
+                var blood = (ComboBox)main.FindName("CmbBlood")!;
+                blood.SelectedItem = blood.Items.Cast<object>().Skip(1).First();
                 var issue = (Button)main.FindName("BtnSave")!;
                 Assert.Null(main.FindName("BtnApprove"));   // approve button removed (F-A)
 
