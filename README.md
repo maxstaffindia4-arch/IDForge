@@ -3,6 +3,10 @@
 Windows desktop tool (C# / .NET 8 / WPF) that generates print-ready staff ID cards
 from `New_ID_Card.psd` (637×1012 px, 300 DPI, CR80 output).
 
+> **Branch:** `main` is the stable base. Active redesign work lives on
+> `feature/uxpilot-redesign` — check it out after cloning:
+> `git checkout feature/uxpilot-redesign`
+
 ## Features
 
 - New card form with live preview (name auto-shrinks 50→34 px to fit).
@@ -31,6 +35,12 @@ dotnet build IDForge.sln
 dotnet run --project src/IDForge
 # or run the exe:
 src/IDForge/bin/Debug/net8.0-windows/IDForge.exe
+```
+
+Publish a self-contained build and smoke-test launch (what CI/review uses):
+
+```powershell
+tools\review.ps1   # publishes to publish\idforge\ and launches IDForge.exe
 ```
 
 Tests:

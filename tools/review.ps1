@@ -5,9 +5,10 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 $gitExe = (Get-Command git -ErrorAction SilentlyContinue).Source
-if (-not $gitExe) { $gitExe = "C:\Tools\MinGit\cmd\git.exe" }
-$dotnetExe = "C:\Users\Max\.dotnet\dotnet.exe"
-if (-not (Test-Path $dotnetExe)) { $dotnetExe = (Get-Command dotnet -ErrorAction SilentlyContinue).Source }
+if (-not $gitExe -and (Test-Path "C:\Tools\MinGit\cmd\git.exe")) { $gitExe = "C:\Tools\MinGit\cmd\git.exe" }
+$dotnetExe = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+if (-not $dotnetExe) { $dotnetExe = "$env:USERPROFILE\.dotnet\dotnet.exe" }
+if (-not (Test-Path $dotnetExe)) { throw "dotnet SDK not found on PATH or in $env:USERPROFILE\.dotnet" }
 
 $branch = (& $gitExe rev-parse --abbrev-ref HEAD 2>$null)
 $hash = (& $gitExe rev-parse --short HEAD 2>$null)
