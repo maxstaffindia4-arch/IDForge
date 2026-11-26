@@ -84,6 +84,12 @@ public partial class MainWindow : Window
         // bound in XAML); nothing to wire here.
         DgBatch.ItemsSource = _batchRows;
         CollectionViewSource.GetDefaultView(_batchRows).Filter = BatchRowFilter;
+        // Fix L: one recount path — every collection change (add, delete,
+        // duplicate, paste, import, clear) refreshes counts, badge, header,
+        // and review gating. Handlers must not call UpdateBatchSummary for
+        // collection mutations; in-place edits still go through
+        // PersistBatchRow, which calls it for non-collection changes.
+        _batchRows.CollectionChanged += (_, _) => UpdateBatchSummary();
         TxtName.TextChanged += (_, _) => UpdateNameHint();
         InitShell();
 
@@ -2391,8 +2397,7 @@ public partial class MainWindow : Window
             try { _svc.Store.DeleteBatchRow(row.RowId); } catch { }
         }
         row.Cutout?.Dispose(); row.WindowImage?.Dispose();
-        _batchRows.Remove(row);
-        UpdateBatchSummary();
+        _batchRows.Remove(row);   // CollectionChanged -> UpdateBatchSummary (Fix L)
     }
 
     /// <summary>Content that makes a row worth confirming before removal.</summary>
