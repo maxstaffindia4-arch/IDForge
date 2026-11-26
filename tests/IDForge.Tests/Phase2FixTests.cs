@@ -28,7 +28,7 @@ public class Phase2FixTests
         {
             if (child is DependencyObject d)
             {
-                if (child is TextBlock tb && tb.Text == " | ") n++;
+                if (child is TextBlock tb && tb.Text.Trim() == "|") n++;
                 n += CountSeparators(d);
             }
         }

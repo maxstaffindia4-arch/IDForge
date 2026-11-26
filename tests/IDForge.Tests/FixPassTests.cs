@@ -30,7 +30,7 @@ public class FixPassTests
         {
             if (child is DependencyObject d)
             {
-                if (child is TextBlock tb && tb.Text == " | ") n++;
+                if (child is TextBlock tb && tb.Text.Trim() == "|") n++;
                 n += CountSeparators(d);
             }
         }
@@ -46,12 +46,13 @@ public class FixPassTests
             try
             {
                 var bar = ((FrameworkElement)main.FindName("PnlStatusLeft")!).Parent!;
-                // offline | count | backup | version = 4 separators minimum
-                Assert.True(CountSeparators(bar) >= 4,
-                    $"expected >=4 separators, found {CountSeparators(bar)}");
+                // offline | count | backup = 3 separators; version lives in the
+                // About button on the right (§4.4).
+                Assert.True(CountSeparators(bar) >= 3,
+                    $"expected >=3 separators, found {CountSeparators(bar)}");
                 var version = (TextBlock)main.FindName("TxtStatusVersion")!;
-                Assert.Contains("IDForge v", version.Text);
-                Assert.Contains("About (F1)", version.Text);
+                Assert.StartsWith("IDForge ", version.Text);
+                Assert.EndsWith("· About", version.Text);
             }
             finally { main.Close(); }
             return true;

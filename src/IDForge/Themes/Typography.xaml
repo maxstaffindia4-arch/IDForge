@@ -4,6 +4,8 @@
          (Roboto, Source Sans 3) are loaded by IDForge.Core from disk. -->
     <FontFamily x:Key="AppFontFamily">pack://application:,,,/IDForge;component/Fonts/#Inter</FontFamily>
     <FontFamily x:Key="MonoFontFamily">pack://application:,,,/IDForge;component/Fonts/#JetBrains Mono</FontFamily>
+    <!-- Font Awesome 6 Free Solid — UI icons (parity plan §3.3) -->
+    <FontFamily x:Key="IconFont">pack://application:,,,/IDForge;component/Fonts/#Font Awesome 6 Free</FontFamily>
 
     <Style x:Key="BodyText" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>

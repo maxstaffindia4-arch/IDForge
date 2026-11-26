@@ -338,7 +338,7 @@ public class Phase5Tests
     }
 
     [Fact]
-    public void Sidebar_Backup_Icon_Is_Mdl2_Not_Emoji()
+    public void Sidebar_Backup_Icon_Is_FontAwesome_Not_Emoji()
     {
         OnSta(() =>
         {
@@ -348,9 +348,10 @@ public class Phase5Tests
                 var panel = (Border)w.FindName("PnlBackupCompact")!;
                 var tb = (TextBlock)System.Windows.LogicalTreeHelper
                     .GetChildren(panel).OfType<TextBlock>().First();
-                Assert.Equal("Segoe MDL2 Assets", tb.FontFamily.Source);
+                // Parity §3.3: shield-halved F3ED in the embedded FA Solid font.
+                Assert.Contains("Font Awesome", tb.FontFamily.Source);
                 Assert.DoesNotContain("💾", tb.Text);
-                Assert.InRange(tb.Text[0], '\uE000', '\uF8FF');   // private-use MDL2 glyph
+                Assert.Equal("\uF3ED", tb.Text);
             }
             finally { w.Close(); }
         });

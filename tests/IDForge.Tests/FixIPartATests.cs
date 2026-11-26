@@ -55,17 +55,14 @@ public class FixIPartATests
                 nav.IsChecked = true;
                 win.UpdateLayout();
 
-                // Selected item: light-blue background, NO accent rectangle.
+                // Selected item (parity §4.2): accent fill + 3 px left bar.
                 var tpl = nav.Template;
-                var bd = (Border)tpl.FindName("bd", nav)!;
-                var bg = (SolidColorBrush)bd.Background;
-                var tint = (SolidColorBrush)Application.Current!.FindResource("PrimaryTintBrush");
-                Assert.Equal(tint.Color, bg.Color);
-                var accent = Descendants(nav).OfType<Rectangle>()
-                    .FirstOrDefault(r => r.Name == "accent");
-                Assert.True(accent == null || accent.Visibility == Visibility.Collapsed
-                    || ((SolidColorBrush)accent.Fill).Color.A == 0,
-                    "selected nav item still shows the accent bar");
+                var bgBorder = (Border)tpl.FindName("Bg", nav)!;
+                var bg = (SolidColorBrush)bgBorder.Background;
+                var accent = (SolidColorBrush)Application.Current!.FindResource("AccentBrush");
+                Assert.Equal(accent.Color, bg.Color);
+                var bar = (Border)tpl.FindName("Bar", nav)!;
+                Assert.Equal(Visibility.Visible, bar.Visibility);
 
                 // Ring only on keyboard focus: no IsChecked/IsMouseOver trigger
                 // may set BorderBrush; only IsKeyboardFocused(Within) may.

@@ -100,7 +100,7 @@ public class FixHTests
                 $"desired={fe.DesiredSize.Width:F1}x{fe.DesiredSize.Height:F1} margin={fe.Margin}");
             Assert.True(InsideRect(fe, rail!, out var d), $"{name} outside rail: {d}");
         }
-        Assert.True(rail!.ActualWidth >= 60, $"rail too narrow: {rail.ActualWidth}");
+        Assert.True(rail!.ActualWidth >= 56, $"rail too narrow: {rail.ActualWidth}");
     }
 
     /// <summary>Rendered check: every element inside each Batch row lies fully

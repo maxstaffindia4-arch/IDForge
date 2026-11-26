@@ -35,10 +35,11 @@ public class FixJPartATests
             var nav = win.FindName("NavBatch") as RadioButton;
             Assert.NotNull(nav);
 
-            // No accent bar element in the nav item template.
+            // Parity §4.2: the selected item has a 3 px left bar ("Bar") plus
+            // the accent fill — distinct from the keyboard-only focus ring.
             var template = nav.Template;
-            var accent = FindNamed(nav, "accent");
-            Assert.True(accent == null, "nav item still has an accent bar element");
+            var bar = template.FindName("Bar", nav);
+            Assert.NotNull(bar);
 
             // The ring must come from FocusVisualStyle (keyboard-only in WPF),
             // not from IsKeyboardFocused/IsMouseOver triggers on BorderBrush.

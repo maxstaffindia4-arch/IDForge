@@ -956,6 +956,7 @@ public partial class MainWindow : Window
     private string _area = "newcard";
     private bool _draftPending;   // edits not yet written to the autosaved draft
     private bool _navCollapsed;
+    private bool _navManual;
     private bool _shellReady;
 
     /// <summary>Area the operator is currently looking at.</summary>
@@ -1009,6 +1010,7 @@ public partial class MainWindow : Window
         NavRecords.IsChecked = area == "records";
         NavSettings.IsChecked = area == "settings";
         UpdateTitle();
+        UpdateBatchBadge();   // badge colour follows the Batch checked state
         if (area == "records") RefreshRecords();
     }
 
@@ -1054,7 +1056,14 @@ public partial class MainWindow : Window
             TxtStatusBackup.Foreground = (Brush)FindResource("MutedBrush");
             TxtBackupAgeWarn.Visibility = Visibility.Collapsed;
         }
-        TxtStatusVersion.Text = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · About (F1)";
+        // §4.4/decision 8: version comes from the build (InformationalVersion),
+        // "About" opens the About dialog.
+        var asm = System.Reflection.Assembly.GetExecutingAssembly();
+        var infoVer = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            is System.Reflection.AssemblyInformationalVersionAttribute[] attrs && attrs.Length > 0
+            ? attrs[0].InformationalVersion : null;
+        var ver = infoVer ?? asm.GetName().Version?.ToString(3) ?? "?";
+        TxtStatusVersion.Text = $"IDForge {ver} · About";
         UpdateBatchBadge();
         var backupTip = AppSettings.LastBackupAt is { } bt
             ? $"Last backup {bt:dd/MM/yyyy} at {bt:HH:mm}\nClick to back up now (Ctrl+B)"
@@ -1071,6 +1080,20 @@ public partial class MainWindow : Window
         var n = _batchRows.Count;
         TxtNavBatchCount.Text = n.ToString();
         NavBatchBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Parity §4.3/decision 10: grey badge normally, blue when Batch is selected.
+        if (NavBatch.IsChecked == true)
+        {
+            NavBatchBadge.Background = (Brush)FindResource("PrimaryBrush");
+            NavBatchBadge.BorderThickness = new Thickness(0);
+            TxtNavBatchCount.Foreground = (Brush)FindResource("WhiteBrush");
+        }
+        else
+        {
+            NavBatchBadge.Background = (Brush)FindResource("SecondaryBrush");
+            NavBatchBadge.BorderBrush = (Brush)FindResource("BorderBrush");
+            NavBatchBadge.BorderThickness = new Thickness(1);
+            TxtNavBatchCount.Foreground = (Brush)FindResource("SecondaryTextBrush");
+        }
         var review = _batchRows.Count(r => BatchRowHasContent(r) && r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
         NavBatch.ToolTip = _navCollapsed
             ? $"Batch — {(review > 0 ? $"{review} to review" : "nothing to review")} (Ctrl+2)"
@@ -1079,9 +1102,19 @@ public partial class MainWindow : Window
 
     internal void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var collapsed = ActualWidth < 1100;
-        if (collapsed == _navCollapsed) return;
-        SetNavCollapsed(collapsed);
+        if (!_navManual && ActualWidth < 1100 != _navCollapsed)
+            SetNavCollapsed(ActualWidth < 1100);
+        else
+            UpdateNavInset();
+    }
+
+    /// <summary>Content inset = rail width when the rail pushes (wide windows,
+    /// or collapsed anywhere); below 1100 px an expanded rail overlays the
+    /// pages, so the inset stays at the collapsed 56 px.</summary>
+    private void UpdateNavInset()
+    {
+        var railW = _navCollapsed ? 56.0 : 208.0;
+        PagesHost.Margin = new Thickness(ActualWidth < 1100 ? 56 : railW, 0, 0, 0);
     }
 
     /// <summary>Single collapse path used by auto-collapse AND the nav toggle —
@@ -1090,24 +1123,27 @@ public partial class MainWindow : Window
     internal void SetNavCollapsed(bool collapsed)
     {
         _navCollapsed = collapsed;
-        NavCol.Width = new GridLength(collapsed ? 64 : 208);
+        NavCol.Width = collapsed ? 56 : 208;
+        UpdateNavInset();
         foreach (var name in new[] { "NavLblNewCard", "NavKeyNewCard", "NavLblBatch", "NavKeyBatch",
                      "NavLblRecords", "NavKeyRecords", "NavLblSettings", "NavKeySettings",
                      "LblIssueCards", "LblManage" })
         {
             if (FindName(name) is FrameworkElement fe) fe.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         }
-        // Collapsed: fixed-size icon buttons centred in the 64 px rail —
-        // 44 px button + 2 px focus ring + padding on every side, nothing clipped.
+        // Collapsed: 40 px icon buttons centred in the 56 px rail — the label
+        // and shortcut texts are hidden above, so the content grid shrinks to
+        // the 20 px icon column and centres in the button.
         foreach (var (rb, pnl) in new (RadioButton, FrameworkElement)[]
                  { (NavNewCard, NavPnlNewCard), (NavBatch, NavPnlBatch),
                    (NavRecords, NavPnlRecords), (NavSettings, NavPnlSettings) })
         {
             if (collapsed)
             {
-                rb.Width = 44; rb.Height = 44;
+                rb.Width = 40; rb.Height = 36;
                 rb.HorizontalAlignment = HorizontalAlignment.Center;
                 rb.Padding = new Thickness(0);
+                pnl.Width = 20;
                 pnl.HorizontalAlignment = HorizontalAlignment.Center;
                 pnl.VerticalAlignment = VerticalAlignment.Center;
             }
@@ -1116,16 +1152,17 @@ public partial class MainWindow : Window
                 rb.ClearValue(FrameworkElement.WidthProperty);
                 rb.ClearValue(FrameworkElement.HeightProperty);
                 rb.HorizontalAlignment = HorizontalAlignment.Stretch;
-                // 18 left = old 10 padding + 8 ContentPresenter margin.
-                rb.Padding = new Thickness(18, 7, 10, 7);
-                pnl.HorizontalAlignment = HorizontalAlignment.Left;
+                rb.Padding = new Thickness(12, 0, 12, 0);
+                pnl.ClearValue(FrameworkElement.WidthProperty);
+                pnl.HorizontalAlignment = HorizontalAlignment.Stretch;
                 pnl.VerticalAlignment = VerticalAlignment.Stretch;
             }
         }
-        // Badge overlays the Batch icon in both modes; hidden only at zero rows.
-        NavBatchBadge.Margin = collapsed ? new Thickness(0, 0, 2, 26) : new Thickness(0, 0, 10, 0);
+        // Badge sits beside the label expanded, on the icon's top-right
+        // corner collapsed; hidden only at zero rows.
+        NavBatchBadge.Margin = collapsed ? new Thickness(0, 0, -2, 24) : new Thickness(8, 0, 0, 0);
         NavBatchBadge.VerticalAlignment = collapsed ? VerticalAlignment.Top : VerticalAlignment.Center;
-        NavBatchBadge.HorizontalAlignment = HorizontalAlignment.Right;
+        NavBatchBadge.HorizontalAlignment = collapsed ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         // Section headings hide; thin dividers mark the groups instead.
         foreach (var name in new[] { "DvdIssueCards", "DvdManage" })
             if (FindName(name) is FrameworkElement dv) dv.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
@@ -1201,7 +1238,10 @@ public partial class MainWindow : Window
     private void NavSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
     private void GoSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
     private void MenuToggleNav_Click(object sender, RoutedEventArgs e)
-        => SetNavCollapsed(NavCol.Width.Value > 100);
+    {
+        _navManual = true;
+        SetNavCollapsed(!_navCollapsed);
+    }
     private void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
