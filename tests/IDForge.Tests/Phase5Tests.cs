@@ -103,20 +103,22 @@ public class Phase5Tests
             var win = NewReview(w, row);
             try
             {
-                var chk = (CheckBox)FindName(win, "ChkRemoveBg")!;
-                var cmb = (ComboBox)FindName(win, "CmbBgMode")!;
+                var panel = FindByType<IDForge.Controls.PhotoPositionPanel>(win)!;
                 // Panel is disabled until a photo loads — enable it to inspect children.
-                FindByType<IDForge.Controls.PhotoPositionPanel>(win)!.IsEnabled = true;
-                Assert.True(chk.IsChecked == true);
-                Assert.True(cmb.IsEnabled);
+                panel.IsEnabled = true;
+                var white = (RadioButton)panel.FindName("RadBgWhite")!;
+                var model = (RadioButton)panel.FindName("RadBgModel")!;
+                var keep = (RadioButton)panel.FindName("RadBgKeep")!;
+                Assert.True(white.IsChecked == true);
 
-                chk.IsChecked = false; // keep as is
+                keep.IsChecked = true;   // keep original background
                 Assert.Equal("Keep", row.BgMode);
-                Assert.False(cmb.IsEnabled);
 
-                chk.IsChecked = true;
+                model.IsChecked = true;  // model background
+                Assert.Equal("Model", row.BgMode);
+
+                white.IsChecked = true;  // plain white (recommended)
                 Assert.Equal("PlainWhite", row.BgMode);
-                Assert.True(cmb.IsEnabled);
             }
             finally { win.Close(); w.Close(); }
         });
@@ -316,21 +318,22 @@ public class Phase5Tests
             var win = NewReview(w, row);
             try
             {
-                // Review side: checkbox inside the shared panel flips the row mode.
-                var revChk = FindByType<IDForge.Controls.PhotoPositionPanel>(win)!
-                    .FindName("ChkRemoveBg") as CheckBox;
-                Assert.NotNull(revChk);
-                revChk!.IsChecked = false;
+                // Review side: the bg radios inside the shared panel flip the row mode.
+                var revPanel = FindByType<IDForge.Controls.PhotoPositionPanel>(win)!;
+                var revKeep = revPanel.FindName("RadBgKeep") as RadioButton;
+                Assert.NotNull(revKeep);
+                revKeep!.IsChecked = true;
                 Assert.Equal("Keep", row.BgMode);
-                revChk.IsChecked = true;
+                var revWhite = revPanel.FindName("RadBgWhite") as RadioButton;
+                revWhite!.IsChecked = true;
                 Assert.Equal("PlainWhite", row.BgMode);
 
                 // New Card side: same control drives CurrentBgModeTag.
                 var mainPanel = FindByType<IDForge.Controls.PhotoPositionPanel>(w)!;
-                var mainChk = mainPanel.FindName("ChkRemoveBg") as CheckBox;
-                Assert.NotNull(mainChk);
+                var mainKeep = mainPanel.FindName("RadBgKeep") as RadioButton;
+                Assert.NotNull(mainKeep);
                 Assert.Equal("PlainWhite", w.BgModeTagForTest);
-                mainChk!.IsChecked = false;
+                mainKeep!.IsChecked = true;
                 Assert.Equal("Keep", w.BgModeTagForTest);
             }
             finally { win.Close(); w.Close(); }

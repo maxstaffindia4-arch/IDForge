@@ -5,7 +5,7 @@ using System.Windows.Input;
 namespace IDForge.Controls;
 
 /// <summary>
-/// Shared photo position/size editor (New Card now, Review in phase 5).
+/// Shared photo position/size editor (New Card and Review).
 /// Emits intents only — the owner applies them to its own transform state
 /// and calls <see cref="SetState"/> to keep the controls in sync.
 /// Zoom factor range matches the existing nudge slider: 0.4–3.0 (40–300 %).
@@ -22,7 +22,7 @@ public partial class PhotoPositionPanel : UserControl
     /// <summary>Zoom factor commit (0.4–3.0).</summary>
     public event Action<double>? ZoomChanged;
     public event Action? ResetRequested;
-    /// <summary>Background-removal mode changed. Tag: "PlainWhite" | "Model" | "Keep".</summary>
+    /// <summary>Background mode changed. Tag: "PlainWhite" | "Model" | "Keep".</summary>
     public event Action<string>? BgModeChanged;
 
     private string _bgMode = "PlainWhite";
@@ -35,40 +35,26 @@ public partial class PhotoPositionPanel : UserControl
         InitializeComponent();
     }
 
-    /// <summary>Pushes the background mode into the controls without firing events.</summary>
+    /// <summary>Pushes the background mode into the radio buttons without firing events.</summary>
     public void SetBgMode(string mode)
     {
         _bgMode = mode is "Model" or "Keep" ? mode : "PlainWhite";
         _syncing = true;
-        ChkRemoveBg.IsChecked = _bgMode != "Keep";
-        CmbBgMode.SelectedIndex = _bgMode switch { "Model" => 1, "Keep" => 2, _ => 0 };
-        CmbBgMode.IsEnabled = _bgMode != "Keep";
+        RadBgWhite.IsChecked = _bgMode == "PlainWhite";
+        RadBgModel.IsChecked = _bgMode == "Model";
+        RadBgKeep.IsChecked = _bgMode == "Keep";
         _syncing = false;
     }
 
-    private void Bg_Changed(object sender, RoutedEventArgs e)
+    private void BgRadio_Changed(object sender, RoutedEventArgs e)
     {
         if (_syncing) return;
-        if (ChkRemoveBg.IsChecked == true)
+        _bgMode = sender switch
         {
-            var tag = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string;
-            _bgMode = tag is "PlainWhite" or "Model" ? tag : "PlainWhite";
-            if (tag == "Keep") CmbBgMode.SelectedIndex = 0;
-            CmbBgMode.IsEnabled = true;
-        }
-        else
-        {
-            _bgMode = "Keep";
-            CmbBgMode.IsEnabled = false;
-        }
-        BgModeChanged?.Invoke(_bgMode);
-    }
-
-    private void BgMode_Changed(object sender, SelectionChangedEventArgs e)
-    {
-        if (_syncing || ChkRemoveBg.IsChecked != true) return;
-        var tag = (CmbBgMode.SelectedItem as ComboBoxItem)?.Tag as string;
-        _bgMode = tag is "PlainWhite" or "Model" ? tag : "PlainWhite";
+            _ when ReferenceEquals(sender, RadBgModel) => "Model",
+            _ when ReferenceEquals(sender, RadBgKeep) => "Keep",
+            _ => "PlainWhite"
+        };
         BgModeChanged?.Invoke(_bgMode);
     }
 
@@ -99,6 +85,10 @@ public partial class PhotoPositionPanel : UserControl
         NudgeRequested?.Invoke(dx, dy);
     }
 
+    /// <summary>Nudge-pad centre: position back to centre, zoom untouched.</summary>
+    private void Centre_Click(object sender, RoutedEventArgs e)
+        => OffsetCommitted?.Invoke(0, 0);
+
     private void OffsetText_Changed(object sender, TextChangedEventArgs e)
     {
         // Live-parse so the field doesn't fight the user; commit on LostFocus/Enter.
@@ -116,6 +106,31 @@ public partial class PhotoPositionPanel : UserControl
     private void Offset_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) { CommitOffsets(); e.Handled = true; }
+    }
+
+    /// <summary>Spinner column: nudge the committed offset by one step.</summary>
+    private void OffsetSpin_Click(object sender, RoutedEventArgs e)
+    {
+        var s = Step;
+        var (tb, delta) = sender switch
+        {
+            _ when ((FrameworkElement)sender).Tag as string == "X+" => (TxtX, s),
+            _ when ((FrameworkElement)sender).Tag as string == "X-" => (TxtX, -s),
+            _ when ((FrameworkElement)sender).Tag as string == "Y+" => (TxtY, s),
+            _ => (TxtY, -s)
+        };
+        if (!double.TryParse(tb.Text, out var v)) v = ReferenceEquals(tb, TxtX) ? _x : _y;
+        tb.Text = ((int)Math.Round(v + delta)).ToString();
+        CommitOffsets();
+    }
+
+    /// <summary>Zoom −/+ icon buttons step the slider by 10 %.</summary>
+    private void ZoomStep_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).Tag as string == "-0.1")
+            SldZoom.Value = Math.Max(SldZoom.Minimum, SldZoom.Value - 0.1);
+        else
+            SldZoom.Value = Math.Min(SldZoom.Maximum, SldZoom.Value + 0.1);
     }
 
     private void Zoom_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)

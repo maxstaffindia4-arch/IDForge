@@ -2,105 +2,355 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <UserControl.Resources>
-        <Style TargetType="RepeatButton">
-            <Setter Property="Width" Value="34"/>
-            <Setter Property="Height" Value="34"/>
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="Background" Value="{StaticResource WhiteBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
+        <!-- Parity plan §5.5: nudge pad, offset rows, zoom row, bg radios -->
+
+        <Style x:Key="NudgeButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="RepeatButton">
-                        <Border x:Name="bd" CornerRadius="6" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="4"
+                                Background="{StaticResource BackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource SecondaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource PanelBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-    </UserControl.Resources>
-    <StackPanel>
-        <TextBlock Text="Position and size" FontWeight="SemiBold" FontSize="12"/>
 
-        <!-- Arrow pad: nudge 1 px, Shift for 10 px -->
-        <Grid Width="120" Height="120" HorizontalAlignment="Center" Margin="0,8">
+        <Style x:Key="NudgeCentreButton" TargetType="Button" BasedOn="{StaticResource NudgeButton}">
+            <Setter Property="Background" Value="{StaticResource SecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        </Style>
+
+        <Style x:Key="TextButton" TargetType="Button">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="4" Padding="10,4"
+                                Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- DesignRadio: 14 px circle, PrimaryBrush border + dot when checked -->
+        <Style x:Key="DesignRadio" TargetType="RadioButton">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="14" Height="14" VerticalAlignment="Center"
+                                  Margin="0,0,8,0">
+                                <Ellipse x:Name="Ring" Stroke="{StaticResource BorderBrush}"
+                                         StrokeThickness="1"/>
+                                <Ellipse x:Name="Dot" Width="6" Height="6"
+                                         Fill="{StaticResource PrimaryBrush}"
+                                         Visibility="Collapsed"/>
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Ring" Property="Stroke"
+                                        Value="{StaticResource PrimaryBrush}"/>
+                                <Setter TargetName="Dot" Property="Visibility"
+                                        Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="Stroke"
+                                        Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Spinner column buttons for the offset inputs -->
+        <Style x:Key="SpinnerButton" TargetType="RepeatButton">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+            <Setter Property="FontSize" Value="8"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{StaticResource SecondaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Zoom slider: 4 px SecondaryBrush track + 1 px border, PrimaryBrush
+             fill, 16 px white thumb with 2 px PrimaryBrush ring -->
+        <Style x:Key="ParitySlider" TargetType="Slider">
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Background="Transparent">
+                            <Border Height="4" VerticalAlignment="Center" CornerRadius="2"
+                                    Background="{StaticResource SecondaryBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"/>
+                            <Track x:Name="PART_Track" VerticalAlignment="Center">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge"
+                                                  Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="4" CornerRadius="2"
+                                                        Background="{StaticResource PrimaryBrush}"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge"
+                                                  Focusable="False" Opacity="0"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Width="16" Height="16" CornerRadius="8"
+                                                        Background="{StaticResource BackgroundBrush}"
+                                                        BorderBrush="{StaticResource PrimaryBrush}"
+                                                        BorderThickness="2"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- Photo background: three visible options, one click (§5.5) -->
+        <TextBlock Text="Photo background" FontSize="12" FontWeight="Medium"
+                   Margin="0,0,0,6"/>
+        <RadioButton x:Name="RadBgWhite" GroupName="PhotoBg" Style="{StaticResource DesignRadio}"
+                     Content="Replace with plain white (recommended)"
+                     Checked="BgRadio_Changed"/>
+        <RadioButton x:Name="RadBgModel" GroupName="PhotoBg" Style="{StaticResource DesignRadio}"
+                     Content="Replace with model (complex background)"
+                     Checked="BgRadio_Changed"/>
+        <RadioButton x:Name="RadBgKeep" GroupName="PhotoBg" Style="{StaticResource DesignRadio}"
+                     Content="Keep the original background"
+                     Checked="BgRadio_Changed"/>
+
+        <!-- Position and size header + reset -->
+        <DockPanel Margin="0,20,0,12">
+            <Button DockPanel.Dock="Right" Style="{StaticResource TextButton}"
+                    Height="28" Padding="10,0" Click="Reset_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xF2EA;" FontFamily="{StaticResource IconFont}"
+                               FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Reset" VerticalAlignment="Center"/>
+                    <TextBlock Text="Ctrl+0" FontSize="11"
+                               Foreground="{StaticResource MutedBrush}"
+                               Margin="6,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <TextBlock Text="Position and size" FontSize="12" FontWeight="Medium"
+                       VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Nudge pad: 1 px per click, Shift for 10 px; centre resets position -->
+        <Grid Width="96" Height="96" HorizontalAlignment="Center">
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/><RowDefinition Height="*"/><RowDefinition Height="*"/>
+                <RowDefinition/><RowDefinition/><RowDefinition/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
             </Grid.ColumnDefinitions>
-            <RepeatButton x:Name="BtnUp" Grid.Row="0" Grid.Column="1" Margin="3" Click="Arrow_Click"
-                          ToolTip="Move photo up 1 px (Shift: 10 px)">↑</RepeatButton>
-            <RepeatButton x:Name="BtnLeft" Grid.Row="1" Grid.Column="0" Margin="3" Click="Arrow_Click"
-                          ToolTip="Move photo left 1 px (Shift: 10 px)">←</RepeatButton>
-            <RepeatButton x:Name="BtnRight" Grid.Row="1" Grid.Column="2" Margin="3" Click="Arrow_Click"
-                          ToolTip="Move photo right 1 px (Shift: 10 px)">→</RepeatButton>
-            <RepeatButton x:Name="BtnDown" Grid.Row="2" Grid.Column="1" Margin="3" Click="Arrow_Click"
-                          ToolTip="Move photo down 1 px (Shift: 10 px)">↓</RepeatButton>
+            <Button x:Name="BtnUp" Grid.Row="0" Grid.Column="1" Style="{StaticResource NudgeButton}"
+                    Content="&#xF077;" Click="Arrow_Click"
+                    ToolTip="Move photo up 1 px (Shift: 10 px)"/>
+            <Button x:Name="BtnLeft" Grid.Row="1" Grid.Column="0" Style="{StaticResource NudgeButton}"
+                    Content="&#xF053;" Click="Arrow_Click"
+                    ToolTip="Move photo left 1 px (Shift: 10 px)"/>
+            <Button x:Name="BtnCentre" Grid.Row="1" Grid.Column="1"
+                    Style="{StaticResource NudgeCentreButton}" Content="&#xE4BA;"
+                    ToolTip="Centre photo" Click="Centre_Click"/>
+            <Button x:Name="BtnRight" Grid.Row="1" Grid.Column="2" Style="{StaticResource NudgeButton}"
+                    Content="&#xF054;" Click="Arrow_Click"
+                    ToolTip="Move photo right 1 px (Shift: 10 px)"/>
+            <Button x:Name="BtnDown" Grid.Row="2" Grid.Column="1" Style="{StaticResource NudgeButton}"
+                    Content="&#xF078;" Click="Arrow_Click"
+                    ToolTip="Move photo down 1 px (Shift: 10 px)"/>
         </Grid>
 
-        <!-- Absolute offsets in px -->
-        <Grid>
+        <!-- Left/right and up/down inputs: mono box + px + spinner column -->
+        <Grid Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                <TextBlock Text="Left/right (px)" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                <TextBox x:Name="TxtX" TextChanged="OffsetText_Changed" LostFocus="Offset_Commit"
-                         KeyDown="Offset_KeyDown" ToolTip="Horizontal offset in px"/>
-            </StackPanel>
-            <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                <TextBlock Text="Up/down (px)" FontSize="11" Foreground="{StaticResource MutedBrush}"/>
-                <TextBox x:Name="TxtY" TextChanged="OffsetText_Changed" LostFocus="Offset_Commit"
-                         KeyDown="Offset_KeyDown" ToolTip="Vertical offset in px"/>
-            </StackPanel>
+            <Grid Grid.Column="0" Height="32">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="16"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtX" Grid.Column="0" Height="32" Padding="8,0"
+                         FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                         VerticalContentAlignment="Center"
+                         BorderBrush="{StaticResource InputBrush}" BorderThickness="1"
+                         Background="{StaticResource BackgroundBrush}"
+                         Foreground="{StaticResource TextBrush}"
+                         TextChanged="OffsetText_Changed" LostFocus="Offset_Commit"
+                         KeyDown="Offset_KeyDown" ToolTip="Left/right offset in px"/>
+                <TextBlock Grid.Column="1" Text="px" FontSize="12"
+                           Foreground="{StaticResource MutedBrush}"
+                           VerticalAlignment="Center" Margin="6,0"/>
+                <StackPanel Grid.Column="2" VerticalAlignment="Stretch">
+                    <RepeatButton Style="{StaticResource SpinnerButton}" Content="&#xF0D8;"
+                                  Click="OffsetSpin_Click" Tag="X+"
+                                  ToolTip="Increase left/right offset"/>
+                    <RepeatButton Style="{StaticResource SpinnerButton}" Content="&#xF0D7;"
+                                  Click="OffsetSpin_Click" Tag="X-"
+                                  ToolTip="Decrease left/right offset"/>
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Column="2" Height="32">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="16"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtY" Grid.Column="0" Height="32" Padding="8,0"
+                         FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                         VerticalContentAlignment="Center"
+                         BorderBrush="{StaticResource InputBrush}" BorderThickness="1"
+                         Background="{StaticResource BackgroundBrush}"
+                         Foreground="{StaticResource TextBrush}"
+                         TextChanged="OffsetText_Changed" LostFocus="Offset_Commit"
+                         KeyDown="Offset_KeyDown" ToolTip="Up/down offset in px"/>
+                <TextBlock Grid.Column="1" Text="px" FontSize="12"
+                           Foreground="{StaticResource MutedBrush}"
+                           VerticalAlignment="Center" Margin="6,0"/>
+                <StackPanel Grid.Column="2" VerticalAlignment="Stretch">
+                    <RepeatButton Style="{StaticResource SpinnerButton}" Content="&#xF0D8;"
+                                  Click="OffsetSpin_Click" Tag="Y+"
+                                  ToolTip="Increase up/down offset"/>
+                    <RepeatButton Style="{StaticResource SpinnerButton}" Content="&#xF0D7;"
+                                  Click="OffsetSpin_Click" Tag="Y-"
+                                  ToolTip="Decrease up/down offset"/>
+                </StackPanel>
+            </Grid>
         </Grid>
 
-        <!-- Zoom: slider + % box + reset, with scale labels under the slider -->
-        <TextBlock Text="Zoom" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"/>
-        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-            <Slider x:Name="SldZoom" Width="150" Minimum="0.4" Maximum="3.0" TickFrequency="0.05"
-                    ValueChanged="Zoom_Changed" VerticalAlignment="Center"/>
-            <TextBox x:Name="TxtZoomPct" Width="52" Margin="8,0,0,0" VerticalContentAlignment="Center"
-                     TextChanged="ZoomText_Changed" LostFocus="Zoom_Commit" KeyDown="Zoom_KeyDown"
-                     ToolTip="Zoom % (Ctrl+0 resets position)"/>
-            <TextBlock Text="%" VerticalAlignment="Center" Margin="2,0,0,0"
-                       Foreground="{StaticResource MutedBrush}"/>
-            <Button Content="Reset" Style="{StaticResource CompactButton}" Margin="8,0,0,0"
-                    Click="Reset_Click" ToolTip="Reset position and zoom (Ctrl+0)"/>
-        </StackPanel>
-        <Canvas x:Name="ZoomScale" Width="150" Height="18" Margin="0,1,0,0"
-                SizeChanged="ZoomScale_SizeChanged">
-            <TextBlock x:Name="LblZoomMin" Text="40 %" FontSize="10"
-                       Foreground="{StaticResource MutedBrush}"/>
-            <TextBlock x:Name="LblZoomHundred" Text="100 %" FontSize="10"
-                       Foreground="{StaticResource MutedBrush}"/>
-            <TextBlock x:Name="LblZoomMax" Text="300 %" FontSize="10"
-                       Foreground="{StaticResource MutedBrush}"/>
-            <Border x:Name="ZoomTick" Width="1.5" Height="4" Background="{StaticResource MutedBrush}"/>
-        </Canvas>
+        <!-- Zoom: icon, slider + scale labels, icon, % box -->
+        <Grid Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="72"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Style="{StaticResource TextButton}" Padding="4,0"
+                    VerticalAlignment="Center" Click="ZoomStep_Click" Tag="-0.1"
+                    ToolTip="Zoom out">
+                <TextBlock Text="&#xF010;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}"/>
+            </Button>
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Slider x:Name="SldZoom" Grid.Row="0" Style="{StaticResource ParitySlider}"
+                        Minimum="0.4" Maximum="3.0" TickFrequency="0.05"
+                        ValueChanged="Zoom_Changed"/>
+                <Canvas x:Name="ZoomScale" Grid.Row="1" Height="18" Margin="0,1,0,0"
+                        SizeChanged="ZoomScale_SizeChanged">
+                    <TextBlock x:Name="LblZoomMin" Text="40 %" FontSize="10"
+                               Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="LblZoomHundred" Text="100 %" FontSize="10"
+                               Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="LblZoomMax" Text="300 %" FontSize="10"
+                               Foreground="{StaticResource MutedBrush}"/>
+                    <Border x:Name="ZoomTick" Width="1.5" Height="4"
+                            Background="{StaticResource MutedBrush}"/>
+                </Canvas>
+            </Grid>
+            <Button Grid.Column="2" Style="{StaticResource TextButton}" Padding="4,0"
+                    VerticalAlignment="Center" Margin="8,0,0,0" Click="ZoomStep_Click" Tag="0.1"
+                    ToolTip="Zoom in">
+                <TextBlock Text="&#xF00E;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}"/>
+            </Button>
+            <Border Grid.Column="3" Height="32" Margin="12,0,0,0"
+                    BorderBrush="{StaticResource InputBrush}" BorderThickness="1"
+                    CornerRadius="4">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="%" Margin="0,0,8,0"
+                               VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}"
+                               FontSize="12"/>
+                    <TextBox x:Name="TxtZoomPct" FontFamily="{StaticResource MonoFontFamily}"
+                             FontSize="12" BorderThickness="0" Padding="8,0"
+                             VerticalContentAlignment="Center" Background="Transparent"
+                             Foreground="{StaticResource TextBrush}"
+                             TextChanged="ZoomText_Changed" LostFocus="Zoom_Commit"
+                             KeyDown="Zoom_KeyDown" ToolTip="Zoom % (40–300)"/>
+                </DockPanel>
+            </Border>
+        </Grid>
 
-        <!-- Remove background + mode selector (shared by New Card and Review) -->
-        <CheckBox x:Name="ChkRemoveBg" Content="Remove background" Margin="0,12,0,0"
-                  Checked="Bg_Changed" Unchecked="Bg_Changed"/>
-        <ComboBox x:Name="CmbBgMode" Width="180" Margin="0,4,0,0" IsEnabled="False"
-                  SelectionChanged="BgMode_Changed">
-            <ComboBoxItem Content="Plain white" Tag="PlainWhite"/>
-            <ComboBoxItem Content="Model" Tag="Model"/>
-            <ComboBoxItem Content="Keep as is" Tag="Keep"/>
-        </ComboBox>
+        <!-- Keyboard hint box — the panel ends here (no approval step) -->
+        <Border Margin="0,12,0,0" Padding="8" CornerRadius="4"
+                Background="{StaticResource PanelLightBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <TextBlock FontSize="11" Foreground="{StaticResource MutedBrush}"
+                       TextWrapping="Wrap"><Run Text="&#xF11C;" FontFamily="{StaticResource IconFont}"/><Run Text="  Arrow keys move 1 px · Shift + arrows move 10 px · Ctrl + mouse wheel zooms"/></TextBlock>
+        </Border>
     </StackPanel>
 </UserControl>

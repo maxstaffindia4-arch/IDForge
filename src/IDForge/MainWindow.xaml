@@ -904,41 +904,53 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- ===== 2 · PHOTO ===== -->
+                            <!-- ===== 2 · PHOTO (§5.5) ===== -->
                             <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="12,0,12,12">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="2 · Photo" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock x:Name="ChkPhoto" Text="  ✓ ready" FontSize="11"
+                                    <!-- Step heading: numbered circle + title + status icon -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <Border Width="20" Height="20" CornerRadius="10"
+                                                Background="{StaticResource PrimaryBrush}">
+                                            <TextBlock Text="2" Foreground="White" FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Text="Photo" FontSize="14" FontWeight="SemiBold"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="ChkPhoto" Text="&#xF058;"
+                                                   FontFamily="{StaticResource IconFont}" FontSize="14"
                                                    Foreground="{StaticResource SuccessBrush}"
-                                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
                                                    Visibility="Collapsed"/>
                                     </StackPanel>
 
-                                    <Border Background="{StaticResource PanelLightBrush}" CornerRadius="6"
-                                            Padding="10" Margin="0,8,0,0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Border Width="72" Height="90"
+                                    <!-- Photo file card -->
+                                    <Border BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="10">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="Change…"
+                                                    Height="28" Click="BrowsePhoto_Click"
+                                                    Padding="12,0" FontSize="12"/>
+                                            <Border Width="40" Height="48" CornerRadius="4"
+                                                    ClipToBounds="True" Margin="0,0,12,0"
                                                     Background="{StaticResource WhiteBrush}"
                                                     BorderBrush="{StaticResource BorderBrush}"
-                                                    BorderThickness="1" CornerRadius="4">
+                                                    BorderThickness="1">
                                                 <Image x:Name="ImgPhotoThumb" Stretch="Uniform"/>
                                             </Border>
-                                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                            <StackPanel VerticalAlignment="Center">
                                                 <TextBlock x:Name="TxtPhotoName" Text="No photo chosen"
-                                                           FontWeight="SemiBold" FontSize="12"
-                                                           TextTrimming="CharacterEllipsis" MaxWidth="180"/>
+                                                           FontSize="12" FontWeight="Medium"
+                                                           TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock x:Name="TxtPhotoMeta" Text=""
                                                            FontSize="11"
                                                            Foreground="{StaticResource MutedBrush}"/>
-                                                <Button Content="Change…" Click="BrowsePhoto_Click"
-                                                        Style="{StaticResource CompactButton}"
-                                                        Margin="0,6,0,0" HorizontalAlignment="Left"/>
                                             </StackPanel>
-                                        </StackPanel>
+                                        </DockPanel>
                                     </Border>
                                     <TextBlock Text="Ctrl+O to choose a photo, or drag one onto the preview."
-                                               FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"
                                                Foreground="{StaticResource MutedBrush}"/>
 
                                     <controls:PhotoPositionPanel x:Name="PosPanel" Margin="0,12,0,0"/>
