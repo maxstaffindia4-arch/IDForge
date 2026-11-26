@@ -101,7 +101,10 @@ public partial class MainWindow : Window
         if (purged > 0)
             SetStatus($"Purged {purged} deleted record{(purged == 1 ? "" : "s")} older than 30 days.");
         RefreshRecords();
-        MaybeOfferResume();
+        // The resume prompt is a modal dialog — it must wait until the window
+        // is shown, or AppDialog's Owner assignment throws ("Window that has
+        // not been shown previously") and the app fails to start.
+        Loaded += (_, _) => MaybeOfferResume();
         SchedulePreview();
     }
 

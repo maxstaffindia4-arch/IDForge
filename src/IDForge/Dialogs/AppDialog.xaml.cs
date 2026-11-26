@@ -82,6 +82,11 @@ public partial class AppDialog : Window
 
     // ---------- static helpers (confirm / info / error) ----------
 
+    /// <summary>Owner can only be set on a window that has been shown — an
+    /// unshown owner throws InvalidOperationException.</summary>
+    private static Window? SafeOwner(Window? owner)
+        => owner is { IsLoaded: true } ? owner : null;
+
     /// <summary>Yes-style confirm. destructive=true makes Enter hit Cancel.</summary>
     public static bool Confirm(Window? owner, string windowTitle, string heading,
         string body, string confirmText, bool destructive = false,
@@ -99,7 +104,7 @@ public partial class AppDialog : Window
         string body, string confirmText, bool destructive = false,
         string cancelText = Messages.CancelLabel, Style? confirmStyle = null)
     {
-        var dlg = new AppDialog { Owner = owner, Title = windowTitle, Heading = heading };
+        var dlg = new AppDialog { Owner = SafeOwner(owner), Title = windowTitle, Heading = heading };
         dlg.SetBodyText(body);
         // Destructive: Enter must cancel — the cancel button is the default.
         dlg.AddButton(cancelText, isCancel: true, isDefault: destructive);
@@ -113,7 +118,7 @@ public partial class AppDialog : Window
     /// (setting DialogResult after close would throw).</summary>
     public static void Info(Window? owner, string windowTitle, string heading, string body)
     {
-        var dlg = new AppDialog { Owner = owner, Title = windowTitle, Heading = heading };
+        var dlg = new AppDialog { Owner = SafeOwner(owner), Title = windowTitle, Heading = heading };
         dlg.SetBodyText(body);
         dlg.AddButton("Close", isDefault: true, isCancel: true);
         dlg.ShowDialog();
@@ -141,7 +146,7 @@ public partial class AppDialog : Window
         string body, string prompt, string requiredPhrase,
         string confirmText, Style? confirmStyle = null)
     {
-        var dlg = new AppDialog { Owner = owner, Title = windowTitle, Heading = heading };
+        var dlg = new AppDialog { Owner = SafeOwner(owner), Title = windowTitle, Heading = heading };
         dlg.SetBodyText(body);
         var panel = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
         panel.Children.Add(new TextBlock { Text = prompt, Margin = new Thickness(0, 0, 0, 4) });

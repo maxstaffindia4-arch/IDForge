@@ -182,6 +182,42 @@ public class NewCardParityTests
         });
     }
 
+    /// <summary>Regression: the resume-batch prompt used to run inside the
+    /// MainWindow ctor, where AppDialog's Owner assignment threw
+    /// ("Window that has not been shown previously") and the app failed to
+    /// start whenever an unfinished batch existed. The prompt is deferred to
+    /// Loaded — constructing the window must not throw.</summary>
+    [Fact]
+    public void Resume_Prompt_Does_Not_Throw_In_Ctor()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = FixPassTests.NewWindow();
+            long sid = 0;
+            try
+            {
+                sid = win.Svc.Store.CreateBatchSession("Resume regression");
+                var e = new IDForge.Core.Data.BatchRowEntry
+                {
+                    SessionId = sid, Uid = "UID20259999", Name = "Resume Regression",
+                    Position = "Intern", Status = "NeedsReview",
+                    BgMode = "Model", Zoom = 1.0
+                };
+                win.Svc.Store.SaveBatchRow(e);
+
+                MainWindow.SkipResumePrompt = false;
+                var second = new MainWindow();   // must not throw; never shown
+                _ = second;
+            }
+            finally
+            {
+                MainWindow.SkipResumePrompt = true;
+                if (sid != 0) win.Svc.Store.CompleteBatchSession(sid);
+                win.Close();
+            }
+        });
+    }
+
     [Fact]
     public void Footer_Chips_Share_Centre_Line_And_Screenshot()
     {
