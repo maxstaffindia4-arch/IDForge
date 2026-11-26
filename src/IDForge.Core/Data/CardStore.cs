@@ -373,20 +373,25 @@ public sealed class CardStore : IDisposable
     }
 
     /// <summary>Hard-deletes soft-deleted employees older than <paramref name="days"/>.
-    /// Returns the number purged. Called on Records refresh for the 30-day retention.</summary>
+    /// Returns the number purged. Writes one audit entry per purged record.
+    /// Runs at startup only (Fix J-E) — never on records refresh.</summary>
     public int PurgeDeletedOlderThan(int days)
     {
         var cutoff = DateTimeOffset.UtcNow.AddDays(-days);
-        var ids = new List<long>();
+        var rows = new List<(long Id, string Name)>();
         using (var cmd = _conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT Id FROM Employees WHERE DeletedAt IS NOT NULL AND DeletedAt < $c";
+            cmd.CommandText = "SELECT Id, Name FROM Employees WHERE DeletedAt IS NOT NULL AND DeletedAt < $c";
             cmd.Parameters.AddWithValue("$c", cutoff.ToString("O"));
             using var r = cmd.ExecuteReader();
-            while (r.Read()) ids.Add(r.GetInt64(0));
+            while (r.Read()) rows.Add((r.GetInt64(0), r.GetString(1)));
         }
-        foreach (var id in ids) PurgeEmployee(id);
-        return ids.Count;
+        foreach (var (id, name) in rows)
+        {
+            PurgeEmployee(id);
+            LogAudit(id, "purge", $"Auto-purged deleted record \"{name}\" after 30 days");
+        }
+        return rows.Count;
     }
 
     /// <summary>Audit history for one employee, newest first.</summary>
@@ -580,6 +585,30 @@ public sealed class CardStore : IDisposable
                 ValidUntil = Validity.CalculateValidUntil(printDate, emp.ContractType)
             };
             issue.Id = InsertIssue(issue);
+            // J-E: an edit never re-renders the card — the new version inherits
+            // the previous version's card image and stored photo so the record
+            // still shows the real issued card until a re-issue replaces it.
+            if (oldIssue != null)
+            {
+                using var inherit = _conn.CreateCommand();
+                inherit.CommandText = """
+                    UPDATE CardIssues SET
+                        OutputPdfPath = (SELECT OutputPdfPath FROM CardIssues WHERE Id=$from),
+                        OutputPngPath = (SELECT OutputPngPath FROM CardIssues WHERE Id=$from),
+                        PhotoCutoutPath = (SELECT PhotoCutoutPath FROM CardIssues WHERE Id=$from),
+                        PhotoOriginalPath = (SELECT PhotoOriginalPath FROM CardIssues WHERE Id=$from),
+                        PhotoSettingsJson = (SELECT PhotoSettingsJson FROM CardIssues WHERE Id=$from)
+                    WHERE Id=$to
+                    """;
+                inherit.Parameters.AddWithValue("$from", oldIssue.Id);
+                inherit.Parameters.AddWithValue("$to", issue.Id);
+                inherit.ExecuteNonQuery();
+                issue.OutputPdfPath = oldIssue.OutputPdfPath;
+                issue.OutputPngPath = oldIssue.OutputPngPath;
+                issue.PhotoCutoutPath = oldIssue.PhotoCutoutPath;
+                issue.PhotoOriginalPath = oldIssue.PhotoOriginalPath;
+                issue.PhotoSettingsJson = oldIssue.PhotoSettingsJson;
+            }
             return issue;
         }
         return null;

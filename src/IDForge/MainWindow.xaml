@@ -839,7 +839,7 @@
                                     </DataGridTextColumn.ElementStyle>
                                 </DataGridTextColumn>
                                 <DataGridTextColumn Header="Contract" Binding="{Binding ContractType}" Width="90"/>
-                                <DataGridTextColumn Header="Issued on" Binding="{Binding IssuedOn}" Width="95"/>
+                                <DataGridTextColumn Header="Last issued" Binding="{Binding LastIssued}" Width="115"/>
                                 <DataGridTextColumn Header="Valid until" Binding="{Binding ValidUntil}" Width="95"/>
                                 <DataGridTemplateColumn Header="Status" Width="95">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -860,6 +860,7 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 <Border Height="150" CornerRadius="6" Background="{StaticResource PanelBrush}"
@@ -871,7 +872,18 @@
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
-                                <TabControl Grid.Row="1" Margin="0,8,0,0">
+                                <Border x:Name="PnlEditBanner" Grid.Row="1" CornerRadius="6" Margin="0,8,0,0"
+                                        Padding="10,7" Visibility="Collapsed"
+                                        Background="{StaticResource PrimaryTintBrush}"
+                                        BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="TxtEditBanner" TextWrapping="Wrap"
+                                                   VerticalAlignment="Center" FontSize="12"/>
+                                        <Button Content="Re-issue" Click="ReissueBanner_Click"
+                                                Margin="10,0,0,0" Padding="12,3"/>
+                                    </StackPanel>
+                                </Border>
+                                <TabControl Grid.Row="2" Margin="0,8,0,0">
                                     <TabItem Header="Details">
                                         <StackPanel x:Name="DtlDetails" Margin="4"/>
                                     </TabItem>

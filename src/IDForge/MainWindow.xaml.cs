@@ -87,9 +87,25 @@ public partial class MainWindow : Window
         TxtName.TextChanged += (_, _) => UpdateNameHint();
         InitShell();
 
+        // J-E: auto-purge deleted records once at startup; the count is
+        // reported in the status bar. Refreshes never purge.
+        var purged = PurgeDeletedRecordsAtStartup();
+        if (purged > 0)
+            SetStatus($"Purged {purged} deleted record{(purged == 1 ? "" : "s")} older than 30 days.");
         RefreshRecords();
         MaybeOfferResume();
         SchedulePreview();
+    }
+
+    private bool _startupPurgeDone;
+
+    /// <summary>Purge deleted records older than 30 days — startup only (J-E).</summary>
+    internal int PurgeDeletedRecordsAtStartup()
+    {
+        if (_startupPurgeDone) return 0;
+        _startupPurgeDone = true;
+        try { return _svc.Store.PurgeDeletedOlderThan(30); }
+        catch { return 0; }
     }
 
     // ---------------- batch session persistence (plan §7) ----------------
@@ -1452,6 +1468,32 @@ public partial class MainWindow : Window
     private long _undoEmployeeId;
     private readonly DispatcherTimer _undoTimer = new() { Interval = TimeSpan.FromSeconds(10) };
 
+    // J-E: stale-card-image banner shown after editing an issued record.
+    private long _editBannerEmployeeId;
+    private DateTime _editBannerImageDate;
+
+    /// <summary>
+    /// Called after an edit is saved: shows "Card image is from [date].
+    /// Re-issue to update the card." for that record until re-issued.
+    /// </summary>
+    internal void NotifyRecordEdited(Employee emp, DateTimeOffset imageIssuedAt)
+    {
+        _editBannerEmployeeId = emp.Id;
+        _editBannerImageDate = imageIssuedAt.LocalDateTime;
+        TxtEditBanner.Text =
+            $"Card image is from {_editBannerImageDate:dd/MM/yyyy}. Re-issue to update the card.";
+        RefreshRecords();
+        var row = LstRecords.Items.OfType<RecordRow>()
+            .FirstOrDefault(r => r.Emp.Id == emp.Id);
+        if (row != null) LstRecords.SelectedItem = row;
+        else PnlEditBanner.Visibility = Visibility.Collapsed;
+    }
+
+    private void ReissueBanner_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedEmployee != null) Reissue_Click(this, e);
+    }
+
     private void RecordFilter_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_svc == null) return;   // combo init fires before the ctor finishes
@@ -1460,9 +1502,7 @@ public partial class MainWindow : Window
 
     private void ApplyRecordFilters()
     {
-        // 30-day retention for deleted records.
-        try { _svc.Store.PurgeDeletedOlderThan(30); } catch { }
-
+        // 30-day retention purge runs once at startup (ctor), never on refresh (J-E).
         var term = TxtSearch.Text.Trim();
         var contract = CmbContractFilter.SelectedItem as ComboBoxItem;
         var validity = CmbValidityFilter.SelectedItem as ComboBoxItem;
@@ -1540,6 +1580,7 @@ public partial class MainWindow : Window
             TxtRecPreviewEmpty.Visibility = Visibility.Visible;
             DtlDetails.Children.Clear();
             DtlFiles.Children.Clear();
+            PnlEditBanner.Visibility = Visibility.Collapsed;
             LstHistory.ItemsSource = null;
         }
     }
@@ -1548,6 +1589,8 @@ public partial class MainWindow : Window
     {
         var emp = row.Emp;
         var issue = row.Issue;
+        PnlEditBanner.Visibility = _editBannerEmployeeId == emp.Id
+            ? Visibility.Visible : Visibility.Collapsed;
         // Card preview: the saved PNG when it exists.
         if (issue?.OutputPngPath != null && File.Exists(issue.OutputPngPath))
         {
@@ -1579,7 +1622,7 @@ public partial class MainWindow : Window
         AddPair("Position", emp.Position);
         AddPair("Blood group", emp.BloodGroup);
         AddPair("Contract", emp.ContractType);
-        AddPair("Issued on", row.IssuedOn);
+        AddPair("Last issued", row.LastIssued);
         AddPair("Valid until", row.ValidUntil);
         AddPair("Card version", issue != null ? $"v{issue.Version}" : "-");
         AddPair("Added", emp.CreatedAt.LocalDateTime.ToString("dd/MM/yyyy"));
@@ -1951,6 +1994,7 @@ public partial class MainWindow : Window
             var issue = outcome.Issue!;
             var files = outcome.PdfPath != null
                 ? $"{outcome.PngPath}\n{outcome.PdfPath}" : outcome.PngPath;
+            _editBannerEmployeeId = 0;   // J-E: re-issue replaced the stale image
             MessageBox.Show($"Re-issued v{issue.Version}, valid until {issue.ValidUntil:MMMM yyyy}.\n{files}",
                 "Re-issue", MessageBoxButton.OK, MessageBoxImage.Information);
             RefreshRecords();
@@ -2006,10 +2050,12 @@ public partial class MainWindow : Window
         {
             var newIssue = _svc.EditRecord(emp, p.Name.Trim(), p.Blood, p.Position,
                 p.Contract, p.PrintDate, uidChanged);
+            // J-E: the saved card image is unchanged — banner prompts re-issue.
+            if (issue != null) NotifyRecordEdited(emp, issue.IssuedAt);
+            else RefreshRecords();
             SetStatus(newIssue != null
                 ? $"Saved. New card version v{newIssue.Version}, valid until {newIssue.ValidUntil:MMMM yyyy}."
                 : "Saved.");
-            RefreshRecords();
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Save failed"); }
     }
