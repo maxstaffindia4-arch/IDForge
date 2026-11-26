@@ -274,7 +274,8 @@ public class Phase4Tests
                 dg.SelectedItem = filled;
                 w.BatchDelRow_Click(null!, null!);
                 Assert.Single(prompts);
-                Assert.Contains("Remove row 1 (Keep Me)?", prompts[0]);
+                Assert.Contains("Remove this row?", prompts[0]);
+                Assert.Contains("Row 1: Keep Me", prompts[0]);
                 Assert.Contains(filled, w.BatchRows);
 
                 // confirm Remove → row goes away

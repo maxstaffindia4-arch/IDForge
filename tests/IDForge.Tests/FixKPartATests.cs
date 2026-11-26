@@ -85,12 +85,16 @@ public class FixKPartATests
                 problems.AddRange(FocusStyleProblems(review));
                 review.Close();
 
-                foreach (var dlg in new[]
+                foreach (var dlg in new Window[]
                 {
                     main.BuildHelpDialog("Keyboard shortcuts", "F1 Help"),
                     main.BuildHelpDialog("Quick guide", "steps"),
                     main.BuildHelpDialog("Troubleshooting", "tips"),
-                    main.BuildAboutDialog()
+                    main.BuildAboutDialog(),
+                    // Phase 7: the shared dialog template + XAML re-issue dialog
+                    new IDForge.Dialogs.AppDialog { Owner = main, Title = "Confirm", Heading = "Sure?" },
+                    new IDForge.Dialogs.ReissueDialog("Re-issue Test's card", "body",
+                        DateOnly.FromDateTime(DateTime.Today), _ => null) { Owner = main }
                 })
                 {
                     dlg.UpdateLayout();

@@ -66,6 +66,7 @@ public partial class MainWindow : Window
         Title = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
         _svc = new CardService();
         _previewDebounce.Tick += (_, _) => { _previewDebounce.Stop(); _ = UpdatePreviewAsync(); };
+        _bannerTimer.Tick += BannerTimer_Tick;
 
         CmbBlood.ItemsSource = Config.BloodGroups;
         CmbBlood.SelectedItem = "N/A";
@@ -157,11 +158,10 @@ public partial class MainWindow : Window
         if (sess == null) return;
         var entries = _svc.Store.BatchRows(sess.Id);
         if (entries.Count == 0) { _svc.Store.CompleteBatchSession(sess.Id); return; }
-        int needReview = entries.Count(e => e.Status == "NeedsReview");
-        var r = MessageBox.Show(this,
-            $"Resume batch ({entries.Count} rows, {needReview} need review)?",
-            "Unfinished batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (r != MessageBoxResult.Yes) return;
+        var ok = IDForge.Dialogs.AppDialog.Confirm(this, "Unfinished batch",
+            Messages.ResumeBatchHeading, Messages.ResumeBatchBody(entries.Count),
+            "Resume");
+        if (!ok) return;
         _batchSessionId = sess.Id;
         _batchSessionName = sess.Name;
         foreach (var e in entries)
@@ -213,6 +213,38 @@ public partial class MainWindow : Window
     }
 
     private void SetStatus(string msg) => TxtStatus.Text = msg;
+
+    // ---- Phase 7: success banner ("Card issued for {Name}." 6 s, hover-persistent)
+    private readonly DispatcherTimer _bannerTimer = new() { Interval = TimeSpan.FromSeconds(6) };
+    private bool _bannerHovered;
+
+    internal void ShowSuccessBanner(string text)
+    {
+        TxtSuccessBanner.Text = text;
+        PnlSuccessBanner.Visibility = Visibility.Visible;
+        _bannerTimer.Stop();
+        if (!_bannerHovered) _bannerTimer.Start();
+    }
+
+    private void SuccessBanner_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _bannerHovered = true;
+        _bannerTimer.Stop();   // stays while hovered
+    }
+
+    private void SuccessBanner_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _bannerHovered = false;
+        _bannerTimer.Stop();
+        _bannerTimer.Start();
+    }
+
+    internal void BannerTimer_Tick(object? sender, EventArgs e)
+    {
+        _bannerTimer.Stop();
+        _bannerHovered = false;
+        PnlSuccessBanner.Visibility = Visibility.Collapsed;
+    }
 
     /// <summary>Photo status line: info messages are neutral with an icon; red is for errors only.</summary>
     internal void SetPhotoStatus(string msg, bool isError = false)
@@ -997,7 +1029,7 @@ public partial class MainWindow : Window
         _draftTimer.Start();
     }
 
-    private void UpdateStatusBar()
+    internal void UpdateStatusBar()
     {
         var count = _svc?.Store.AllEmployees().Count ?? 0;
         TxtStatusCount.Text = $"{count} record{(count == 1 ? "" : "s")}";
@@ -1005,6 +1037,23 @@ public partial class MainWindow : Window
             ? $"Last backup {t:dd/MM/yyyy}" : "No backup yet";
         TxtLastBackup.Text = AppSettings.LastBackupAt is { } t2
             ? $"{t2:dd/MM/yyyy} at {t2:HH:mm}" : "Never";
+        // Phase 7: warn in the status bar and nav panel when there is no
+        // backup or the last one is 7+ days old.
+        var backupAge = AppSettings.LastBackupAt is { } lb ? (DateTime.Now - lb).Days : -1;
+        var backupStale = backupAge < 0 || backupAge >= Messages.BackupAgeWarningDays;
+        if (backupStale)
+        {
+            var warn = Messages.BackupAgeWarning(Math.Max(backupAge, 0));
+            TxtStatusBackup.Text = warn;
+            TxtStatusBackup.Foreground = (Brush)FindResource("WarningBrush");
+            TxtBackupAgeWarn.Text = warn;
+            TxtBackupAgeWarn.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            TxtStatusBackup.Foreground = (Brush)FindResource("MutedBrush");
+            TxtBackupAgeWarn.Visibility = Visibility.Collapsed;
+        }
         TxtStatusVersion.Text = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · About (F1)";
         UpdateBatchBadge();
         var backupTip = AppSettings.LastBackupAt is { } bt
@@ -1242,12 +1291,9 @@ public partial class MainWindow : Window
     }
 
     private static bool ShowOutputFolderMissing(Window owner, string dir)
-    {
-        var r = MessageBox.Show(owner,
-            $"Output folder not found: {dir}.\n\nChange it in Settings.",
-            "Output folder", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        return r == MessageBoxResult.Yes;
-    }
+        => IDForge.Dialogs.AppDialog.Confirm(owner, "Output folder",
+            Messages.OutputFolderMissingHeading, Messages.OutputFolderMissingBody(dir),
+            Messages.OutputFolderMissingConfirm);
 
     private static bool IsWritableDir(string dir)
     {
@@ -1352,22 +1398,29 @@ public partial class MainWindow : Window
         var existing = _svc.Store.FindEmployeeByUid(f.uid);
         if (existing != null)
         {
-            var r = MessageBox.Show(
-                $"UID {f.uid} already exists ({existing.Name}).\n\nOpen existing record?",
-                "Duplicate UID", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-            if (r == MessageBoxResult.Cancel) return;
-            if (r == MessageBoxResult.Yes)
+            // Phase 7: three-way choice — Open record / issue as re-issue / cancel.
+            // Cancel is the default: Enter must not silently re-issue.
+            var choice = "";
+            var dlg = new IDForge.Dialogs.AppDialog
             {
-                LoadEmployeeIntoNewCard(existing);
-                return;
-            }
-            // No -> continue as re-issue on same employee below
+                Owner = this, Title = "Duplicate Employee ID",
+                Heading = Messages.DuplicateUidHeading
+            };
+            dlg.SetBodyText(Messages.DuplicateUidBody(f.uid, existing.Name) +
+                "\n\nOpen the existing record, or continue to issue a new version?");
+            dlg.AddButton(Messages.CancelLabel, isCancel: true, isDefault: true);
+            dlg.AddButton("Open record", () => { choice = "open"; dlg.CloseWith(); });
+            dlg.AddButton("Issue anyway", () => { choice = "issue"; dlg.CloseWith(); });
+            dlg.ShowDialog();
+            if (choice == "open") { LoadEmployeeIntoNewCard(existing); return; }
+            if (choice != "issue") return;
+            // "Issue anyway" -> continue as re-issue on same employee below
         }
 
         var validUntil = Validity.CalculateValidUntil(f.printDate, f.contract);
         var isReissue = existing != null;
         if (!EnsureIssueOutputFolder(this)) return;
-        if (!Dialogs.ConfirmIssue(this, f.name, f.uid, validUntil, isReissue)) return;
+        if (!IssueDialogs.ConfirmIssue(this, f.name, f.uid, validUntil, isReissue)) return;
 
         SKBitmap? cutout;
         WindowTransform? transform;
@@ -1402,14 +1455,15 @@ public partial class MainWindow : Window
             if (!outcome.Success)
             {
                 SetStatus($"Issue failed ({outcome.Step}): {outcome.Error}");
-                Dialogs.ShowIssueFailed(this, outcome.Step ?? "issue", outcome.Error ?? "unknown");
+                IssueDialogs.ShowIssueFailed(this, outcome.Step ?? "issue", outcome.Error ?? "unknown");
                 return;
             }
             var issue = outcome.Issue!;
             var savedFiles = outcome.PdfPath != null
                 ? $"{outcome.PngPath}\n{outcome.PdfPath}" : outcome.PngPath;
             SetStatus($"Issued v{issue.Version} — valid until {issue.ValidUntil:MMMM yyyy}.\nSaved: {savedFiles}");
-            Dialogs.ShowIssued(this, f.uid, issue.ValidUntil, outcome.PngPath, outcome.PdfPath);
+            // Phase 7: spec success is a banner, not a dialog.
+            ShowSuccessBanner(Messages.IssuedBanner(f.name));
 
             // reset form (same fields as before: name, UID, photo)
             TxtName.Clear(); TxtUid.Clear();
@@ -1695,7 +1749,7 @@ public partial class MainWindow : Window
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
                 "explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Show file"); }
+        catch (Exception ex) { IDForge.Dialogs.AppDialog.Error(this, "Show file", "Can't open file", ex.Message); }
     }
 
     private void UndoDelete_Click(object sender, RoutedEventArgs e)
@@ -1712,7 +1766,7 @@ public partial class MainWindow : Window
             _svc.Store.LogAudit(id, "restore", $"Undid delete of {emp?.Name} ({emp?.Uid})");
             SetStatus($"Restored {emp?.Name}.");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Undo failed"); }
+        catch (Exception ex) { IDForge.Dialogs.AppDialog.Error(this, "Undo", "Undo failed", ex.Message); }
         ApplyRecordFilters();
     }
 
@@ -1725,24 +1779,17 @@ public partial class MainWindow : Window
         try
         {
             var (pdf, png) = _svc.ExportCard(_selectedEmployee, _selectedIssue, pngPath: path);
-            MessageBox.Show($"Reprinted v{_selectedIssue.Version}:\n{pdf}\n{png}", "Reprint");
+            IDForge.Dialogs.AppDialog.Info(this, "Reprint", "Card reprinted",
+                $"v{_selectedIssue.Version}:\n{pdf}\n{png}");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Error"); }
+        catch (Exception ex) { IDForge.Dialogs.AppDialog.Error(this, "Reprint", "Reprint failed", ex.Message); }
     }
 
     internal Window BuildHelpDialog(string title, string text)
     {
-        var dlg = new Window
-        {
-            Title = title, Width = 520, SizeToContent = SizeToContent.Height,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner = this, ResizeMode = ResizeMode.NoResize
-        };
-        dlg.Content = new TextBlock
-        {
-            Text = text, Margin = new Thickness(20), FontSize = 12,
-            TextWrapping = TextWrapping.Wrap
-        };
+        var dlg = new IDForge.Dialogs.AppDialog { Owner = this, Title = title, Heading = title };
+        dlg.SetBodyText(text);
+        dlg.AddButton("Close", isDefault: true, isCancel: true);
         return dlg;
     }
 
@@ -1779,36 +1826,17 @@ public partial class MainWindow : Window
     {
         var version = System.Reflection.Assembly.GetExecutingAssembly()
             .GetName().Version?.ToString(3) ?? "?";
-        var panel = new StackPanel { Margin = new Thickness(28, 20, 28, 16) };
-        panel.Children.Add(new TextBlock
+        var dlg = new IDForge.Dialogs.AppDialog
         {
-            Text = "IDForge", FontSize = 20, FontWeight = FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"Version {version}", Margin = new Thickness(0, 6, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"Created by {AppInfo.CreatorName}", Margin = new Thickness(0, 12, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
-        panel.Children.Add(new Button
-        {
-            Content = "Close", IsCancel = true, Width = 90,
-            Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Center
-        });
-        var dlg = new Window
-        {
-            Title = "About IDForge",
-            SizeToContent = SizeToContent.WidthAndHeight,
-            ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = panel
+            Owner = this, Title = "About IDForge", Heading = "IDForge",
+            Width = 420
         };
-        dlg.Owner = this;
+        dlg.SetBodyText(
+            $"Version {version} · built {DateTime.Now:dd/MM/yyyy}\n\n" +
+            $"{AppInfo.CreatorName}\n\n" +
+            $"Data folder: {AppPaths.DataDir}\n\n" +
+            "Creates staff ID cards. Works fully offline — no data leaves this PC.");
+        dlg.AddButton("Close", isDefault: true, isCancel: true);
         return dlg;
     }
 
@@ -1854,87 +1882,29 @@ public partial class MainWindow : Window
         var today = Validity.TodayInDhaka();
         var lastIssue = _svc.Store.LatestIssue(emp.Id);
 
-        // Date is a plain TextBox so typed text is always what we parse —
-        // a DatePicker can hold uncommitted text and report SelectedDate=null.
-        var txtDate = new TextBox
+        // Phase 7: re-issue is a XAML dialog on the shared template.
+        var issuedOn = lastIssue?.IssuedAt.LocalDateTime ?? today.ToDateTime(TimeOnly.MinValue);
+        var dlg = new IDForge.Dialogs.ReissueDialog(
+            Messages.ReissueHeading(emp.Name), Messages.ReissueBody(issuedOn), today,
+            d => Core.DateInput.ValidateReissue(d, lastIssue?.PrintDate))
+        { Owner = this };
+        if (dlg.ShowDialog() != true)
         {
-            Text = today.ToString("d/M/yyyy"),
-            Width = 140,
-            Margin = new Thickness(0, 0, 0, 4),
-            ToolTip = "Format: dd/MM/yyyy"
-        };
-        var errText = new TextBlock { Foreground = new SolidColorBrush(Color.FromRgb(0xA1, 0x2A, 0x26)),
-            FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) };
-        var btnReissue = new Button { Content = "Re-issue", IsDefault = true, Padding = new Thickness(14, 4, 14, 4) };
-        var panel = new StackPanel { Margin = new Thickness(14) };
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"New print date for {emp.Name} (UID {emp.Uid}):",
-            Margin = new Thickness(0, 0, 0, 6), TextWrapping = TextWrapping.Wrap
-        });
-        var dateRow = new StackPanel { Orientation = Orientation.Horizontal };
-        dateRow.Children.Add(txtDate);
-        dateRow.Children.Add(new TextBlock
-        {
-            Text = "  dd/MM/yyyy", VerticalAlignment = VerticalAlignment.Center,
-            Foreground = Brushes.Gray, FontSize = 11
-        });
-        panel.Children.Add(dateRow);
-        panel.Children.Add(errText);
-        var btnRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right
-        };
-        var btnAdjust = new Button { Content = "Adjust photo…", Padding = new Thickness(14, 4, 14, 4),
-            Margin = new Thickness(0, 0, 8, 0),
-            ToolTip = "Load this record on the New card page to change photo settings" };
-        btnRow.Children.Add(new Button { Content = "Cancel", Margin = new Thickness(0, 0, 8, 0), IsCancel = true });
-        btnRow.Children.Add(btnAdjust);
-        btnReissue.Margin = new Thickness(8, 0, 0, 0);
-        btnRow.Children.Add(btnReissue);
-        panel.Children.Add(btnRow);
-        var dlg = new Window
-        {
-            Title = "Re-issue card",
-            Width = 380, SizeToContent = SizeToContent.Height,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = panel
-        };
-        dlg.Owner = this;
-
-        btnAdjust.Click += (_, _) =>
-        {
-            dlg.DialogResult = false;
-            LoadEmployeeIntoNewCard(emp);
-        };
-        btnReissue.Click += (_, _) =>
-        {
-            if (!Core.DateInput.TryParse(txtDate.Text, out var newPrint))
-            {
-                errText.Text = "Enter a valid date as dd/MM/yyyy (e.g. 1/7/2027).";
-                return;   // keep dialog open
-            }
-            var guard = Core.DateInput.ValidateReissue(newPrint, lastIssue?.PrintDate);
-            if (guard != null) { errText.Text = guard; return; }
-            dlg.DialogResult = true;
-        };
-        txtDate.KeyDown += (_, ke) =>
-        {
-            if (ke.Key == Key.Enter) { btnReissue.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); ke.Handled = true; }
-        };
-
-        if (dlg.ShowDialog() != true) return;
-        Core.DateInput.TryParse(txtDate.Text, out var printDate);   // validated above
+            if (dlg.AdjustRequested) LoadEmployeeIntoNewCard(emp);
+            return;
+        }
+        var printDate = dlg.PrintDate!.Value;
         var validUntil = Validity.CalculateValidUntil(printDate, emp.ContractType);
 
         if (!EnsureIssueOutputFolder(this)) return;
 
-        // Re-issue always confirms — name, UID, new print date, new valid-until.
-        var ok = MessageBox.Show(this,
-            $"Re-issue card for {emp.Name}, UID {emp.Uid}?\n" +
-            $"New print date: {printDate:dd/MM/yyyy}\nValid until: {validUntil:MMMM yyyy}",
-            "Confirm re-issue", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (ok != MessageBoxResult.Yes) return;
+        // Re-issue always confirms — destructive: Enter cancels.
+        var ok = IDForge.Dialogs.AppDialog.Confirm(this, "Re-issue card",
+            Messages.ReissueHeading(emp.Name),
+            $"UID {emp.Uid}\nNew print date: {printDate:dd/MM/yyyy}\nValid until: {validUntil:MMMM yyyy}\n\n" +
+            Messages.ReissueBody(issuedOn),
+            "Re-issue", destructive: true);
+        if (!ok) return;
 
         // J-D: re-issue reuses the stored cutout and its settings so the photo
         // matches the original issue. Records without a stored photo must
@@ -1977,8 +1947,8 @@ public partial class MainWindow : Window
             var job = await Task.Run(() => _svc.ProcessPhoto(ofd.FileName, bgMode));
             if (job.Cutout == null)
             {
-                MessageBox.Show($"Could not process the photo: {job.Warning ?? "unknown error"}",
-                    "Re-issue", MessageBoxButton.OK, MessageBoxImage.Warning);
+                IDForge.Dialogs.AppDialog.Error(this, "Re-issue", "Photo problem",
+                    $"Could not process the photo: {job.Warning ?? "unknown error"}");
                 job.WindowImage?.Dispose();
                 return;
             }
@@ -2004,23 +1974,23 @@ public partial class MainWindow : Window
             if (!outcome.Success)
             {
                 App.LogCrash(new InvalidOperationException($"Re-issue failed ({outcome.Step}): {outcome.Error}"), notify: false);
-                MessageBox.Show($"Re-issue failed ({outcome.Step}): {outcome.Error}\n\nNothing was saved.",
-                    "Re-issue", MessageBoxButton.OK, MessageBoxImage.Error);
+                IDForge.Dialogs.AppDialog.Error(this, "Re-issue", "Card not issued",
+                    $"Issue failed at step '{outcome.Step}':\n{outcome.Error}\n\nNothing was saved to Records.");
                 return;
             }
             var issue = outcome.Issue!;
             var files = outcome.PdfPath != null
                 ? $"{outcome.PngPath}\n{outcome.PdfPath}" : outcome.PngPath;
             _editBannerEmployeeId = 0;   // J-E: re-issue replaced the stale image
-            MessageBox.Show($"Re-issued v{issue.Version}, valid until {issue.ValidUntil:MMMM yyyy}.\n{files}",
-                "Re-issue", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowSuccessBanner(Messages.IssuedBanner(emp.Name));
+            SetStatus($"Re-issued v{issue.Version}, valid until {issue.ValidUntil:MMMM yyyy}.\n{files}");
             RefreshRecords();
         }
         catch (Exception ex)
         {
             App.LogCrash(ex, notify: false);
-            MessageBox.Show($"Re-issue failed: {ex.Message}", "Re-issue",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            IDForge.Dialogs.AppDialog.Error(this, "Re-issue", "Card not issued",
+                $"Re-issue failed: {ex.Message}");
         }
         finally { cutout.Dispose(); }
     }
@@ -2034,9 +2004,9 @@ public partial class MainWindow : Window
         try
         {
             var (pdf, png) = _svc.ExportCard(_selectedEmployee, _selectedIssue, pngPath: path);
-            MessageBox.Show($"Exported:\n{pdf}\n{png}", "Export");
+            IDForge.Dialogs.AppDialog.Info(this, "Export", "Card exported", $"{pdf}\n{png}");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Error"); }
+        catch (Exception ex) { IDForge.Dialogs.AppDialog.Error(this, "Export", "Export failed", ex.Message); }
     }
 
     // ---------------- records management ----------------
@@ -2052,15 +2022,18 @@ public partial class MainWindow : Window
 
         var newUid = Core.Uid.Normalize(p.Uid) ?? p.Uid.Trim();
         if (!Core.Uid.IsValid(newUid))
-        { MessageBox.Show($"UID must be digits only ({Core.Uid.MinLength}-{Core.Uid.MaxLength} characters).", "Invalid UID"); return; }
+        { IDForge.Dialogs.AppDialog.Error(this, "Edit record", "Invalid Employee ID",
+            $"UID must be digits only ({Core.Uid.MinLength}-{Core.Uid.MaxLength} characters)."); return; }
         bool uidChanged = !string.Equals(newUid, emp.Uid, StringComparison.Ordinal);
         if (uidChanged)
         {
-            if (MessageBox.Show($"Change UID from {emp.Uid} to {newUid}?", "Change UID",
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (!IDForge.Dialogs.AppDialog.Confirm(this, "Edit record",
+                    $"Change Employee ID from {emp.Uid} to {newUid}?", "",
+                    "Change", destructive: true)) return;
             var dup = _svc.Store.FindEmployeeByUid(newUid);
             if (dup != null && dup.Id != emp.Id)
-            { MessageBox.Show($"UID {newUid} already exists ({dup.Name}).", "Duplicate UID"); return; }
+            { IDForge.Dialogs.AppDialog.Error(this, "Duplicate Employee ID",
+                Messages.DuplicateUidHeading, Messages.DuplicateUidBody(newUid, dup.Name)); return; }
             emp.Uid = newUid;
         }
         try
@@ -2074,7 +2047,7 @@ public partial class MainWindow : Window
                 ? $"Saved. New card version v{newIssue.Version}, valid until {newIssue.ValidUntil:MMMM yyyy}."
                 : "Saved.");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Save failed"); }
+        catch (Exception ex) { IDForge.Dialogs.AppDialog.Error(this, "Edit record", "Save failed", ex.Message); }
     }
 
     private sealed class RecordEditDialogState
@@ -2110,32 +2083,36 @@ public partial class MainWindow : Window
         dp.SelectedDateChanged += (_, _) => RefreshValid();
         RefreshValid();
 
-        var dlg = new Window
+        var issuedOn = issue?.IssuedAt.LocalDateTime;
+        var dlg = new IDForge.Dialogs.AppDialog
         {
-            Title = "Edit record", Width = 380, Height = 420, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new StackPanel
-            {
-                Margin = new Thickness(14),
-                Children =
-                {
-                    new TextBlock { Text = "UID" }, txtUid,
-                    new TextBlock { Text = "Full name", Margin = new Thickness(0,8,0,0) }, txtName,
-                    new TextBlock { Text = "Blood group", Margin = new Thickness(0,8,0,0) }, cmbBlood,
-                    new TextBlock { Text = "Position", Margin = new Thickness(0,8,0,0) }, cmbPos,
-                    new TextBlock { Text = "Contract type", Margin = new Thickness(0,8,0,0) }, cmbCt,
-                    new TextBlock { Text = "Print date", Margin = new Thickness(0,8,0,0) }, dp,
-                    validLabel,
-                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0,14,0,0),
-                        Children =
-                        {
-                            new Button { Content = "Cancel", Margin = new Thickness(0,0,8,0), IsCancel = true },
-                            new Button { Content = "Save", IsDefault = true }
-                        } }
-                }
-            }
+            Owner = this, Title = "Edit record",
+            Heading = $"Edit {emp.Name}",
+            Width = 400
         };
-        var panel = (StackPanel)dlg.Content;
-        var saveBtn = (Button)((StackPanel)panel.Children[13]).Children[1];
+        var form = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        form.Children.Add(new TextBlock
+        {
+            Text = $"Employee ID {emp.Uid}" +
+                (issuedOn != null ? $" · issued {issuedOn:dd/MM/yyyy}" : ""),
+            Style = (Style)dlg.FindResource("DialogBody")
+        });
+        form.Children.Add(new TextBlock { Text = "Employee ID" });
+        form.Children.Add(txtUid);
+        form.Children.Add(new TextBlock { Text = "Full name", Margin = new Thickness(0,8,0,0) });
+        form.Children.Add(txtName);
+        form.Children.Add(new TextBlock { Text = "Blood group", Margin = new Thickness(0,8,0,0) });
+        form.Children.Add(cmbBlood);
+        form.Children.Add(new TextBlock { Text = "Position", Margin = new Thickness(0,8,0,0) });
+        form.Children.Add(cmbPos);
+        form.Children.Add(new TextBlock { Text = "Contract type", Margin = new Thickness(0,8,0,0) });
+        form.Children.Add(cmbCt);
+        form.Children.Add(new TextBlock { Text = "Print date", Margin = new Thickness(0,8,0,0) });
+        form.Children.Add(dp);
+        form.Children.Add(validLabel);
+        dlg.SetBody(form);
+        var saveBtn = dlg.AddButton("Save changes", isDefault: true);
+        dlg.AddButton(Messages.CancelLabel, isCancel: true);
         saveBtn.Click += (_, _) =>
         {
             state.Uid = txtUid.Text; state.Name = txtName.Text;
@@ -2143,7 +2120,7 @@ public partial class MainWindow : Window
             state.Position = cmbPos.SelectedItem as string ?? "";
             state.Contract = cmbCt.SelectedItem as string ?? "Permanent";
             state.PrintDate = dp.SelectedDate is DateTime d ? DateOnly.FromDateTime(d) : state.PrintDate;
-            dlg.DialogResult = true;
+            dlg.CloseWith(true);
         };
         dlg.Tag = state;
         return dlg;
@@ -2156,11 +2133,17 @@ public partial class MainWindow : Window
     {
         if (_selectedEmployee == null) return;
         var emp = _selectedEmployee;
-        var prompt = $"Delete record for {emp.Name} ({emp.Uid})?\nIt moves to Deleted records for 30 days — you can undo for 10 seconds.";
+        var deletedOn = DateTime.Now;
+        var purgeOn = deletedOn.AddDays(30);
+        var prompt = $"{Messages.DeleteRecordHeading(emp.Name)}\n{Messages.DeleteRecordBody(deletedOn, purgeOn)}";
         var r = ConfirmDeleteRecord?.Invoke(prompt) == true
             ? MessageBoxResult.Yes
             : ConfirmDeleteRecord != null ? MessageBoxResult.No
-            : MessageBox.Show(this, prompt, "Delete record", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            : IDForge.Dialogs.AppDialog.Confirm(this, "Delete record",
+                Messages.DeleteRecordHeading(emp.Name),
+                Messages.DeleteRecordBody(deletedOn, purgeOn),
+                "Delete", destructive: true)
+              ? MessageBoxResult.Yes : MessageBoxResult.No;
         if (r != MessageBoxResult.Yes) return;
         _svc.Store.SoftDeleteEmployee(emp.Id);
         _svc.Store.LogAudit(emp.Id, "delete", $"Soft-deleted {emp.Name} ({emp.Uid})");
@@ -2180,44 +2163,74 @@ public partial class MainWindow : Window
     private void DeletedRecords_Click(object sender, RoutedEventArgs e)
     {
         var deleted = _svc.Store.DeletedEmployees();
-        if (deleted.Count == 0) { MessageBox.Show("No deleted records."); return; }
-        var list = new StackPanel { Margin = new Thickness(10) };
-        Window? dlg = null;
+        if (deleted.Count == 0)
+        { IDForge.Dialogs.AppDialog.Info(this, "Deleted records",
+            Messages.DeletedRecordsHeading, "No deleted records."); return; }
+
+        // Phase 7: list inside the shared dialog template.
+        var dlg = new IDForge.Dialogs.AppDialog
+        {
+            Owner = this, Title = "Deleted records",
+            Heading = Messages.DeletedRecordsHeading,
+            Width = 560
+        };
+        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = Messages.DeletedRecordsIntro, FontSize = 11,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)),
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
+        });
+        var list = new StackPanel();
         foreach (var emp in deleted)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 3) };
-            row.Children.Add(new TextBlock { Text = $"{emp.Name} ({emp.Uid})", Width = 280, VerticalAlignment = VerticalAlignment.Center });
-            var btn = new Button { Content = "Restore" };
-            var btnPurge = new Button { Content = "Remove", Margin = new Thickness(6, 0, 0, 0) };
+            var deletedOn = emp.DeletedAt?.LocalDateTime;
+            var purgeOn = deletedOn?.AddDays(30);
+            row.Children.Add(new TextBlock
+            {
+                Text = $"{emp.Name} ({emp.Uid})" +
+                    (deletedOn != null && purgeOn != null
+                        ? $"  —  deleted {deletedOn:dd/MM/yyyy}, removed for good {purgeOn:dd/MM/yyyy}"
+                        : ""),
+                Width = 400, VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            var btn = new Button { Content = "Restore", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 0, 6, 0) };
+            var btnPurge = new Button { Content = "Remove for good…", Padding = new Thickness(10, 3, 10, 3) };
             var id = emp.Id;
             btn.Click += (_, _) =>
             {
                 _svc.Store.RestoreEmployee(id);
                 _svc.Store.LogAudit(id, "restore", $"Restored {emp.Name} ({emp.Uid})");
-                MessageBox.Show($"Restored {emp.Name}.");
-                dlg?.Close();
+                IDForge.Dialogs.AppDialog.Info(dlg, "Deleted records", "Record restored",
+                    $"{emp.Name} is back in Records.");
+                dlg.Close();
                 ApplyRecordFilters();
             };
             btnPurge.Click += (_, _) =>
             {
-                var ok = MessageBox.Show($"Permanently delete {emp.Name} ({emp.Uid}) and all their card issues?\nThis cannot be undone.",
-                    "Remove for good", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (ok != MessageBoxResult.Yes) return;
+                if (!IDForge.Dialogs.AppDialog.Confirm(dlg, "Remove for good",
+                        Messages.PurgeRecordHeading(emp.Name),
+                        Messages.PurgeRecordBody(emp.Uid), "Remove for good",
+                        destructive: true)) return;
                 _svc.Store.PurgeEmployee(id);
                 _svc.Store.LogAudit(id, "purge", $"Permanently removed {emp.Name} ({emp.Uid})");
-                MessageBox.Show($"{emp.Name} permanently removed.");
-                dlg?.Close();
+                IDForge.Dialogs.AppDialog.Info(dlg, "Deleted records", "Record removed",
+                    $"{emp.Name} permanently removed.");
+                dlg.Close();
                 ApplyRecordFilters();
             };
             row.Children.Add(btn);
             row.Children.Add(btnPurge);
             list.Children.Add(row);
         }
-        dlg = new Window
+        panel.Children.Add(new ScrollViewer
         {
-            Title = "Deleted records", Width = 460, Height = Math.Min(120 + deleted.Count * 36, 500),
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new ScrollViewer { Content = list }
-        };
+            Content = list, MaxHeight = 320, VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        });
+        dlg.SetBody(panel);
+        dlg.AddButton("Close", isDefault: true, isCancel: true);
         dlg.ShowDialog();
         RefreshRecords();
     }
@@ -2280,12 +2293,12 @@ public partial class MainWindow : Window
             var info = _svc.BackupToFile(path, SetIncludeCards.IsChecked == true);
             AppSettings.LastBackupAt = DateTime.Now;
             UpdateStatusBar();
-            MessageBox.Show(
-                $"Backup saved to:\n{path}\n\n" +
-                $"{info.RecordCount} records, {info.PhotoCount} photos, " +
-                $"{info.CardImageCount} card images.", "Back up");
+            // Phase 7: spec success message goes to the status bar.
+            SetStatus(Messages.BackupSavedStatus(info.RecordCount, DateTime.Now) +
+                $"\nSaved to: {path}");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Back up failed"); }
+        catch (Exception ex)
+        { IDForge.Dialogs.AppDialog.Error(this, "Back up", "Backup failed", ex.Message); }
     }
 
     private void BackupToFile_Click(object sender, RoutedEventArgs e) => BackupToFileCore();
@@ -2296,27 +2309,30 @@ public partial class MainWindow : Window
         if (path == null) return;
         IDForge.Core.Backup.IdBackup.Info info;
         try { info = _svc.InspectBackupFile(path); }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Restore failed"); return; }
+        catch (Exception ex)
+        { IDForge.Dialogs.AppDialog.Error(this, "Restore", "Restore failed", ex.Message); return; }
 
-        var prompt =
-            $"Restore from:\n{path}\n\n" +
-            $"Backup date: {info.CreatedAt:yyyy-MM-dd HH:mm}\n" +
-            $"Records: {info.RecordCount}   Photos: {info.PhotoCount}   " +
-            $"Card images: {info.CardImageCount}\n\n" +
-            "Your current data will be backed up automatically first. Continue?";
+        // Phase 7: restore confirm shows a preview of what will change.
+        var current = _svc.Store.AllEmployees().Count + _svc.Store.DeletedEmployees().Count;
+        var body = Messages.RestoreBackupBody(path, info.CreatedAt,
+            info.RecordCount, current) +
+            $"\nRecords {info.RecordCount} · Photos {info.PhotoCount} · Card images {info.CardImageCount}";
         var ok = ConfirmBackupRestore?.Invoke(info)
-            ?? MessageBox.Show(this, prompt, "Restore backup",
-                MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+            ?? IDForge.Dialogs.AppDialog.Confirm(this, "Restore backup",
+                Messages.RestoreBackupHeading, body, "Back up, then restore",
+                destructive: true);
         if (!ok) return;
         try
         {
             _svc.RestoreFromFile(path);
-            MessageBox.Show("Restore complete. Records have been reloaded.", "Restore");
+            IDForge.Dialogs.AppDialog.Info(this, "Restore", Messages.RestoreCompleteHeading,
+                Messages.RestoreCompleteBody + $"\n\nRestored: {path}");
             _selectedEmployee = null; _selectedIssue = null;
             RefreshRecords();
             RefreshBatchDerived();
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Restore failed"); }
+        catch (Exception ex)
+        { IDForge.Dialogs.AppDialog.Error(this, "Restore", "Restore failed", ex.Message); }
     }
 
     private void RestoreFromFile_Click(object sender, RoutedEventArgs e) => RestoreFromFileCore();
@@ -2336,42 +2352,26 @@ public partial class MainWindow : Window
 
     private void ClearAll_Click(object sender, RoutedEventArgs e)
     {
-        var count = _svc.Store.AllEmployees().Count + _svc.Store.DeletedEmployees().Count;
-        var dlg = new Window
-        {
-            Title = "Clear ALL records", Width = 420, Height = 240, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Content = new StackPanel
-            {
-                Margin = new Thickness(14),
-                Children =
-                {
-                    new TextBlock { Text = $"This permanently deletes ALL {count} employee record(s), card issues, and batch data. A backup will be created first. This cannot be undone.", TextWrapping = TextWrapping.Wrap },
-                    new TextBlock { Text = "Type DELETE ALL to confirm:", Margin = new Thickness(0,10,0,4) },
-                    new TextBox { Width = 200 },
-                    new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0,14,0,0),
-                        Children =
-                        {
-                            new Button { Content = "Cancel", Margin = new Thickness(0,0,8,0), IsCancel = true },
-                            new Button { Content = "Delete Everything", IsDefault = true, IsEnabled = false, Foreground = AccentBrush }
-                        } }
-                }
-            }
-        };
-        var txt = (TextBox)((StackPanel)dlg.Content).Children[2];
-        var delBtn = (Button)((StackPanel)((StackPanel)dlg.Content).Children[3]).Children[1];
-        txt.TextChanged += (_, _) => delBtn.IsEnabled = txt.Text == "DELETE ALL";
-        delBtn.Click += (_, _) => dlg.DialogResult = true;
-        if (dlg.ShowDialog() != true) return;
+        var records = _svc.Store.AllEmployees().Count + _svc.Store.DeletedEmployees().Count;
+        var batches = _svc.Store.BatchSessions().Count;
+        // Phase 7: destructive — Enter cancels until DELETE ALL is typed.
+        var style = (Style)FindResource("DestructiveSolidButton");
+        var ok = IDForge.Dialogs.AppDialog.ConfirmTyped(this, "Clear all data",
+            Messages.ClearAllHeading, Messages.ClearAllBody(records, batches),
+            Messages.ClearAllTypePrompt, Messages.DeleteAllPhrase,
+            "Clear all data", style);
+        if (!ok) return;
         try
         {
             var backup = _svc.BackupDatabase();
             _svc.Store.ClearAll();
             _svc.Store.LogAudit(null, "clear-all", $"Deleted all records by {Environment.UserName}; backup: {backup}");
-            MessageBox.Show($"All records deleted.\nBackup saved to:\n{backup}", "Done");
+            SetStatus(Messages.BackupSavedStatus(0, DateTime.Now) + $"\nAll records deleted. Backup: {backup}");
             _selectedEmployee = null; _selectedIssue = null;
             RefreshRecords();
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Clear failed"); }
+        catch (Exception ex)
+        { IDForge.Dialogs.AppDialog.Error(this, "Clear all data", "Clear failed", ex.Message); }
     }
 
     // ---------------- batch ----------------
@@ -2412,10 +2412,11 @@ public partial class MainWindow : Window
     {
         var n = _batchRows.IndexOf(row) + 1;
         var label = string.IsNullOrWhiteSpace(row.Name) ? row.Uid : row.Name;
-        var prompt = $"Remove row {n} ({label})?";
+        var prompt = $"{Messages.RemoveRowHeading}\nRow {n}: {label}\n\n{Messages.RemoveRowBody}";
         if (ConfirmRemoveRow != null) return ConfirmRemoveRow(prompt);
-        return MessageBox.Show(this, prompt, "Remove row",
-            MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        return IDForge.Dialogs.AppDialog.Confirm(this, "Remove row",
+            Messages.RemoveRowHeading, $"Row {n}: {label}\n\n{Messages.RemoveRowBody}",
+            "Remove", destructive: true);
     }
 
     private void BatchDupRow_Click(object sender, RoutedEventArgs e)
@@ -2461,7 +2462,9 @@ public partial class MainWindow : Window
     private void BatchPaste_Click(object sender, RoutedEventArgs e)
     {
         var text = Clipboard.GetText();
-        if (string.IsNullOrWhiteSpace(text)) { MessageBox.Show("Clipboard is empty."); return; }
+        if (string.IsNullOrWhiteSpace(text))
+        { IDForge.Dialogs.AppDialog.Info(this, "Paste rows", "Clipboard is empty",
+            "Copy rows (name, ID, position…) to the clipboard first."); return; }
         var rows = ParseRows(text);
         foreach (var r in rows) { HookRow(r); _batchRows.Add(r); PersistBatchRow(r); }
         TxtBatchStatus.Text = $"Pasted {rows.Count} row(s).";
@@ -2585,7 +2588,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (_batchRows.Count == 0) { MessageBox.Show("Add rows first."); return; }
+            if (_batchRows.Count == 0)
+            { IDForge.Dialogs.AppDialog.Info(this, "Batch", "No rows yet", "Add rows first."); return; }
             var win = new ReviewWindow(this, _batchRows, startAt);
             win.Owner = this;
             win.ShowDialog();
@@ -2595,8 +2599,8 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             App.LogCrash(ex, notify: false);
-            MessageBox.Show($"Could not open review: {ex.Message}", "Review",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            IDForge.Dialogs.AppDialog.Error(this, "Review", "Review failed",
+                $"Could not open review: {ex.Message}");
         }
     }
 
@@ -2780,7 +2784,8 @@ public partial class MainWindow : Window
 
     private async void StartBatch_Click(object sender, RoutedEventArgs e)
     {
-        if (_batchRows.Count == 0) { MessageBox.Show("Add rows first."); return; }
+        if (_batchRows.Count == 0)
+        { IDForge.Dialogs.AppDialog.Info(this, "Batch", "No rows yet", "Add rows first."); return; }
         // validate everything up front; invalid rows are marked Failed w/ reason
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var toProcess = new List<BatchRow>();

@@ -1,0 +1,35 @@
+<Window x:Class="IDForge.Dialogs.ReissueDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Re-issue card" Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource PanelLightBrush}">
+    <Border Padding="20,18" Background="White">
+        <StackPanel>
+            <TextBlock x:Name="TxtHeading" Style="{StaticResource DialogTitle}"
+                       TextWrapping="Wrap"/>
+            <TextBlock x:Name="TxtBody" Style="{StaticResource DialogBody}"
+                       TextWrapping="Wrap"/>
+            <StackPanel Margin="0,4,0,0">
+                <TextBlock Text="New print date" FontSize="12" FontWeight="SemiBold"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <TextBox x:Name="TxtDate" Width="140"/>
+                    <TextBlock Text="  dd/MM/yyyy" VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                </StackPanel>
+                <TextBlock x:Name="TxtError" Foreground="{StaticResource ErrorBrush}"
+                           FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button Content="Cancel" IsCancel="True" Padding="14,5"
+                        Margin="0,0,8,0"/>
+                <Button Content="Adjust photo…" x:Name="BtnAdjust" Padding="14,5"
+                        Margin="0,0,8,0" Click="Adjust_Click"
+                        ToolTip="Load this record on the New card page to change photo settings"/>
+                <Button Content="Re-issue" x:Name="BtnReissue"
+                        Style="{StaticResource PrimaryButton}" IsDefault="True"
+                        Padding="14,5" Click="Reissue_Click"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

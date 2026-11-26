@@ -545,7 +545,7 @@ public partial class ReviewWindow : Window
         var uidNorm = Core.Uid.Normalize(row.Uid);
         var isReissue = uidNorm != null && _owner.Svc.Store.FindEmployeeByUid(uidNorm) != null;
         if (!_owner.EnsureIssueOutputFolder(this)) return null;
-        if (confirm && !Dialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue))
+        if (confirm && !IssueDialogs.ConfirmIssue(this, row.Name, row.Uid, validUntil, isReissue))
             return null;
 
         // Approved is transient: set it only once the issue is really going ahead.
@@ -577,49 +577,15 @@ public partial class ReviewWindow : Window
             row.Error = outcome.Error ?? "unknown";
             _owner.PersistBatchRow(row);
             if (!quiet)
-                Dialogs.ShowIssueFailed(this, outcome.Step ?? "issue", outcome.Error ?? "unknown");
+                IssueDialogs.ShowIssueFailed(this, outcome.Step ?? "issue", outcome.Error ?? "unknown");
         }
         return outcome;
     }
 
-    /// <summary>"Saved to Records…" dialog with Open folder / Next card buttons.</summary>
+    /// <summary>"Saved to Records…" dialog with Open folder / Next card buttons
+    /// (shared AppDialog template, Phase 7).</summary>
     private bool ShowIssueSuccess(BatchRow row, IDForge.Core.Issuing.IssueOutcome outcome, DateOnly validUntil)
-    {
-        var next = false;
-        var dlg = new Window
-        {
-            Owner = this, Title = "Card issued", Width = 460,
-            SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-        var panel = new StackPanel { Margin = new Thickness(16) };
-        var files = outcome.PdfPath != null ? $"{outcome.PngPath}\n{outcome.PdfPath}" : outcome.PngPath;
-        panel.Children.Add(new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Text = $"Saved to Records: {row.Uid}, valid until {validUntil:dd/MM/yyyy}.\nFiles:\n{files}",
-            Margin = new Thickness(0, 0, 0, 14)
-        });
-        var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var bOpen = new Button { Content = "Open folder", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(12, 4, 12, 4), IsCancel = true };
-        bOpen.Click += (_, _) =>
-        {
-            try
-            {
-                if (outcome.PngPath != null)
-                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{outcome.PngPath}\"");
-            }
-            catch { /* best effort */ }
-        };
-        var bNext = new Button { Content = "Next card", Padding = new Thickness(12, 4, 12, 4), IsDefault = true };
-        bNext.Click += (_, _) => { next = true; dlg.Close(); };
-        btns.Children.Add(bOpen);
-        btns.Children.Add(bNext);
-        panel.Children.Add(btns);
-        dlg.Content = panel;
-        dlg.ShowDialog();
-        return next;
-    }
+        => IssueDialogs.ShowIssueResult(this, row.Uid, validUntil, outcome.PngPath, outcome.PdfPath);
 
     /// <summary>Approves and issues the current row in one step (same issue path as Batch).</summary>
     private async void ApproveIssue_Click(object sender, RoutedEventArgs e)
@@ -641,8 +607,9 @@ public partial class ReviewWindow : Window
     private static string rowLabel(BatchRow r) => string.IsNullOrWhiteSpace(r.Name) ? r.Uid : $"{r.Name} ({r.Uid})";
 }
 
-/// <summary>Shared issue confirmations + result dialogs (plan §6).</summary>
-public static class Dialogs
+/// <summary>Shared issue confirmations + result dialogs — all rendered through
+/// the AppDialog template with catalogue wording (Phase 7).</summary>
+public static class IssueDialogs
 {
     /// <summary>Pre-issue confirm. Honors the 'confirm before issue' setting;
     /// always shows for re-issue / UID change.</summary>
@@ -653,45 +620,55 @@ public static class Dialogs
     {
         if (!isReissue && !AppSettings.ConfirmBeforeIssue) return true;
         if (ConfirmOverride != null) return ConfirmOverride(owner, name, uid, validUntil, isReissue);
-        // Custom dialog so the buttons read "Issue" / "Cancel" (not Yes/No).
-        var next = false; var cancel = false;
-        var dlg = new Window
-        {
-            Owner = owner, Title = "Confirm issue", Width = 400,
-            SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-        var panel = new StackPanel { Margin = new Thickness(16) };
-        panel.Children.Add(new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Text = $"Issue card for {name},\nUID {uid},\nvalid until {validUntil:dd/MM/yyyy}?",
-            Margin = new Thickness(0, 0, 0, 14)
-        });
-        var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var bCancel = new Button { Content = "Cancel", Padding = new Thickness(12, 4, 12, 4), IsCancel = true, Margin = new Thickness(0, 0, 8, 0) };
-        bCancel.Click += (_, _) => { cancel = true; dlg.Close(); };
-        var bIssue = new Button { Content = "Issue", Padding = new Thickness(12, 4, 12, 4), IsDefault = true };
-        bIssue.Click += (_, _) => { next = true; dlg.Close(); };
-        btns.Children.Add(bCancel);
-        btns.Children.Add(bIssue);
-        panel.Children.Add(btns);
-        dlg.Content = panel;
-        dlg.ShowDialog();
-        return next && !cancel;
+        return IDForge.Dialogs.AppDialog.Confirm(owner, "Issue card",
+            Messages.ConfirmIssueHeading(name),
+            Messages.ConfirmIssueBody(uid, validUntil, isReissue),
+            "Issue card");
     }
 
+    /// <summary>Issue result — spec "Success issued" is a banner on the main
+    /// window; in Review the operator needs Open folder / Next card, so the
+    /// result stays a dialog using the shared template.</summary>
     public static void ShowIssued(Window owner, string uid, DateOnly validUntil, string? png, string? pdf)
     {
-        var files = pdf != null ? $"{png}\n{pdf}" : png;
-        var msg = $"Saved to Records: {uid}, valid until {validUntil:yyyy-MM-dd}.\nFiles:\n{files}";
-        MessageBox.Show(owner, msg, "Card issued", MessageBoxButton.OK, MessageBoxImage.Information);
+        var name = uid;
+        IDForge.Dialogs.AppDialog.Info(owner, "Card issued",
+            Messages.IssueResultHeading(name),
+            Messages.IssueResultBody(uid, validUntil, png, pdf));
     }
 
     public static void ShowIssueFailed(Window owner, string step, string reason)
     {
-        MessageBox.Show(owner, $"Issue failed at step '{step}':\n{reason}\n\nNothing was saved to Records.",
-            "Issue failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        IDForge.Dialogs.AppDialog.Error(owner, "Card not issued",
+            Messages.IssueFailedHeading,
+            Messages.IssueFailedBody(step, reason));
+    }
+
+    /// <summary>Per-row issue result inside Review ("Saved to Records…" with
+    /// Open folder / Next card). Returns true when the operator chose Next.</summary>
+    public static bool ShowIssueResult(Window owner, string uid, DateOnly validUntil,
+        string? png, string? pdf)
+    {
+        var dlg = new IDForge.Dialogs.AppDialog
+        {
+            Owner = owner, Title = "Card issued",
+            Heading = Messages.IssueResultHeading(uid)
+        };
+        dlg.SetBodyText(Messages.IssueResultBody(uid, validUntil, png, pdf));
+        var next = false;
+        var bOpen = dlg.AddButton("Open folder", onClick: () =>
+        {
+            try
+            {
+                if (png != null)
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{png}\"");
+            }
+            catch { /* best effort */ }
+            dlg.CloseWith();
+        });
+        dlg.AddButton("Next card", isDefault: true, onClick: () => { next = true; dlg.CloseWith(true); });
+        dlg.ShowDialog();
+        return next;
     }
 }
 

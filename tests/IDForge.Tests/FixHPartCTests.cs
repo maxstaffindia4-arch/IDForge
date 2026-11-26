@@ -78,11 +78,11 @@ public class FixHPartCTests
             var outDir = Path.Combine(Path.GetTempPath(), "idforge-issue-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(outDir);
             var old = AppSettings.SaveFolder;
-            var oldConfirm = IDForge.Dialogs.ConfirmOverride;
+            var oldConfirm = IDForge.IssueDialogs.ConfirmOverride;
             try
             {
                 typeof(AppSettings).GetProperty("SaveFolder")!.SetValue(null, outDir);
-                IDForge.Dialogs.ConfirmOverride = (_, _, _, _, _) => false;  // user cancels
+                IDForge.IssueDialogs.ConfirmOverride = (_, _, _, _, _) => false;  // user cancels
                 var before = _storeCount(win);
                 // Drive the review issue path far enough to hit the confirm.
                 var row = new BatchRow
@@ -106,7 +106,7 @@ public class FixHPartCTests
             }
             finally
             {
-                IDForge.Dialogs.ConfirmOverride = oldConfirm;
+                IDForge.IssueDialogs.ConfirmOverride = oldConfirm;
                 typeof(AppSettings).GetProperty("SaveFolder")!.SetValue(null, old);
                 win.Close();
             }

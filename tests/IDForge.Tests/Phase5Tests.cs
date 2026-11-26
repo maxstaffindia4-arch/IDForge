@@ -214,21 +214,21 @@ public class Phase5Tests
         {
             var prev = AppSettings.ConfirmBeforeIssue;
             bool? sawReissue = null; int calls = 0;
-            Dialogs.ConfirmOverride = (_, _, _, _, isReissue) => { calls++; sawReissue = isReissue; return true; };
+            IssueDialogs.ConfirmOverride = (_, _, _, _, isReissue) => { calls++; sawReissue = isReissue; return true; };
             try
             {
                 AppSettings.ConfirmBeforeIssue = false;
                 // Non-reissue with setting off: no dialog at all.
-                Assert.True(Dialogs.ConfirmIssue(null!, "A", "1", DateOnly.FromDateTime(DateTime.Today), false));
+                Assert.True(IssueDialogs.ConfirmIssue(null!, "A", "1", DateOnly.FromDateTime(DateTime.Today), false));
                 Assert.Equal(0, calls);
                 // Re-issue: always confirms even with the setting off.
-                Assert.True(Dialogs.ConfirmIssue(null!, "A", "1", DateOnly.FromDateTime(DateTime.Today), true));
+                Assert.True(IssueDialogs.ConfirmIssue(null!, "A", "1", DateOnly.FromDateTime(DateTime.Today), true));
                 Assert.Equal(1, calls);
                 Assert.True(sawReissue);
             }
             finally
             {
-                Dialogs.ConfirmOverride = null;
+                IssueDialogs.ConfirmOverride = null;
                 AppSettings.ConfirmBeforeIssue = prev;
             }
         });
