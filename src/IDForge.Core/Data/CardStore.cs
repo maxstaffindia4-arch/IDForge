@@ -430,6 +430,8 @@ public sealed class CardStore : IDisposable
     public static void RestoreFromBackup(string backupPath, string dbPath)
     {
         if (!File.Exists(backupPath)) throw new FileNotFoundException("Backup not found.", backupPath);
+        // Pooled connections keep WAL sidecars alive after Dispose.
+        SqliteConnection.ClearAllPools();
         foreach (var ext in new[] { "", "-wal", "-shm" })
         {
             var f = dbPath + ext;

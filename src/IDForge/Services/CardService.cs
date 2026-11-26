@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media.Imaging;
 using IDForge.Core;
+using IDForge.Core.Backup;
 using IDForge.Core.Data;
 using IDForge.Core.Photo;
 using SkiaSharp;
@@ -280,6 +281,60 @@ public sealed class CardService : IDisposable
         Store = new CardStore(_dbPath);
         Store.LogAudit(null, "restore", $"Restored from {backupPath} (safety copy: {safety})");
         return safety;
+    }
+
+    /// <summary>Test seams: redirect backup/restore file locations.</summary>
+    internal string? BackupPhotosDirOverride;
+    internal string? BackupCardsDirOverride;
+    private string EffectivePhotosDir => BackupPhotosDirOverride ?? AppPaths.PhotosDir;
+    private string? EffectiveCardsDir => BackupCardsDirOverride ?? AppSettings.SaveFolder;
+
+    /// <summary>Writes a .idbackup file (db snapshot + photos + card images).</summary>
+    public IdBackup.Info BackupToFile(string path, bool includeCardImages)
+    {
+        var info = IdBackup.Create(_dbPath, EffectivePhotosDir,
+            EffectiveCardsDir, includeCardImages, path);
+        Store.LogAudit(null, "backup-file", $"Backup file {path}: {info.RecordCount} records");
+        return info;
+    }
+
+    /// <summary>Validates a .idbackup against the current schema; returns its info.</summary>
+    public IdBackup.Info InspectBackupFile(string path)
+        => IdBackup.Validate(path, IdBackup.SchemaVersion(_dbPath));
+
+    /// <summary>Automatic safety .idbackup into the internal backups folder.</summary>
+    public string CreateAutoBackupFile()
+    {
+        var path = Path.Combine(BackupDir,
+            $"idforge_auto_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.idbackup");
+        BackupToFile(path, includeCardImages: true);
+        return path;
+    }
+
+    /// <summary>
+    /// Restores a .idbackup: backs up current data automatically first,
+    /// replaces db + photos + card images, reopens the store.
+    /// </summary>
+    public IdBackup.Info RestoreFromFile(string path)
+    {
+        var schema = IdBackup.SchemaVersion(_dbPath);
+        var safety = CreateAutoBackupFile();
+        Store.Dispose();
+        IdBackup.Info info;
+        try
+        {
+            info = IdBackup.Restore(path, _dbPath, EffectivePhotosDir,
+                EffectiveCardsDir, schema);
+        }
+        catch
+        {
+            Store = new CardStore(_dbPath);
+            throw;
+        }
+        Store = new CardStore(_dbPath);
+        Store.LogAudit(null, "restore-file",
+            $"Restored {path} (auto safety backup: {safety})");
+        return info;
     }
 
     /// <summary>Exports all records (including deleted) to CSV or JSON file.</summary>

@@ -959,6 +959,20 @@
                                 </ComboBox>
                             </StackPanel>
                         </GroupBox>
+                        <GroupBox Header="Backup and restore" Margin="0,0,0,10">
+                            <StackPanel Margin="8">
+                                <CheckBox x:Name="SetIncludeCards" Content="Include card images"
+                                          IsChecked="True" Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Back up to file…" Click="BackupToFile_Click"/>
+                                    <Button Content="Restore from file…" Click="RestoreFromFile_Click" Margin="8,0,0,0"/>
+                                    <Button Content="Open backup folder" Click="OpenBackupFolder_Click" Margin="8,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Text=".idbackup files contain the database, photos, and card images. Settings are not included."
+                                           FontSize="11" Foreground="{StaticResource MutedBrush}"
+                                           TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
                         <TextBlock x:Name="TxtSettingsStatus" Text="" FontSize="11"
                                    Foreground="{StaticResource SuccessBrush}"/>
                     </StackPanel>

@@ -2029,34 +2029,102 @@ public partial class MainWindow : Window
         SetStatus($"Exported {path}");
     }
 
-    private void BackupDb_Click(object sender, RoutedEventArgs e)
+    // ---- .idbackup file backup / restore (J-C) ----
+
+    /// <summary>Test hooks: replace the modal dialogs.</summary>
+    internal static Func<string?>? PickBackupSavePath;
+    internal static Func<string?>? PickBackupOpenPath;
+    internal static Func<IDForge.Core.Backup.IdBackup.Info, bool>? ConfirmBackupRestore;
+    internal static Action<string>? OpenBackupDirAction;
+
+    private string? PickSaveBackupPath()
     {
-        try
+        if (PickBackupSavePath != null) return PickBackupSavePath();
+        var dlg = new SaveFileDialog
         {
-            var path = _svc.BackupDatabase();
-            AppSettings.LastBackupAt = DateTime.Now;
-            UpdateStatusBar();
-            MessageBox.Show($"Database backed up to:\n{path}", "Backup");
-        }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Backup failed"); }
+            Title = "Back up IDForge data",
+            Filter = "IDForge backup|*.idbackup",
+            FileName = $"idforge_{DateTime.Now:yyyyMMdd_HHmm}.idbackup"
+        };
+        return dlg.ShowDialog() == true ? dlg.FileName : null;
     }
 
-    private void RestoreDb_Click(object sender, RoutedEventArgs e)
+    private string? PickOpenBackupPath()
     {
-        var dlg = new OpenFileDialog { Filter = "SQLite DB|*.db|All files|*.*", Title = "Choose backup to restore" };
-        if (dlg.ShowDialog() != true) return;
-        var r = MessageBox.Show(
-            $"Restore database from:\n{dlg.FileName}\n\nThe CURRENT database will be backed up first, then replaced. Continue?",
-            "Restore backup", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (r != MessageBoxResult.Yes) return;
+        if (PickBackupOpenPath != null) return PickBackupOpenPath();
+        var dlg = new OpenFileDialog
+        {
+            Title = "Restore IDForge backup",
+            Filter = "IDForge backup|*.idbackup|All files|*.*"
+        };
+        return dlg.ShowDialog() == true ? dlg.FileName : null;
+    }
+
+    internal void BackupToFileCore()
+    {
+        var path = PickSaveBackupPath();
+        if (path == null) return;
+        if (!path.EndsWith(IDForge.Core.Backup.IdBackup.Extension,
+                StringComparison.OrdinalIgnoreCase))
+            path += IDForge.Core.Backup.IdBackup.Extension;
         try
         {
-            var safety = _svc.RestoreDatabase(dlg.FileName);
-            MessageBox.Show($"Restored.\nSafety backup of previous DB: {safety}", "Restore");
+            var info = _svc.BackupToFile(path, SetIncludeCards.IsChecked == true);
+            AppSettings.LastBackupAt = DateTime.Now;
+            UpdateStatusBar();
+            MessageBox.Show(
+                $"Backup saved to:\n{path}\n\n" +
+                $"{info.RecordCount} records, {info.PhotoCount} photos, " +
+                $"{info.CardImageCount} card images.", "Back up");
+        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Back up failed"); }
+    }
+
+    private void BackupToFile_Click(object sender, RoutedEventArgs e) => BackupToFileCore();
+
+    internal void RestoreFromFileCore()
+    {
+        var path = PickOpenBackupPath();
+        if (path == null) return;
+        IDForge.Core.Backup.IdBackup.Info info;
+        try { info = _svc.InspectBackupFile(path); }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Restore failed"); return; }
+
+        var prompt =
+            $"Restore from:\n{path}\n\n" +
+            $"Backup date: {info.CreatedAt:yyyy-MM-dd HH:mm}\n" +
+            $"Records: {info.RecordCount}   Photos: {info.PhotoCount}   " +
+            $"Card images: {info.CardImageCount}\n\n" +
+            "Your current data will be backed up automatically first. Continue?";
+        var ok = ConfirmBackupRestore?.Invoke(info)
+            ?? MessageBox.Show(this, prompt, "Restore backup",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
+        if (!ok) return;
+        try
+        {
+            _svc.RestoreFromFile(path);
+            MessageBox.Show("Restore complete. Records have been reloaded.", "Restore");
+            _selectedEmployee = null; _selectedIssue = null;
             RefreshRecords();
+            RefreshBatchDerived();
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Restore failed"); }
     }
+
+    private void RestoreFromFile_Click(object sender, RoutedEventArgs e) => RestoreFromFileCore();
+
+    private void OpenBackupFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dir = _svc.BackupDir;
+        Directory.CreateDirectory(dir);
+        if (OpenBackupDirAction != null) { OpenBackupDirAction(dir); return; }
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        { FileName = dir, UseShellExecute = true });
+    }
+
+    private void BackupDb_Click(object sender, RoutedEventArgs e) => BackupToFileCore();
+
+    private void RestoreDb_Click(object sender, RoutedEventArgs e) => RestoreFromFileCore();
 
     private void ClearAll_Click(object sender, RoutedEventArgs e)
     {
