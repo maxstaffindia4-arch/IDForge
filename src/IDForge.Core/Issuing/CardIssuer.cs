@@ -240,15 +240,30 @@ public sealed class CardIssuer
             }
         }
 
-        // 2. Original photo copy — a missing source fails the issue.
+        // 2. Original photo — resized copy (long edge <= 1200 px, JPEG q85;
+        // Fix K-C). Enough detail to re-process later at ~a fifth of the size.
+        // A missing or undecodable source fails the issue.
         string? originalFile = null;
         if (!string.IsNullOrEmpty(pi.OriginalPath))
         {
             if (!File.Exists(pi.OriginalPath))
                 throw new FileNotFoundException("Original photo not found.", pi.OriginalPath);
-            var ext = Path.GetExtension(pi.OriginalPath);
-            originalFile = "original" + (string.IsNullOrEmpty(ext) ? ".jpg" : ext);
-            File.Copy(pi.OriginalPath, Path.Combine(dirAbs, originalFile), overwrite: true);
+            using var src = SKBitmap.Decode(pi.OriginalPath)
+                ?? throw new InvalidOperationException("Could not decode original photo.");
+            const int maxEdge = 1200;
+            var scale = Math.Min(1.0, maxEdge / (double)Math.Max(src.Width, src.Height));
+            using var bmp = scale < 1.0
+                ? src.Resize(new SKImageInfo(
+                        Math.Max(1, (int)Math.Round(src.Width * scale)),
+                        Math.Max(1, (int)Math.Round(src.Height * scale)),
+                        src.ColorType, src.AlphaType),
+                    new SKSamplingOptions(SKFilterMode.Linear))
+                : src.Copy();
+            using var image = SKImage.FromBitmap(bmp);
+            using var jpg = image.Encode(SKEncodedImageFormat.Jpeg, 85)
+                ?? throw new InvalidOperationException("Could not encode stored original.");
+            originalFile = "original.jpg";
+            File.WriteAllBytes(Path.Combine(dirAbs, originalFile), jpg.ToArray());
         }
 
         // 3. Settings used for this issue.

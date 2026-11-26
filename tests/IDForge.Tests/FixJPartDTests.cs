@@ -49,7 +49,17 @@ public class FixJPartDTests : IDisposable
     private string WriteOriginal(string name = "photo.jpg")
     {
         var p = Path.Combine(_dir, name);
-        File.WriteAllBytes(p, new byte[4096]); // content irrelevant — it is copied, not decoded
+        // K-C: the stored original is decoded and re-encoded, so the source
+        // must be a real image.
+        using var bmp = new SKBitmap(640, 480, SKColorType.Bgra8888, SKAlphaType.Opaque);
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(new SKColor(30, 90, 160));
+        using (var paint = new SKPaint { Color = SKColors.White })
+            canvas.DrawCircle(320, 240, 100, paint);
+        canvas.Flush();
+        using var img = SKImage.FromBitmap(bmp);
+        using var data = img.Encode(SKEncodedImageFormat.Jpeg, 90);
+        File.WriteAllBytes(p, data.ToArray());
         return p;
     }
 
@@ -77,7 +87,13 @@ public class FixJPartDTests : IDisposable
         Assert.True(File.Exists(cutoutAbs), cutoutAbs);
         Assert.True(File.Exists(origAbs));
         Assert.True(File.Exists(settingsAbs));
-        Assert.Equal(4096, new FileInfo(origAbs).Length);
+        // K-C: stored original is a resized JPEG (long edge <= 1200), not a copy.
+        Assert.Equal(".jpg", Path.GetExtension(origAbs));
+        using (var orig = SKBitmap.Decode(origAbs))
+        {
+            Assert.NotNull(orig);
+            Assert.True(Math.Max(orig!.Width, orig.Height) <= 1200);
+        }
 
         // Cutout decodes and keeps its size; extension is webp or png.
         var ext = Path.GetExtension(cutoutAbs);
