@@ -204,7 +204,20 @@ public class NewCardParityTests
                 Assert.True(centres.Max() - centres.Min() <= 1.0,
                     $"footer centre line spread {centres.Max() - centres.Min():F2}px");
 
-                SavePng(bar, Path.Combine(dir, "newcard-footer.png"));
+                // RenderTargetBitmap on a non-root element comes out blank here —
+                // render the window and crop the footer strip instead.
+                var barTop = bar.TransformToAncestor(win).Transform(new Point(0, 0));
+                var rtb = new RenderTargetBitmap(
+                    (int)Math.Ceiling(win.ActualWidth),
+                    (int)Math.Ceiling(win.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(win);
+                var crop = new CroppedBitmap(rtb, new Int32Rect(
+                    0, (int)Math.Ceiling(barTop.Y), rtb.PixelWidth,
+                    (int)Math.Ceiling(bar.ActualHeight)));
+                var enc = new PngBitmapEncoder();
+                enc.Frames.Add(BitmapFrame.Create(crop));
+                using (var fs = File.Create(Path.Combine(dir, "newcard-footer.png")))
+                    enc.Save(fs);
             }
             finally { SettleThenClose(win); }
         });
