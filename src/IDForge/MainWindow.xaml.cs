@@ -1155,16 +1155,24 @@ public partial class MainWindow : Window
     /// left column and the third column collapses to 0.</summary>
     private void UpdateNewCardColumns()
     {
-        if (ColsNewCard == null || ScrollPhoto == null) return;
+        if (ColsNewCard == null || PnlPhotoBody == null) return;
         var wide = ActualWidth >= 1280;
-        var host = wide ? (Panel)HostPhotoWide : HostPhotoNarrow;
-        if (ScrollPhoto.Parent != host)
+        // Move the photo CONTENT, never the ScrollViewer — nesting ScrollPhoto
+        // inside ScrollLeft's ScrollViewer at narrow widths caused an infinite
+        // WPF layout cycle that starved the dispatcher.
+        if (wide)
         {
-            (ScrollPhoto.Parent as Panel)?.Children.Remove(ScrollPhoto);
-            host.Children.Add(ScrollPhoto);
+            if (PnlPhotoBody.Parent != ScrollPhoto)
+            {
+                (PnlPhotoBody.Parent as Panel)?.Children.Remove(PnlPhotoBody);
+                ScrollPhoto.Content = PnlPhotoBody;
+            }
         }
-        ScrollPhoto.VerticalScrollBarVisibility = wide
-            ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+        else if (PnlPhotoBody.Parent != HostPhotoNarrow)
+        {
+            ScrollPhoto.Content = null;
+            HostPhotoNarrow.Children.Add(PnlPhotoBody);
+        }
         ColsNewCard.ColumnDefinitions[2].Width = new GridLength(wide ? 330 : 0);
     }
 

@@ -912,7 +912,7 @@
                             <!-- ===== 2 · PHOTO (§5.5) ===== -->
                             <Grid x:Name="HostPhotoWide" Grid.Column="2">
                             <ScrollViewer x:Name="ScrollPhoto" VerticalScrollBarVisibility="Auto">
-                                <StackPanel Margin="12,0,12,12">
+                                <StackPanel x:Name="PnlPhotoBody" Margin="12,0,12,12">
                                     <!-- Step heading: numbered circle + title + status icon -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                                         <Border Width="20" Height="20" CornerRadius="10"
@@ -970,7 +970,7 @@
                         </Grid>
 
                     <!-- ===== FOOTER: issue bar (§6) ===== -->
-                    <Border Grid.Row="2" Padding="24,12" Background="{StaticResource BackgroundBrush}"
+                    <Border x:Name="PnlIssueBar" Grid.Row="2" Padding="24,12" Background="{StaticResource BackgroundBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions>

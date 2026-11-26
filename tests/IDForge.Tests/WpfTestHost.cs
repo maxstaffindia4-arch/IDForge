@@ -25,6 +25,11 @@ public static class WpfTestHost
                 // the last window must not shut it down between tests.
                 app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             }
+            // Software-only rendering: hardware-accelerated composition can
+            // wedge the shared render thread on RDP/virtual displays, starving
+            // every later test on the WpfSta dispatcher.
+            System.Windows.Media.RenderOptions.ProcessRenderMode =
+                System.Windows.Interop.RenderMode.SoftwareOnly;
             MainWindow.SkipResumePrompt = true;
             MainWindow.SkipDraftPhotoRestore = true;
             _ready = true;

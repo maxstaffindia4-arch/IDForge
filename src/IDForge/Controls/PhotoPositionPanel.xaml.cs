@@ -177,15 +177,19 @@ public partial class PhotoPositionPanel : UserControl
         if (SldZoom == null || ZoomScale == null || ZoomScale.ActualWidth <= 0) return;
         var w = ZoomScale.ActualWidth;
         var frac = (1.0 - SldZoom.Minimum) / (SldZoom.Maximum - SldZoom.Minimum);
-        var minW = LblZoomMin?.ActualWidth ?? 0;
-        var midW = LblZoomHundred?.ActualWidth ?? 0;
-        var maxW = LblZoomMax?.ActualWidth ?? 0;
-        if (minW == 0 || midW == 0 || maxW == 0)
+        // Measure labels manually when collapsed — LblZoomHundred is hidden by
+        // showMid=false, and retrying via BeginInvoke looped forever at narrow
+        // widths (its ActualWidth stays 0 while Collapsed).
+        static double LabelWidth(TextBlock? tb)
         {
-            // labels not measured yet — retry once after layout
-            Dispatcher.BeginInvoke(new Action(LayoutZoomScale));
-            return;
+            if (tb == null) return 0;
+            if (tb.ActualWidth > 0) return tb.ActualWidth;
+            tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return tb.DesiredSize.Width;
         }
+        var minW = LabelWidth(LblZoomMin);
+        var midW = LabelWidth(LblZoomHundred);
+        var maxW = LabelWidth(LblZoomMax);
         var (minLeft, midLeft, maxLeft, showMid) =
             ZoomLabelLayout(w, minW, midW, maxW, frac);
         Canvas.SetLeft(LblZoomMin, minLeft);
