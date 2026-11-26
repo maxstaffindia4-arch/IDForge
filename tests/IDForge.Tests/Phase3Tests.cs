@@ -138,16 +138,23 @@ public class Phase3Tests
             {
                 // Month-end print date: 31 August 2025.
                 Dp(main, "DpPrintDate").SelectedDate = new DateTime(2025, 8, 31);
-                var validity = () => Tb(main, "TxtValidity").Text;
+                // TxtValidity is a run-based TextBlock (parity plan §5.3) —
+                // TextBlock.Text is empty once Inlines are used, so read the runs.
+                string Validity() => string.Concat(
+                    Tb(main, "TxtValidity").Inlines
+                        .Select(i => (i as System.Windows.Documents.Run)?.Text ?? ""));
+                var validity = Validity;
 
                 Rad(main, "RadContractPerm").IsChecked = true;
                 Assert.Equal("Card will be valid until 31/08/2026 · 12 months from print date",
-                    validity());
+                    validity(), ignoreCase: false, ignoreLineEndingDifferences: false,
+                    ignoreWhiteSpaceDifferences: true);
 
                 Rad(main, "RadContractContract").IsChecked = true;
                 // 31 Aug + 6 months clamps to 28 Feb 2026 (2026 is not a leap year).
                 Assert.Equal("Card will be valid until 28/02/2026 · 6 months from print date",
-                    validity());
+                    validity(), ignoreCase: false, ignoreLineEndingDifferences: false,
+                    ignoreWhiteSpaceDifferences: true);
             }
             finally { main.Close(); }
             return true;

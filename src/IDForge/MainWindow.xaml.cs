@@ -381,6 +381,9 @@ public partial class MainWindow : Window
         _uidDuplicate = dup;
         ErrUid.Text = msg;
         ErrUid.Foreground = color ?? Brushes.Gray;
+        IcoUidOk.Visibility = dup == null && Core.Uid.IsValid(digits)
+            && _svc?.Store.FindEmployeeByUid(digits) == null
+                ? Visibility.Visible : Visibility.Collapsed;
         if (LnkOpenRecord != null)
             LnkOpenRecord.Visibility = dup != null ? Visibility.Visible : Visibility.Collapsed;
         if (_shellReady) UpdateApproveButton();   // refresh Issue enabled + blocked note
@@ -713,14 +716,20 @@ public partial class MainWindow : Window
     {
         if (DpPrintDate.SelectedDate is not DateTime dt)
         {
-            TxtValidity.Text = "";
+            RunValidityLead.Text = "";
+            RunValidUntil.Text = "";
+            RunValiditySep.Text = "";
+            RunValidMonths.Text = "";
             return;
         }
         var printDate = DateOnly.FromDateTime(dt);
         var contract = RadContractPerm.IsChecked == true ? "Permanent" : "Contractual";
         var months = contract == "Permanent" ? Config.PermanentMonths : Config.ContractualMonths;
         var until = Validity.CalculateValidUntil(printDate, contract);
-        TxtValidity.Text = $"Card will be valid until {until:dd/MM/yyyy} · {months} months from print date";
+        RunValidityLead.Text = "Card will be valid until ";
+        RunValidUntil.Text = until.ToString("dd/MM/yyyy");
+        RunValiditySep.Text = " · ";
+        RunValidMonths.Text = $"{months} months from print date";
     }
 
     private enum ChipState { Idle, Ok, Warn, Err }
@@ -797,11 +806,18 @@ public partial class MainWindow : Window
             OffsetY = _nudgeY,
             SavedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm")
         });
-        TxtDraftNote.Text = $"Draft saved automatically {DateTime.Now:HH:mm}";
+        SetDraftNote($"Draft saved automatically {DateTime.Now:HH:mm}");
         if (_draftPending) { _draftPending = false; UpdateTitle(); }
     }
 
     private void SaveDraft_Click(object sender, RoutedEventArgs e) => SaveDraftNow();
+
+    /// <summary>Draft note sits beside the header buttons; hidden when empty.</summary>
+    private void SetDraftNote(string text)
+    {
+        TxtDraftNote.Text = text;
+        PnlDraftNote.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     /// <summary>Restores the autosaved draft after restart (fields + photo + nudges).</summary>
     private void RestoreDraft()
@@ -834,7 +850,7 @@ public partial class MainWindow : Window
             {
                 SetPhotoStatus("Draft photo file is missing — choose the photo again.");
             }
-            TxtDraftNote.Text = $"Draft restored — saved {d.SavedAt}";
+            SetDraftNote($"Draft restored — saved {d.SavedAt}");
         }
         finally { _restoringDraft = false; }
     }
@@ -869,7 +885,7 @@ public partial class MainWindow : Window
             _draftPending = false;
             _draftTimer.Stop();
             NewCardDraft.Clear();
-            TxtDraftNote.Text = "";
+            SetDraftNote("");
             UpdateTitle();
         }
         finally { _restoringDraft = false; }
@@ -1523,7 +1539,7 @@ public partial class MainWindow : Window
             _draftPending = false;
             _draftTimer.Stop();
             NewCardDraft.Clear();
-            TxtDraftNote.Text = "";
+            SetDraftNote("");
             UpdateTitle();
             UpdateUidStatus();
             UpdateFooterChips();

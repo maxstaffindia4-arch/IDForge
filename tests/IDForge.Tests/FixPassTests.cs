@@ -129,6 +129,16 @@ public class FixPassTests
         }
     }
 
+    private static IEnumerable<Button> FindButtons(DependencyObject root)
+    {
+        foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is Button b) yield return b;
+            if (child is DependencyObject d)
+                foreach (var x in FindButtons(d)) yield return x;
+        }
+    }
+
     private static Color ChipColor(MainWindow w, string name)
         => ((SolidColorBrush)((TextBlock)w.FindName(name)!).Foreground).Color;
 
@@ -333,11 +343,12 @@ public class FixPassTests
                 Assert.Equal(title.Parent, subtitle.Parent);
                 Assert.NotEqual(title.Parent, fit.Parent);
 
-                // Draft note sits on the subtitle line under the page title.
-                var desc = FindTextBlocks(main)
-                    .First(t => t.Text.StartsWith("Fill in the employee"));
+                // Parity plan §5.1: draft note sits in the header button group.
                 var note = (TextBlock)main.FindName("TxtDraftNote")!;
-                Assert.Equal(desc.Parent, note.Parent);
+                var notePanel = (StackPanel)main.FindName("PnlDraftNote")!;
+                Assert.Same(notePanel, note.Parent);
+                var clearBtn = FindButtons(main).First(b => b.Content as string == "Clear form");
+                Assert.Same(clearBtn.Parent, notePanel.Parent);
             }
             finally { main.Close(); }
             return true;

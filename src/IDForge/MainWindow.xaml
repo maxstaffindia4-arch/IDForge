@@ -347,14 +347,167 @@
 
                 <!-- ===== NEW CARD ===== -->
                 <Grid x:Name="PageNewCard">
+                    <Grid.Resources>
+                        <!-- Parity plan §5.2/5.3 — New-card-only styles. SecondaryButton is
+                             re-declared locally (spec values) so the shared theme used by
+                             Batch/Records/Settings is untouched. -->
+                        <Style x:Key="SecondaryButton" TargetType="Button">
+                            <Setter Property="Height" Value="32"/>
+                            <Setter Property="Padding" Value="12,0"/>
+                            <Setter Property="FontSize" Value="13"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bd" CornerRadius="4" BorderThickness="1"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background"
+                                                        Value="{StaticResource SecondaryBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.5"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}"/>
+
+                        <!-- §5.3 field input: 36 px, 4 px radius, 2 px halo on keyboard focus -->
+                        <Style x:Key="FieldInput" TargetType="TextBox">
+                            <Setter Property="Height" Value="36"/>
+                            <Setter Property="Padding" Value="12,0"/>
+                            <Setter Property="FontSize" Value="13"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource InputBrush}"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Grid>
+                                            <Border x:Name="Halo" CornerRadius="6" BorderThickness="2"
+                                                    BorderBrush="{StaticResource PrimaryBrush}"
+                                                    Opacity="0.2" Visibility="Collapsed"/>
+                                            <Border x:Name="Bd" CornerRadius="4"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    Background="{TemplateBinding Background}">
+                                                <ScrollViewer x:Name="PART_ContentHost"
+                                                              Padding="{TemplateBinding Padding}"
+                                                              VerticalContentAlignment="Center"/>
+                                            </Border>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush"
+                                                        Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter TargetName="Halo" Property="Visibility"
+                                                        Value="Visible"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.5"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                        <!-- UID variant: JetBrains Mono, right-side rounding for the
+                             prefix/suffix compound field (no halo on the shared edge). -->
+                        <Style x:Key="FieldInputMono" TargetType="TextBox"
+                               BasedOn="{StaticResource FieldInput}">
+                            <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Grid>
+                                            <Border x:Name="Halo" CornerRadius="0,6,6,0"
+                                                    BorderThickness="0,2,2,2"
+                                                    BorderBrush="{StaticResource PrimaryBrush}"
+                                                    Opacity="0.2" Visibility="Collapsed"/>
+                                            <Border x:Name="Bd" CornerRadius="0,4,4,0"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    Background="{TemplateBinding Background}">
+                                                <ScrollViewer x:Name="PART_ContentHost"
+                                                              Padding="{TemplateBinding Padding}"
+                                                              VerticalContentAlignment="Center"/>
+                                            </Border>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush"
+                                                        Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter TargetName="Halo" Property="Visibility"
+                                                        Value="Visible"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.5"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+
+                        <!-- §5.3 contract segmented control option -->
+                        <Style x:Key="SegOption" TargetType="RadioButton">
+                            <Setter Property="Height" Value="48"/>
+                            <Setter Property="Padding" Value="12,0"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="RadioButton">
+                                        <Border x:Name="Bd" CornerRadius="4" Padding="{TemplateBinding Padding}"
+                                                Background="Transparent">
+                                            <ContentPresenter HorizontalAlignment="Left"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Bd" Property="Background"
+                                                        Value="{StaticResource BackgroundBrush}"/>
+                                                <Setter TargetName="Bd" Property="BorderBrush"
+                                                        Value="{StaticResource BorderBrush}"/>
+                                                <Setter TargetName="Bd" Property="BorderThickness"
+                                                        Value="1"/>
+                                                <Setter TargetName="Bd" Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect Opacity="0.1" BlurRadius="2"
+                                                                          ShadowDepth="1"/>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background"
+                                                        Value="{StaticResource PanelLightBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Grid.Resources>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Page header -->
-                    <Grid Grid.Row="0" Margin="14,10,14,4">
+                    <!-- Page header (§5.1) -->
+                    <Grid Grid.Row="0" Margin="24,20,24,16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -362,14 +515,28 @@
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="New card" FontSize="20" FontWeight="SemiBold"/>
                             <TextBlock Text="Fill in the employee's details, adjust the photo, then issue the card."
-                                       FontSize="12" Foreground="{StaticResource MutedBrush}"
-                                       TextWrapping="Wrap"/>
-                            <TextBlock x:Name="TxtDraftNote" FontSize="11"
-                                       Foreground="{StaticResource MutedBrush}"/>
+                                       FontSize="13" Foreground="{StaticResource MutedBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button Content="Clear form" Click="ClearForm_Click"/>
-                            <Button Content="Save draft  Ctrl+S" Click="SaveDraft_Click" Margin="8,0,0,0"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <StackPanel x:Name="PnlDraftNote" Orientation="Horizontal" Margin="0,0,12,0"
+                                        VerticalAlignment="Center" Visibility="Collapsed">
+                                <TextBlock Text="&#xF0C7;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="11" Foreground="{StaticResource MutedBrush}"
+                                           Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtDraftNote" FontSize="12"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <Button Content="Clear form" Click="ClearForm_Click" Margin="0,0,8,0"/>
+                            <Button Click="SaveDraft_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Save draft"/>
+                                    <TextBlock Text="Ctrl+S" FontSize="11"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
 
@@ -383,57 +550,95 @@
                                 <ColumnDefinition Width="360" MinWidth="300"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- ===== 1 · EMPLOYEE DETAILS ===== -->
+                            <!-- ===== 1 · EMPLOYEE DETAILS (§5.3) ===== -->
                             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="12,0,12,12">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="1 · Employee details" FontSize="14" FontWeight="SemiBold"/>
-                                        <TextBlock x:Name="ChkDetails" Text="  ✓ complete" FontSize="11"
+                                    <!-- Step heading: numbered circle + title + status icon -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <Border Width="20" Height="20" CornerRadius="10"
+                                                Background="{StaticResource PrimaryBrush}">
+                                            <TextBlock Text="1" Foreground="White" FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Text="Employee details" FontSize="14"
+                                                   FontWeight="SemiBold" Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="ChkDetails" Text="&#xF058;"
+                                                   FontFamily="{StaticResource IconFont}"
+                                                   FontSize="14"
                                                    Foreground="{StaticResource SuccessBrush}"
-                                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
                                                    Visibility="Collapsed"/>
                                     </StackPanel>
 
-                                    <TextBlock Margin="0,12,0,2" FontWeight="SemiBold">
-                                        <Run Text="Full name"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    <TextBlock FontSize="12" FontWeight="Medium" Margin="0,0,0,6">
+                                        <Run Text="Full name"/><Run Text=" *"
+                                            Foreground="{StaticResource ErrorBrush}"/>
                                     </TextBlock>
-                                    <TextBox x:Name="TxtName" TextChanged="Field_Changed" MaxLength="40"/>
+                                    <TextBox x:Name="TxtName" Style="{StaticResource FieldInput}"
+                                             TextChanged="Field_Changed" MaxLength="40"/>
                                     <TextBlock x:Name="TxtNameHint" Text="Mixed capitals, check spelling"
                                                FontSize="11" Foreground="{StaticResource WarningBrush}"
                                                Margin="0,2,0,0" Visibility="Collapsed"/>
 
-                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
-                                        <Run Text="Position"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    <TextBlock FontSize="12" FontWeight="Medium"
+                                               Margin="0,16,0,6">
+                                        <Run Text="Position"/><Run Text=" *"
+                                            Foreground="{StaticResource ErrorBrush}"/>
                                     </TextBlock>
-                                    <ComboBox x:Name="CmbPosition" SelectionChanged="Field_Changed"/>
+                                    <ComboBox x:Name="CmbPosition" Height="36"
+                                              SelectionChanged="Field_Changed"/>
 
-                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
-                                        <Run Text="Employee ID"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
-                                    </TextBlock>
-                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                            CornerRadius="6" Background="{StaticResource WhiteBrush}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Border Background="{StaticResource PanelBrush}" Padding="8,0"
-                                                    BorderThickness="0,0,1,0"
-                                                    BorderBrush="{StaticResource BorderBrush}">
-                                                <TextBlock Text="UID" FontSize="12"
-                                                           Foreground="{StaticResource MutedBrush}"
-                                                           VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBox x:Name="TxtUid" Grid.Column="1" BorderThickness="0"
-                                                     Background="Transparent" MaxLength="15" Padding="6,4"
-                                                     PreviewTextInput="Uid_PreviewTextInput"
-                                                     TextChanged="Uid_TextChanged" LostFocus="Uid_LostFocus"
-                                                     ToolTip="Numbers only, 4–15 digits. Don't type UID — it's added to the card for you."/>
-                                        </Grid>
-                                    </Border>
-                                    <TextBlock x:Name="TxtUidCount" Text="0 / 15" FontSize="11"
-                                               Foreground="{StaticResource MutedBrush}"
-                                               HorizontalAlignment="Right" Margin="0,2,0,0"/>
+                                    <!-- Employee ID: label row carries the digit counter -->
+                                    <Grid Margin="0,16,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock FontSize="12" FontWeight="Medium"
+                                                   Margin="0,0,0,6">
+                                            <Run Text="Employee ID"/><Run Text=" *"
+                                                Foreground="{StaticResource ErrorBrush}"/>
+                                        </TextBlock>
+                                        <TextBlock x:Name="TxtUidCount" Grid.Column="1"
+                                                   Text="0 / 15" FontSize="11"
+                                                   Foreground="{StaticResource MutedBrush}"
+                                                   VerticalAlignment="Bottom" Margin="0,0,0,6"/>
+                                    </Grid>
+                                    <Grid Height="36">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="48"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="32"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" CornerRadius="4,0,0,4"
+                                                Background="{StaticResource SecondaryBrush}"
+                                                BorderBrush="{StaticResource InputBrush}"
+                                                BorderThickness="1,1,0,1">
+                                            <TextBlock Text="UID" FontSize="12" FontWeight="Medium"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </Border>
+                                        <TextBox x:Name="TxtUid" Grid.Column="1"
+                                                 Style="{StaticResource FieldInputMono}"
+                                                 MaxLength="15"
+                                                 PreviewTextInput="Uid_PreviewTextInput"
+                                                 TextChanged="Uid_TextChanged"
+                                                 LostFocus="Uid_LostFocus"
+                                                 ToolTip="Numbers only, 4–15 digits. Don't type UID — it's added to the card for you."/>
+                                        <TextBlock x:Name="IcoUidOk" Grid.Column="2" Text="&#xF058;"
+                                                   FontFamily="{StaticResource IconFont}" FontSize="13"
+                                                   Foreground="{StaticResource SuccessBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="Collapsed"/>
+                                    </Grid>
+                                    <TextBlock Text="Numbers only, 4–15 digits. Don't type “UID” — it's added to the card for you."
+                                               FontSize="11" Foreground="{StaticResource MutedBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,0"/>
                                     <TextBlock x:Name="ErrUid" FontSize="11" TextWrapping="Wrap"
                                                Margin="0,2,0,0"/>
                                     <TextBlock x:Name="LnkOpenRecord" FontSize="11" Margin="0,2,0,0"
@@ -442,40 +647,74 @@
                                                    Foreground="{StaticResource PrimaryBrush}">Open record</Hyperlink>
                                     </TextBlock>
 
-                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">Blood group</TextBlock>
-                                    <ComboBox x:Name="CmbBlood" SelectionChanged="Field_Changed"/>
+                                    <!-- Blood group + Print date side by side -->
+                                    <Grid Margin="0,16,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Blood group" FontSize="12"
+                                                       FontWeight="Medium" Margin="0,0,0,6"/>
+                                            <ComboBox x:Name="CmbBlood" Height="36"
+                                                      SelectionChanged="Field_Changed"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock FontSize="12" FontWeight="Medium"
+                                                       Margin="0,0,0,6">
+                                                <Run Text="Print date"/><Run Text=" *"
+                                                    Foreground="{StaticResource ErrorBrush}"/>
+                                            </TextBlock>
+                                            <DatePicker x:Name="DpPrintDate" Height="36"
+                                                        SelectedDateChanged="Field_Changed"/>
+                                        </StackPanel>
+                                    </Grid>
 
-                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
-                                        <Run Text="Print date"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
+                                    <TextBlock FontSize="12" FontWeight="Medium"
+                                               Margin="0,16,0,6">
+                                        <Run Text="Contract type"/><Run Text=" *"
+                                            Foreground="{StaticResource ErrorBrush}"/>
                                     </TextBlock>
-                                    <DatePicker x:Name="DpPrintDate" SelectedDateChanged="Field_Changed"/>
+                                    <Border Background="{StaticResource PanelBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="4">
+                                        <UniformGrid Columns="2">
+                                            <RadioButton x:Name="RadContractPerm" GroupName="Contract"
+                                                         Style="{StaticResource SegOption}" IsChecked="True"
+                                                         Checked="Field_Changed">
+                                                <StackPanel>
+                                                    <TextBlock Text="Permanent" FontSize="13"
+                                                               FontWeight="Medium"/>
+                                                    <TextBlock Text="Valid 12 months" FontSize="11"
+                                                               Foreground="{StaticResource MutedBrush}"/>
+                                                </StackPanel>
+                                            </RadioButton>
+                                            <RadioButton x:Name="RadContractContract" GroupName="Contract"
+                                                         Style="{StaticResource SegOption}"
+                                                         Checked="Field_Changed">
+                                                <StackPanel>
+                                                    <TextBlock Text="Contractual" FontSize="13"
+                                                               FontWeight="Medium"/>
+                                                    <TextBlock Text="Valid 6 months" FontSize="11"
+                                                               Foreground="{StaticResource MutedBrush}"/>
+                                                </StackPanel>
+                                            </RadioButton>
+                                        </UniformGrid>
+                                    </Border>
 
-                                    <TextBlock Margin="0,10,0,2" FontWeight="SemiBold">
-                                        <Run Text="Contract type"/><Run Text="  *" Foreground="{StaticResource ErrorBrush}"/>
-                                    </TextBlock>
-                                    <StackPanel Orientation="Horizontal">
-                                        <RadioButton x:Name="RadContractPerm" GroupName="contract"
-                                                     Style="{StaticResource SegmentedRadio}" IsChecked="True"
-                                                     Checked="Field_Changed">
-                                            <StackPanel>
-                                                <TextBlock Text="Permanent" FontWeight="SemiBold"/>
-                                                <TextBlock Text="Valid 12 months" FontSize="11"
-                                                           Foreground="{StaticResource MutedBrush}"/>
-                                            </StackPanel>
-                                        </RadioButton>
-                                        <RadioButton x:Name="RadContractContract" GroupName="contract"
-                                                     Style="{StaticResource SegmentedRadio}"
-                                                     Checked="Field_Changed">
-                                            <StackPanel>
-                                                <TextBlock Text="Contractual" FontWeight="SemiBold"/>
-                                                <TextBlock Text="Valid 6 months" FontSize="11"
-                                                           Foreground="{StaticResource MutedBrush}"/>
-                                            </StackPanel>
-                                        </RadioButton>
-                                    </StackPanel>
-
-                                    <TextBlock x:Name="TxtValidity" FontSize="12" TextWrapping="Wrap"
-                                               Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"/>
+                                    <!-- Validity box (§5.3) -->
+                                    <Border Margin="0,16,0,0" Background="{StaticResource PanelLightBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="12,10">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xF274;" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14" Foreground="{StaticResource PrimaryBrush}"
+                                                       Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtValidity" FontSize="13"
+                                                       TextWrapping="Wrap"><Run x:Name="RunValidityLead" FontSize="12" Foreground="{StaticResource MutedBrush}"/><Run x:Name="RunValidUntil" FontWeight="SemiBold"/><Run x:Name="RunValiditySep"/><Run x:Name="RunValidMonths" Foreground="{StaticResource MutedBrush}"/></TextBlock>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </ScrollViewer>
 
