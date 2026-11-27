@@ -746,4 +746,82 @@ public class BatchParityTests
             finally { SettleThenClose(win2); }
         });
     }
+
+    [Fact]
+    public void Batch_Footer_StatusBar_And_Responsive()
+    {
+        WpfSta.Run(() =>
+        {
+            // 860x620: footer inside window, progress card stacks review below counts,
+            // status-bar photo progress hidden, footer shot saved.
+            var win = NewShownBatch(860, 620);
+            try
+            {
+                AddRow(win, "75000011", "Nusrat Jahan", "NeedsReview");
+                AddRow(win, "75000012", "Tanvir Hasan", "Failed");
+                win.UpdateBatchSummary();
+                win.UpdateLayout();
+
+                foreach (var name in new[] { "TxtBatchShowing", "PnlStatusPhotos" })
+                {
+                    var el = win.FindName(name) as FrameworkElement;
+                    Assert.True(el != null, $"{name} missing");
+                }
+
+                // Stacked progress card: review panel sits below the counts block.
+                var review = win.FindName("PnlBatchReview") as FrameworkElement;
+                var counts = win.FindName("PnlCountsBlock") as FrameworkElement;
+                Assert.True(review != null && counts != null, "progress card panels missing");
+                var rReview = OnScreenRect(review!, win);
+                var rCounts = OnScreenRect(counts!, win);
+                Assert.True(rReview.Top >= rCounts.Bottom - 1,
+                    $"review should stack below counts at 860: {rReview} vs {rCounts}");
+
+                // Footer: no showing text until a filter/search is active.
+                var showing = win.FindName("TxtBatchShowing") as TextBlock;
+                Assert.Equal("", showing!.Text);
+                var chip = win.FindName("ChkFilterAttention") as RadioButton;
+                chip!.IsChecked = true;
+                win.UpdateLayout();
+                Assert.Contains("Showing 1 of 2", showing.Text);
+                Assert.Contains("Needs attention", chip.Content!.ToString());
+
+                (win.FindName("ChkFilterAll") as RadioButton)!.IsChecked = true;
+                win.UpdateLayout();
+                Assert.Equal("", showing.Text);
+                Directory.CreateDirectory(ShotsDir());
+                SaveWindow(win, Path.Combine(ShotsDir(), "batch-footer-860x620.png"));
+            }
+            finally { SettleThenClose(win); }
+
+            // 1280x800: progress card side-by-side (review right of counts).
+            var win2 = NewShownBatch(1280, 800);
+            try
+            {
+                AddRow(win2, "75000021", "Aisha Rahman", "NeedsReview");
+                win2.UpdateBatchSummary();
+                win2.UpdateLayout();
+                var review2 = win2.FindName("PnlBatchReview") as FrameworkElement;
+                var counts2 = win2.FindName("PnlCountsBlock") as FrameworkElement;
+                var rR = OnScreenRect(review2!, win2);
+                var rC = OnScreenRect(counts2!, win2);
+                Assert.True(rR.Left > rC.Left || rR.Top < rC.Top,
+                    "progress card should be side-by-side at 1280");
+                Assert.True(rR.Top <= rC.Bottom, "review should overlap counts row at 1280");
+            }
+            finally { SettleThenClose(win2); }
+
+            // Status-bar photo progress appears only while preparing.
+            var win3 = NewShownBatch(1280, 800);
+            try
+            {
+                var pnl = win3.FindName("PnlStatusPhotos") as FrameworkElement;
+                var spinner = win3.FindName("TxtStatusSpinner") as FrameworkElement;
+                var txt = win3.FindName("TxtStatusPhotos") as TextBlock;
+                Assert.True(pnl != null && txt != null && spinner != null, "status photo controls missing");
+                Assert.Equal(Visibility.Collapsed, pnl!.Visibility);
+            }
+            finally { SettleThenClose(win3); }
+        });
+    }
 }

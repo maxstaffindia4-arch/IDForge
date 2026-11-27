@@ -1214,6 +1214,8 @@ public partial class MainWindow : Window
     internal void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateNewCardColumns();
+        UpdateBatchToolbarLayout();
+        UpdateBatchProgressLayout();
         if (!_navManual && ActualWidth < 1100 != _navCollapsed)
             SetNavCollapsed(ActualWidth < 1100);
         else
@@ -1470,6 +1472,9 @@ public partial class MainWindow : Window
             else
                 rt.Angle = 0;
         }
+        if (TxtStatusSpinner?.RenderTransform is RotateTransform srt)
+            srt.Angle = PnlStatusPhotos.IsVisible
+                ? (srt.Angle + 36) % 360 : 0;
     }
 
     private static IEnumerable<DependencyObject> VisualDescendants(DependencyObject root)
@@ -3313,6 +3318,19 @@ public partial class MainWindow : Window
         BtnRemoveSelected.IsEnabled = sel > 0;
     }
 
+    /// <summary>§3: below 1100 px the progress card stacks Review under the counts.</summary>
+    private void UpdateBatchProgressLayout()
+    {
+        if (GridBatchProgress == null || PnlBatchReview == null || PnlCountsBlock == null) return;
+        var narrow = ActualWidth < 1100;
+        Grid.SetRow(PnlBatchReview, narrow ? 1 : 0);
+        Grid.SetColumn(PnlBatchReview, narrow ? 0 : 1);
+        Grid.SetColumnSpan(PnlCountsBlock, narrow ? 2 : 1);
+        PnlBatchReview.HorizontalAlignment = narrow
+            ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        PnlBatchReview.Margin = narrow ? new Thickness(0, 10, 0, 0) : new Thickness(16, 0, 0, 0);
+    }
+
     /// <summary>§3: the search box drops below the buttons at narrow widths.</summary>
     private void UpdateBatchToolbarLayout()
     {
@@ -3435,8 +3453,8 @@ public partial class MainWindow : Window
         _batchLog.Add($"Photo processing started {DateTime.Now:yyyy-MM-dd HH:mm:ss} — {withPhoto.Count} rows");
         _batchCts = new CancellationTokenSource();
         BtnPreparePhotos.IsEnabled = false;
-        BtnBatchCancel.IsEnabled = true;
-        BatchProgress.Visibility = Visibility.Visible;
+        PnlStatusPhotos.Visibility = Visibility.Visible;
+        TxtStatusPhotos.Text = $"Preparing photos: 0 of {withPhoto.Count}";
         TxtBatchStatus.Text = $"Preparing photos for {withPhoto.Count} row(s)...";
         try
         {
@@ -3452,8 +3470,7 @@ public partial class MainWindow : Window
         finally
         {
             BtnPreparePhotos.IsEnabled = true;
-            BtnBatchCancel.IsEnabled = false;
-            BatchProgress.Visibility = Visibility.Collapsed;
+            PnlStatusPhotos.Visibility = Visibility.Collapsed;
             WriteBatchLog();
             UpdateBatchSummary();
         }
@@ -3467,12 +3484,7 @@ public partial class MainWindow : Window
         {
             ct.ThrowIfCancellationRequested();
             row.Status = "Processing";
-            if (done > 0)
-            {
-                var avg = sw.Elapsed.TotalSeconds / done;
-                var eta = TimeSpan.FromSeconds(avg * (rows.Count - done));
-                TxtBatchStatus.Text = $"Preparing photos: {done} of {rows.Count}, about {eta.TotalSeconds:F0} seconds left";
-            }
+            TxtStatusPhotos.Text = $"Preparing photos: {done} of {rows.Count}";
             DgBatch.Items.Refresh();
             try
             {
@@ -3512,7 +3524,7 @@ public partial class MainWindow : Window
             }
             PersistBatchRow(row);
             done++;
-            BatchProgress.Value = done * 100.0 / rows.Count;
+            TxtStatusPhotos.Text = $"Preparing photos: {done} of {rows.Count}";
             DgBatch.Items.Refresh();
         }
     }

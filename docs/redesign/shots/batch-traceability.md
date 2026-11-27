@@ -13,11 +13,11 @@ Status: ✅ done · 🚧 in progress · ⬜ not done.
 | D3 | Photo column removed; thumbnail in Employee cell; placeholder opens Browse | `DgBatch` Employee column (`ImgRowThumb`→`Thumb`, red/grey placeholders → `BatchPlaceholder_Click`) | `Batch_Photo_Placeholder_And_Thumbnail`, `Batch_Grid_Columns_Order_Matches_Plan` | batch-grid | ✅ |
 | D4 | Blood group kept as column after Employee ID | `DgBatch` column order (Select, #, Employee, Employee ID, Blood group, …) | `Batch_Grid_Columns_Order_Matches_Plan`, `Blood_Group_Column_Sits_After_Employee_Id` | batch-grid | ✅ |
 | D5 | Chips: All, Needs attention, Ready to review, Issued, Re-issues; All dark when selected (override 6) | `BatchFilterChip` style, `ChkFilter*` radios, `UpdateBatchChips` | `Batch_Chips_Counts_Match_Grid` | batch-toolbar, batch-filter-attention | ✅ |
-| D6 | Grid scrolls, no paging; "Showing N of M" only while filter/search active | `TxtBatchShowing`, `BatchRowFilter`, `TxtBatchSearch`, `UpdateBatchFooter` | `Batch_Chips_Counts_Match_Grid`, `Batch_Search_Filters_Grid_And_CtrlF` | batch-footer | 🚧 |
+| D6 | Grid scrolls, no paging; "Showing N of M" only while filter/search active | `TxtBatchShowing`, `BatchRowFilter`, `TxtBatchSearch`, `UpdateBatchFooter` | `Batch_Chips_Counts_Match_Grid`, `Batch_Search_Filters_Grid_And_CtrlF`, `Batch_Footer_StatusBar_And_Responsive` | batch-footer | ✅ |
 | D7 | Paste/CSV order: Name, Position, Employee ID, Blood, Contract, Print date; CSV photo column after | `BatchValidator.Parse` | `Batch_Paste_Order_And_Csv_Photo` | — (behaviour) | 🚧 |
 | D8 | Batch badge blue when Batch active, grey w/ count otherwise | `UpdateBatchBadge` (existing) | `Nav_Batch_Badge_Blue_When_Active` | batch-header | ✅ exists |
 | D9 | Search "Find name or Employee ID (Ctrl+F)" at right of toolbar | `TxtBatchSearch`, Ctrl+F in `TryHandleShortcut` | `Batch_Search_Filters_Grid_And_CtrlF` | batch-toolbar | ✅ |
-| D10 | Status bar "Preparing photos: N of M" + spinner while processing; cancel beside | `PnlStatusPhotos`, `TxtStatusPhotos`, `BtnCancelPhotos` | `Batch_StatusBar_Photo_Progress` | batch-header (state) | 🚧 |
+| D10 | Status bar "Preparing photos: N of M" + spinner while processing; cancel beside | `PnlStatusPhotos`, `TxtStatusPhotos`, `BtnCancelPhotos`, `TxtStatusSpinner` | `Batch_Footer_StatusBar_And_Responsive` | batch-header (state) | ✅ |
 | D11 | Window title "IDForge — Batch: <name>" | `UpdateWindowTitle` on `ShowArea`/rename | `Batch_Window_Title_Shows_Batch_Name` | — | ✅ |
 | D12 | Re-issue message "Replaces card issued dd/MM/yyyy. New validity until dd/MM/yyyy." | `RefreshBatchDerived` | `Batch_Reissue_Message_Wording` | batch-grid | 🚧 |
 
@@ -33,15 +33,15 @@ Status: ✅ done · 🚧 in progress · ⬜ not done.
 | §2.6 | Columns: Select/#/Employee(star,min220)/EmployeeID 130/Blood 90/Position 200/Contract 120/Print date 110/Card type pill 110/Status pill 130/Message(star,min200); red ID border when invalid | `DgBatch` columns, `GridInput` style, `UidInvalidBrush`, placeholders | `Batch_Grid_Columns_Order_Matches_Plan`, `Batch_Uid_Invalid_Red_Border_And_Message`, `Batch_Photo_Placeholder_And_Thumbnail` | batch-grid | ✅ |
 | §2.7 | Status pills per state (icon+label+colours); card-type pills; processing spinner | inline pill templates, `StatusPill*`/`CardTypePill*` props, `_spinnerTimer`/`SpinBatchIcons` | `Batch_Status_Pills_Per_State` | batch-grid | ✅ |
 | §2.8 | Message column: secondary text, red errors w/ links, re-issue wording, "Duplicate of row N", "Missing: …", empty rows blank | `TxtRowMessage`→Message cell (`MessageBrush`, `ShowAddPhotoLink`→`BatchAddPhotoLink_Click`), `RefreshBatchDerived` | `Batch_Reissue_Message_Shows_Previous_And_New_Dates`, `Batch_Uid_Invalid_Red_Border_And_Message` | batch-grid | ✅ |
-| §2.9 | Footer "Showing N of M · K selected" / tip right; status bar photo progress; "Open output" into Batches menu | `PnlBatchFooter`, `TxtBatchTip`; `BtnOpenOutput` in Batches menu | `Batch_Footer_And_Tip` | batch-footer-860x620 | 🚧 |
+| §2.9 | Footer "Showing N of M · K selected" / tip right; status bar photo progress; "Open output" into Batches menu | footer Grid row 5 (`TxtBatchShowing` + paste-order tip); `PnlStatusPhotos`/`TxtStatusPhotos`/`BtnCancelPhotos`; "Open output folder" item in `BtnBatches_Click` menu | `Batch_Footer_StatusBar_And_Responsive`, `Batch_Toolbar_And_Filter_Screenshots` | batch-footer-860x620 | ✅ |
 
 ## Responsive (§3)
 
 | Rule | Implementation | Test | Shot | Status |
 |---|---|---|---|---|
-| Min 860×620; grid only sideways scroller | `MinWidth=1080` inside border | bounds tests @860 | batch-header-860x620, batch-footer-860x620 | 🚧 |
+| Min 860×620; grid only sideways scroller | `MinWidth=1080` inside border | bounds tests @860 | batch-header-860x620, batch-footer-860x620 | ✅ |
 | Toolbar wraps before clipping; search drops below | `WrapPanel` toolbar (`PnlBatchButtons`, `PnlBatchSearch` Grid row) | `Batch_Toolbar_And_Chips_Inside_Window_At_All_Sizes` | batch-toolbar | ✅ |
-| Progress card stacks Review under counts <1100px | `UpdateProgressLayout` size handler | `Batch_Progress_Stacks_Under_1100` | batch-header-860x620 | 🚧 |
+| Progress card stacks Review under counts <1100px | `UpdateBatchProgressLayout` size handler | `Batch_Footer_StatusBar_And_Responsive` | batch-header-860x620, batch-footer-860x620 | ✅ |
 | Status bar version+About at every size | existing shell | existing tests | all shots | ✅ |
 
 ## Overrides (prompt)
@@ -70,7 +70,7 @@ Status: ✅ done · 🚧 in progress · ⬜ not done.
 | Ctrl+F search | `TryHandleShortcut` Ctrl+F → `TxtBatchSearch.Focus()` | `Batch_Search_Filters_Grid_And_CtrlF` | ✅ |
 | Batch badge blue when active | `UpdateBatchBadge` | `Nav_Batch_Badge_*` | ✅ |
 | Window title | `UpdateWindowTitle`/`UpdateTitle` on `ShowArea`/rename | `Batch_Window_Title_Shows_Batch_Name` | ✅ |
-| Status bar photo progress | `PnlStatusPhotos` | `Batch_StatusBar_Photo_Progress` | 🚧 |
+| Status bar photo progress | `PnlStatusPhotos`, `TxtStatusPhotos`, `BtnCancelPhotos`, `TxtStatusSpinner` | `Batch_Footer_StatusBar_And_Responsive` | ✅ |
 | "Showing N of M" only when filtered | `UpdateBatchFooter` (`TxtBatchShowing`, selected count) | `Batch_Chips_Counts_Match_Grid` | ✅ (filter part; selected-count text Part D) |
 | Grid scrolls not pages | DataGrid + `ScrollViewer.HorizontalScrollBarVisibility=Auto`, MinWidth 1080 | `Batch_Grid_Columns_Order_Matches_Plan` | ✅ |
 
@@ -83,7 +83,7 @@ Status: ✅ done · 🚧 in progress · ⬜ not done.
 | batch-toolbar-1280x800.png | toolbar+chips+search | ✅ |
 | batch-grid-1280x800.png | grid/pills/thumbs/messages | ✅ |
 | batch-grid-1100x700.png | grid at mid width | ✅ |
-| batch-footer-860x620.png | footer/status bar | ⬜ |
+| batch-footer-860x620.png | footer/status bar | ✅ |
 | batch-locked-1280x800.png | Issue batch locked + hint | ⬜ |
 | batch-unlocked-1280x800.png | Issue batch enabled | ⬜ |
 | batch-filter-attention-1280x800.png | Needs attention chip + Showing N of M | ✅ |
