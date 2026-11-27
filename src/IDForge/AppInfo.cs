@@ -18,7 +18,11 @@ public static class AppInfo
             var info = asm.GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), false)
                 is AssemblyInformationalVersionAttribute[] attrs && attrs.Length > 0
                 ? attrs[0].InformationalVersion : null;
-            return info ?? asm.GetName().Version?.ToString(3) ?? "?";
+            var v = info ?? asm.GetName().Version?.ToString(3) ?? "?";
+            // Displayed version is one number — drop the "+commit" metadata
+            // the SDK appends to InformationalVersion.
+            var plus = v.IndexOf('+');
+            return plus >= 0 ? v[..plus] : v;
         }
     }
 }

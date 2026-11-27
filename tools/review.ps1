@@ -105,3 +105,12 @@ if ($LASTEXITCODE -ne 0) {
 $exe = Join-Path $root "publish\idforge\IDForge.exe"
 Write-Host "Launching $exe" -ForegroundColor Green
 Start-Process $exe
+
+# NAV RAIL check: capture the LIVE window (not a test render) and prove the
+# left strip contains the rail — fails the run if the rail looks empty.
+Start-Sleep -Seconds 8
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "capture-live-shot.ps1") -OutDir $shotsDir
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "LIVE WINDOW CHECK FAILED - see output above." -ForegroundColor Red
+    exit $LASTEXITCODE
+}

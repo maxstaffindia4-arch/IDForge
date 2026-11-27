@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -344,6 +345,87 @@ public class NewCardParityTests
                 SaveWindow(win2, Path.Combine(dir, "nav-collapsed-860x620.png"));
             }
             finally { SettleThenClose(win2); }
+        });
+    }
+
+    /// <summary>FIX 3 regression: run the SAME startup path as the live app
+    /// (new MainWindow → Show, no test-only resize) and assert the rail's
+    /// on-screen rectangle is real and does not overlap the pages. This is
+    /// the check that must fail if the rail ever renders as an empty column.</summary>
+    [Fact]
+    public void Nav_Rail_Visible_On_Live_Startup_Path()
+    {
+        WpfSta.Run(() =>
+        {
+            WpfTestHost.EnsureApp();
+            MainWindow.SkipResumePrompt = true;
+            var win = new MainWindow();
+            win.Show();
+            for (int i = 0; i < 30; i++)
+            {
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Loaded);
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Render);
+            }
+            win.UpdateLayout();
+            try
+            {
+                var nav = (FrameworkElement)win.FindName("NavCol")!;
+                var pages = (FrameworkElement)win.FindName("PagesHost")!;
+
+                var navRect = BoundsIn(nav, win);
+                Assert.True(navRect.Width >= 56 - 0.5,
+                    $"rail on-screen width {navRect.Width:F1} < 56 (empty-column bug)");
+                Assert.True(navRect.Height > 0,
+                    $"rail on-screen height {navRect.Height:F1} <= 0");
+                Assert.True(navRect.Left >= -0.5 && navRect.Top >= -0.5,
+                    $"rail rect {navRect} starts off-window");
+                Assert.True(navRect.Right <= win.ActualWidth + 0.5,
+                    $"rail rect {navRect} extends past window {win.ActualWidth:F0}");
+
+                var pagesRect = BoundsIn(pages, win);
+                // Pages must not slide under the rail: page left edge is at or
+                // right of the rail's right edge (overlay only when expanded
+                // below 1100 px — then rail still wins via ZIndex).
+                Assert.True(pagesRect.Left >= navRect.Right - 0.5 ||
+                            win.TestNavCollapsed == false && win.ActualWidth < 1100,
+                    $"pages {pagesRect.Left:F1} overlap rail right {navRect.Right:F1}");
+
+                // Rail content is actually populated, not a blank strip.
+                var labels = new[] { "NavLblNewCard", "NavLblBatch",
+                    "NavLblRecords", "NavLblSettings", "NavHelp", "NavAbout" };
+                var anyVisible = labels.Any(n =>
+                {
+                    var fe = win.FindName(n) as FrameworkElement;
+                    return fe != null && fe.IsVisible &&
+                           BoundsIn(fe, win).Width > 0;
+                });
+                Assert.True(anyVisible, "no rail labels/actions visible — empty column");
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    /// <summary>FIX 3: Records page with the rail visible at 1280×800.</summary>
+    [Fact]
+    public void Records_Page_Nav_Rail_Screenshot()
+    {
+        WpfSta.Run(() =>
+        {
+            var dir = ShotsDir();
+            Directory.CreateDirectory(dir);
+            var win = NewShownNewCard(1280, 800);
+            try
+            {
+                win.ShowArea("records");
+                for (int i = 0; i < 10; i++)
+                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Loaded);
+                win.UpdateLayout();
+                var nav = (FrameworkElement)win.FindName("NavCol")!;
+                Assert.True(BoundsIn(nav, win).Width >= 56 - 0.5,
+                    "rail missing on Records page");
+                SaveWindow(win, Path.Combine(dir, "records-nav-1280x800.png"));
+            }
+            finally { SettleThenClose(win); }
         });
     }
 
