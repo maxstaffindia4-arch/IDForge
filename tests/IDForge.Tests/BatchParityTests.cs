@@ -413,7 +413,7 @@ public class BatchParityTests
                 Assert.Equal(before + 2, win.BatchRows.Count);
 
                 // Ctrl+V with empty clipboard shows info, not crash — give it rows
-                System.Windows.Clipboard.SetText("Paste Name,Pos,77000099,O+,JE,N/A,Permanent,01/12/2026");
+                System.Windows.Clipboard.SetText("Paste Name,JE,77000099,O+,Permanent,01/12/2026");
                 Assert.True(win.TryHandleShortcut(System.Windows.Input.Key.V,
                     System.Windows.Input.ModifierKeys.Control));
                 Assert.Equal(before + 3, win.BatchRows.Count);
@@ -822,6 +822,141 @@ public class BatchParityTests
                 Assert.Equal(Visibility.Collapsed, pnl!.Visibility);
             }
             finally { SettleThenClose(win3); }
+        });
+    }
+
+    // ---------------- Part E: behaviour ----------------
+
+    [Fact]
+    public void Batch_Paste_Order_Name_Position_Uid_Blood_Contract_Date_Photo()
+    {
+        // Decision 7: Name, Position, Employee ID, Blood group, Contract,
+        // Print date; CSV photo column after.
+        var rows = MainWindow.ParseRows(
+            "Aisha Rahman,JE,77000099,O+,Permanent,01/12/2026,C:\\photos\\a.png\n" +
+            "Karim Uddin,Manager,77000098,A+,Contractual,2026-12-01,");
+        Assert.Equal(2, rows.Count);
+        var r = rows[0];
+        Assert.Equal("Aisha Rahman", r.Name);
+        Assert.Equal("JE", r.Position);
+        Assert.Equal("77000099", r.Uid);
+        Assert.Equal("O+", r.Blood);
+        Assert.Equal("Permanent", r.Contract);
+        Assert.Equal("01/12/2026", r.PrintDateText);
+        Assert.Equal("C:\\photos\\a.png", r.PhotoPath);
+        Assert.Equal("", rows[1].PhotoPath ?? "");
+    }
+
+    [Fact]
+    public void Batch_Issue_Only_From_Header_And_Review()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            ReviewWindow? review = null;
+            try
+            {
+                AddRow(win, "76000001", "Issue Path", "NeedsReview");
+                win.UpdateBatchSummary();
+                // No issue control inside the grid or the footer.
+                foreach (var b in VisualDescendants(Find<DataGrid>(win, "DgBatch")).OfType<Button>())
+                    Assert.DoesNotContain("Issue", b.Content?.ToString() ?? "");
+                // Review exposes exactly the two issue actions (override 5).
+                review = new ReviewWindow(win, win.BatchRows);
+                Assert.NotNull(review.FindName("BtnIssueThis"));
+                Assert.NotNull(review.FindName("BtnApproveNext"));
+            }
+            finally { review?.Close(); SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task Batch_Issue_Batch_Gate_And_Transaction()
+    {
+        await WpfSta.RunAsync(async () =>
+        {
+            var win = NewShownBatch(1280, 800);
+            string? confirmHeading = null; int confirmCalls = 0;
+            string? resultHeading = null; string? resultBody = null;
+            MainWindow.BatchIssueConfirmOverride = (_, _, heading, _, _) =>
+            { confirmCalls++; confirmHeading = heading; return true; };
+            MainWindow.BatchIssueResultOverride = (h, b) => { resultHeading = h; resultBody = b; };
+            try
+            {
+                var a = AddRow(win, "76000011", "Approve One", "NeedsReview");
+                a.Position = "Manager"; a.Blood = "O+";   // valid fields; only the photo is missing
+                var b = AddRow(win, "76000012", "Skip Two", "NeedsReview");
+                AddRow(win, "76000013", "Done Three", "Issued");
+                win.UpdateBatchSummary();
+
+                // Locked: two rows need a decision, hint explains.
+                Assert.False(win.FindName("BtnIssueBatch") is Button { IsEnabled: true });
+                var btn = (Button)win.FindName("BtnIssueBatch")!;
+                Assert.False(btn.IsEnabled);
+                Assert.Equal("Approve or skip 2 more to unlock",
+                    ((TextBlock)win.FindName("TxtIssueBatchHint")!).Text);
+                Assert.Equal("0", ((TextBlock)win.FindName("TxtIssueBatchN")!).Text);
+
+                // Approve one, skip one -> unlocked with count 1.
+                a.Approved = true;
+                b.Status = "Skipped";
+                win.UpdateBatchSummary();
+                Assert.True(btn.IsEnabled);
+                Assert.Equal("1", ((TextBlock)win.FindName("TxtIssueBatchN")!).Text);
+                Assert.Equal("", ((TextBlock)win.FindName("TxtIssueBatchHint")!).Text);
+                Assert.Single(win.IssueBatchTargets());
+                Assert.Equal(0, win.IssueBatchPendingCount());
+
+                // Issue path runs once confirmed; row has no processed photo so
+                // it fails validation and lands as Failed — nothing issued.
+                await win.IssueApprovedRowsAsync();
+                Assert.Equal(1, confirmCalls);
+                Assert.Contains("Issue 1 card", confirmHeading);
+                Assert.Equal("Failed", a.Status);
+                Assert.Contains("photo", a.Error);
+                Assert.Equal(0, a.AttemptCount);
+                Assert.NotNull(resultHeading);
+                Assert.Contains("Issued 0 of 1", resultBody);
+
+                // Declined confirm -> nothing happens at all.
+                a.Status = "NeedsReview"; a.Error = ""; a.AttemptCount = 0;
+                win.UpdateBatchSummary();
+                MainWindow.BatchIssueConfirmOverride = (_, _, _, _, _) => false;
+                await win.IssueApprovedRowsAsync();
+                Assert.Equal("NeedsReview", a.Status);
+            }
+            finally
+            {
+                MainWindow.BatchIssueConfirmOverride = null;
+                MainWindow.BatchIssueResultOverride = null;
+                SettleThenClose(win);
+            }
+        });
+    }
+
+    [Fact]
+    public void Batch_Issue_States_Screenshots()
+    {
+        WpfSta.Run(() =>
+        {
+            Directory.CreateDirectory(ShotsDir());
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                AddRow(win, "77000001", "Aisha Rahman", "NeedsReview");
+                AddRow(win, "77000002", "Karim Uddin", "NeedsReview");
+                AddRow(win, "77000003", "Fatema Khan", "Issued");
+                win.UpdateBatchSummary();
+                win.UpdateLayout();
+                SaveWindow(win, Path.Combine(ShotsDir(), "batch-locked-1280x800.png"));
+
+                win.BatchRows[0].Approved = true;
+                win.BatchRows[1].Status = "Skipped";
+                win.UpdateBatchSummary();
+                win.UpdateLayout();
+                SaveWindow(win, Path.Combine(ShotsDir(), "batch-unlocked-1280x800.png"));
+            }
+            finally { SettleThenClose(win); }
         });
     }
 }

@@ -19,12 +19,15 @@ public static class BatchValidator
             var sep = line.Contains('\t') ? '\t' : ',';
             var p = line.Split(sep).Select(s => s.Trim().Trim('"')).ToArray();
             if (p.Length == 0) continue;
-            if (p[0].Equals("uid", StringComparison.OrdinalIgnoreCase)) continue; // header
+            // Paste/CSV order (decision 7): Name, Position, Employee ID,
+            // Blood group, Contract, Print date; CSV adds a photo column after.
+            if (p[0].Equals("name", StringComparison.OrdinalIgnoreCase)
+                || p[0].Equals("uid", StringComparison.OrdinalIgnoreCase)) continue; // header
             rows.Add(new BatchRowData(
-                Uid.Normalize(p.ElementAtOrDefault(0) ?? "") ?? "",
+                Uid.Normalize(p.ElementAtOrDefault(2) ?? "") ?? "",
+                p.ElementAtOrDefault(0) ?? "",
+                p.ElementAtOrDefault(3) is { Length: > 0 } b ? b : "N/A",
                 p.ElementAtOrDefault(1) ?? "",
-                p.ElementAtOrDefault(2) is { Length: > 0 } b ? b : "N/A",
-                p.ElementAtOrDefault(3) ?? "",
                 p.ElementAtOrDefault(4) is { Length: > 0 } c ? c : "Permanent",
                 p.ElementAtOrDefault(5) is { Length: > 0 } pd ? pd : "",
                 p.ElementAtOrDefault(6) is { Length: > 0 } ph ? ph : null));

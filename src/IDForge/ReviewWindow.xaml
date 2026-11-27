@@ -103,7 +103,8 @@
                     <Button Content="◄ Previous" Click="Prev_Click" Margin="4"/>
                     <Button Content="Save draft" Click="SaveDraft_Click" Margin="4"/>
                     <Button Content="Skip" Click="Skip_Click" Margin="4"/>
-                    <Button Content="Approve &amp; Issue" x:Name="BtnApproveIssue" Style="{StaticResource PrimaryButton}" Click="ApproveIssue_Click" Margin="4"/>
+                    <Button Content="Approve &amp; next" x:Name="BtnApproveNext" Click="ApproveNext_Click" Margin="4"/>
+                    <Button Content="Issue this card" x:Name="BtnIssueThis" Style="{StaticResource PrimaryButton}" Click="IssueThis_Click" Margin="4"/>
                     <Button Content="Next ►" Click="Next_Click" Margin="4"/>
                     <TextBlock Text="Issue options (confirm before issue, PDF) are set in Settings on the main window."
                                FontSize="11" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"

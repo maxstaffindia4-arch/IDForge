@@ -206,7 +206,7 @@ public partial class ReviewWindow : Window
         if (e.OriginalSource is TextBoxBase or ComboBox or DatePicker or Slider or Button) return;
         if (e.Key == Key.Left) { Move(-1); e.Handled = true; }
         else if (e.Key == Key.Right) { Move(1); e.Handled = true; }
-        else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control) { ApproveIssue_Click(this, e); e.Handled = true; }
+        else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control) { IssueThis_Click(this, e); e.Handled = true; }
     }
 
     protected override void OnClosed(EventArgs e)
@@ -587,8 +587,28 @@ public partial class ReviewWindow : Window
     private bool ShowIssueSuccess(BatchRow row, IDForge.Core.Issuing.IssueOutcome outcome, DateOnly validUntil)
         => IssueDialogs.ShowIssueResult(this, row.Uid, validUntil, outcome.PngPath, outcome.PdfPath);
 
-    /// <summary>Approves and issues the current row in one step (same issue path as Batch).</summary>
-    private async void ApproveIssue_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// "Approve &amp; next" (override 5): marks the row approved for the batch
+    /// issue without issuing it, then moves to the next row. Approval persists
+    /// on the batch row so the header Issue batch gate can count it.
+    /// </summary>
+    private void ApproveNext_Click(object sender, RoutedEventArgs e)
+    {
+        if (_current == null) return;
+        SyncFormToRow();
+        var row = _current;
+        if (row.Status == "Issued") { TxtStatus.Text = $"{rowLabel(row)} already issued."; return; }
+        if (row.Status == "Skipped") { TxtStatus.Text = $"{rowLabel(row)} is skipped."; Move(1); return; }
+        row.Approved = true;
+        _owner.PersistBatchRow(row);
+        _owner.UpdateBatchSummary();
+        TxtStatus.Text = $"Approved {rowLabel(row)} — issue later with Issue batch.";
+        Move(1);
+    }
+
+    /// <summary>"Issue this card" — issues the current row through the single
+    /// issue path with the per-row confirm (Ctrl+Enter).</summary>
+    private async void IssueThis_Click(object sender, RoutedEventArgs e)
     {
         if (_current == null) return;
         SyncFormToRow();
@@ -596,10 +616,10 @@ public partial class ReviewWindow : Window
         var row = _current;
         if (row.Status == "Issued") { TxtStatus.Text = $"{rowLabel(row)} already issued."; return; }
 
-        BtnApproveIssue.IsEnabled = false;
+        BtnIssueThis.IsEnabled = false;
         TxtStatus.Text = "Issuing...";
         try { await IssueRowAsync(row, confirm: true, quiet: false); }
-        finally { BtnApproveIssue.IsEnabled = true; }
+        finally { BtnIssueThis.IsEnabled = true; }
     }
 
     // Issue-option checkboxes removed in Phase 2 — settings live on the main window.

@@ -1177,6 +1177,23 @@
                             <TextBlock x:Name="TxtBatchCounts" Visibility="Collapsed"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Button x:Name="BtnIssueBatch" Style="{StaticResource PrimaryButton}"
+                                        Click="BtnIssueBatch_Click" Margin="0,0,0,2">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xF02F;" FontFamily="{StaticResource IconFont}"
+                                                   Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Issue batch (" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtIssueBatchN" Text="0" VerticalAlignment="Center"/>
+                                        <TextBlock Text=")" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Ctrl+Shift+I" FontSize="11" FontWeight="Normal"
+                                                   Opacity="0.8" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock x:Name="TxtIssueBatchHint" FontSize="11"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           HorizontalAlignment="Right" TextWrapping="Wrap"/>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,12,0" VerticalAlignment="Center">
                                 <TextBlock Text="&#xF0C7;" FontFamily="{StaticResource IconFont}" FontSize="11"
                                            Foreground="{StaticResource MutedBrush}" Margin="0,0,6,0"/>

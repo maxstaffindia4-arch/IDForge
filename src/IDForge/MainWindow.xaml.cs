@@ -220,10 +220,14 @@ public partial class MainWindow : Window
                 row.PhotoPath, row.BgMode, row.Zoom, row.OffsetX, row.OffsetY,
                 row.AutoScale, row.AutoOffsetX, row.AutoOffsetY)
             : null;
+        // Re-issue rows target an existing employee on purpose; RequireNewUid
+        // only guards rows that are meant to be new cards.
+        var isReissue = row.Uid != null
+            && _svc.Store.FindEmployeeByUid(Core.Uid.Normalize(row.Uid) ?? row.Uid) != null;
         var req = new IDForge.Core.Issuing.IssueRequest(
             row.Uid, row.Name, row.Blood, row.Position, row.Contract,
             row.PrintDate, row.Cutout, t, issueKey,
-            Detail: $"Batch row {row.RowId}", RequireNewUid: true,
+            Detail: $"Batch row {row.RowId}", RequireNewUid: !isReissue,
             IncludePdf: AppSettings.IncludePdf, PhotoInfo: photoInfo);
         return await Task.Run(() => new IDForge.Core.Issuing.CardIssuer(_svc.Store, AppSettings.SaveFolder).Issue(req));
     }
@@ -1358,7 +1362,9 @@ public partial class MainWindow : Window
             case Key.V when _area == "batch" && !shift:
                 if (!BatchEditFocus()) BatchPaste_Click(this, null!); break;
             case Key.R when _area == "batch" && !shift:
-                BatchReview_Click(this, null!); break;
+                if (BtnReview.IsEnabled) BatchReview_Click(this, null!); break;
+            case Key.I when _area == "batch" && shift:
+                if (BtnIssueBatch.IsEnabled) BtnIssueBatch_Click(this, null!); break;
             case Key.P when _area == "records" && !shift:
                 if (BtnReprint.IsEnabled) Reprint_Click(this, null!); break;
             case Key.R when _area == "records" && shift:
@@ -2909,7 +2915,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Parses pasted/imported text into rows. TSV or CSV, optional header.</summary>
-    private static List<BatchRow> ParseRows(string text, string? baseDir = null)
+    internal static List<BatchRow> ParseRows(string text, string? baseDir = null)
     {
         var data = BatchValidator.Parse(text);
         if (baseDir != null) BatchValidator.ResolvePaths(data, baseDir);
@@ -2947,9 +2953,9 @@ public partial class MainWindow : Window
     {
         var dlg = new SaveFileDialog { Filter = "CSV|*.csv", FileName = "batch_rows.csv" };
         if (dlg.ShowDialog() != true) return;
-        var sb = new StringBuilder("UID,Name,BloodGroup,Position,ContractType,PrintDate,PhotoPath,Status\n");
+        var sb = new StringBuilder("Name,Position,EmployeeID,BloodGroup,ContractType,PrintDate,PhotoPath,Status\n");
         foreach (var r in _batchRows)
-            sb.AppendLine(string.Join(",", new[] { r.Uid, r.Name, r.Blood, r.Position, r.Contract, r.PrintDateText, r.PhotoPath ?? "", r.Status }
+            sb.AppendLine(string.Join(",", new[] { r.Name, r.Position, r.Uid, r.Blood, r.Contract, r.PrintDateText, r.PhotoPath ?? "", r.Status }
                 .Select(s => s.Contains(',') || s.Contains('"') ? "\"" + s.Replace("\"", "\"\"") + "\"" : s)));
         File.WriteAllText(dlg.FileName, sb.ToString());
         TxtBatchStatus.Text = $"Exported {_batchRows.Count} row(s) to {dlg.FileName}.";
@@ -3088,6 +3094,7 @@ public partial class MainWindow : Window
         RefreshBatchThumbs();
         RefreshBatchDerived();
         UpdateReviewButton();
+        UpdateIssueBatchButton();
         // Auto-complete the session when every content row reached a terminal state.
         if (_batchSessionId != 0 && active.Count > 0 &&
             active.All(r => r.Status is "Issued" or "Skipped"))
@@ -3395,6 +3402,135 @@ public partial class MainWindow : Window
             : _batchRows.Count == 0 ? "Add rows to begin" : "No rows to review";
 
         static bool NeedsReview(BatchRow r) => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto";
+    }
+
+    // ---- issue batch (override 5) ----
+
+    private bool _batchIssuing;
+
+    /// <summary>Test hooks: replace the modal confirm/result dialogs.</summary>
+    internal static Func<Window, string, string, string, string, bool>? BatchIssueConfirmOverride;
+    internal static Action<string, string>? BatchIssueResultOverride;
+
+    /// <summary>Rows the batch issue will pick up: content rows approved in
+    /// Review that have not reached a terminal state yet.</summary>
+    internal List<BatchRow> IssueBatchTargets() => _batchRows
+        .Where(r => BatchRowHasContent(r) && r.Approved
+            && r.Status is not ("Issued" or "Skipped"))
+        .ToList();
+
+    /// <summary>Content rows still needing a decision before Issue batch unlocks.</summary>
+    internal int IssueBatchPendingCount() => _batchRows.Count(r =>
+        BatchRowHasContent(r) && r.Status is not ("Issued" or "Skipped") && !r.Approved);
+
+    /// <summary>Override 5 gate: enabled only when every content row is approved
+    /// or skipped (issued rows are already done). Hint explains the lock.</summary>
+    private void UpdateIssueBatchButton()
+    {
+        if (BtnIssueBatch == null) return;
+        var targets = IssueBatchTargets().Count;
+        var pending = IssueBatchPendingCount();
+        BtnIssueBatch.IsEnabled = !_batchIssuing && targets > 0 && pending == 0;
+        TxtIssueBatchN.Text = targets.ToString();
+        TxtIssueBatchHint.Text = pending > 0
+            ? $"Approve or skip {pending} more to unlock"
+            : targets == 0 ? "Approve rows in Review to enable" : "";
+        BtnIssueBatch.ToolTip = TxtIssueBatchHint.Text;
+    }
+
+    private async void BtnIssueBatch_Click(object sender, RoutedEventArgs e)
+        => await IssueApprovedRowsAsync();
+
+    /// <summary>
+    /// Issues every approved row through the single issue path, one confirmation
+    /// up front (override 5). Each row still commits in its own DB transaction —
+    /// a failure marks that row Failed and the rest continue.
+    /// </summary>
+    internal async Task IssueApprovedRowsAsync()
+    {
+        var targets = IssueBatchTargets();
+        if (targets.Count == 0 || _batchIssuing) return;
+        var list = string.Join("\n", targets.Take(8).Select(r =>
+            $"• {(string.IsNullOrWhiteSpace(r.Name) ? r.Uid : $"{r.Name} ({r.Uid})")}"))
+            + (targets.Count > 8 ? $"\n… and {targets.Count - 8} more" : "");
+        var confirmed = BatchIssueConfirmOverride?.Invoke(this, "Issue batch",
+            $"Issue {targets.Count} card{(targets.Count == 1 ? "" : "s")} at once?",
+            $"Approved rows will be issued:\n{list}\n\nRows that fail stay in the batch as Failed.",
+            "Issue batch")
+            ?? IDForge.Dialogs.AppDialog.Confirm(this, "Issue batch",
+                $"Issue {targets.Count} card{(targets.Count == 1 ? "" : "s")} at once?",
+                $"Approved rows will be issued:\n{list}\n\nRows that fail stay in the batch as Failed.",
+                "Issue batch");
+        if (!confirmed) return;
+        if (!EnsureIssueOutputFolder(this)) return;
+
+        _batchIssuing = true;
+        UpdateIssueBatchButton();
+        var issued = 0;
+        var failures = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var row in targets)
+            {
+                var err = ValidateBatchRow(row, seen);
+                if (err == null && row.Cutout == null)
+                    err = "photo not processed";
+                if (err != null)
+                {
+                    row.Status = "Failed"; row.Error = err;
+                    PersistBatchRow(row);
+                    failures.Add($"{(string.IsNullOrWhiteSpace(row.Name) ? row.Uid : row.Name)}: {err}");
+                    continue;
+                }
+                row.AttemptCount++;
+                PersistBatchRow(row);   // stable RowId/attempt for the idempotency key
+                var key = $"batchrow:{row.RowId}:attempt:{row.AttemptCount}";
+                var outcome = await IssueBatchRowAsync(row, key);
+                if (outcome.Success)
+                {
+                    row.Status = "Issued"; row.Error = "";
+                    row.CardIssueId = outcome.Issue?.Id;
+                    row.Approved = false;   // consumed
+                    issued++;
+                }
+                else
+                {
+                    row.Status = "Failed";
+                    row.Error = outcome.Error ?? "unknown";
+                    failures.Add($"{(string.IsNullOrWhiteSpace(row.Name) ? row.Uid : row.Name)}: {outcome.Error ?? "unknown"}");
+                }
+                PersistBatchRow(row);
+                DgBatch.Items.Refresh();
+                UpdateProgressCard(_batchRows.Where(BatchRowHasContent).ToList());
+            }
+        }
+        finally
+        {
+            _batchIssuing = false;
+            UpdateBatchSummary();
+            UpdateIssueBatchButton();
+        }
+        RefreshRecordsPublic();
+        if (BatchIssueResultOverride != null)
+        {
+            BatchIssueResultOverride(
+                failures.Count == 0 ? "Batch issued" : "Batch issued",
+                failures.Count == 0
+                    ? $"Issued {issued} card{(issued == 1 ? "" : "s")}."
+                    : $"Issued {issued} of {targets.Count} card{(targets.Count == 1 ? "" : "s")}.\n" +
+                      string.Join("\n", failures.Take(10)));
+            return;
+        }
+        if (failures.Count == 0)
+            IDForge.Dialogs.AppDialog.Info(this, "Batch issued",
+                $"Issued {issued} card{(issued == 1 ? "" : "s")}.",
+                "All approved rows were issued.");
+        else
+            IDForge.Dialogs.AppDialog.Info(this, "Batch issued",
+                $"Issued {issued} of {targets.Count} card{(targets.Count == 1 ? "" : "s")}.",
+                string.Join("\n", failures.Take(10)) +
+                (failures.Count > 10 ? $"\n… and {failures.Count - 10} more" : ""));
     }
 
     // ---- process photos stage (no approval, no issuing) ----

@@ -171,11 +171,14 @@ public class BatchTests
     [Fact]
     public void Parse_Tsv_And_Csv_With_And_Without_Header()
     {
-        var tsv = "20250101\tAlice\tA+\tNurse\tContractual\t2026-01-01\tC:\\p1.png\n" +
-                  "UID20250102,Bob,B+,Doctor,Permanent,,C:\\p2.png";
+        // Paste order (decision 7): Name, Position, Employee ID, Blood, Contract, Print date, Photo.
+        var tsv = "Alice\tNurse\t20250101\tA+\tContractual\t2026-01-01\tC:\\p1.png\n" +
+                  "Bob,Doctor,UID20250102,B+,Permanent,,C:\\p2.png";
         var rows = BatchValidator.Parse(tsv);
         Assert.Equal(2, rows.Count);
         Assert.Equal("20250101", rows[0].Uid);
+        Assert.Equal("Alice", rows[0].Name);
+        Assert.Equal("Nurse", rows[0].Position);
         Assert.Equal("2026-01-01", rows[0].PrintDateText);
         Assert.Equal("20250102", rows[1].Uid);   // "UID" prefix stripped
         Assert.Equal("C:\\p2.png", rows[1].PhotoPath);
@@ -184,7 +187,7 @@ public class BatchTests
     [Fact]
     public void Parse_Skips_Header_Row()
     {
-        var rows = BatchValidator.Parse("uid,name,blood,position,contract,printdate,photo\n20250103,Alice,A+,Nurse,Permanent,,,p.png");
+        var rows = BatchValidator.Parse("name,position,employeeid,bloodgroup,contracttype,printdate,photopath\nAlice,Nurse,20250103,A+,Permanent,,,p.png");
         Assert.Single(rows);
         Assert.Equal("20250103", rows[0].Uid);
     }
@@ -224,14 +227,14 @@ public class BatchTests
         // depend only on the CSV folder, never on Environment.CurrentDirectory.
         var csvDir = Path.Combine(Path.GetTempPath(), "csvdir-" + Guid.NewGuid().ToString("N")[..8]);
         var rows = BatchValidator.Parse(
-            "20250101,Alice,A+,Nurse,Permanent,2026-01-01,photos\\p1.png\n" +
-            "20250102,Bob,B+,Doctor,Permanent,2026-01-01," + csvDir + "\\abs.png");
+            "Alice,Nurse,20250101,A+,Permanent,2026-01-01,photos\\p1.png\n" +
+            "Bob,Doctor,20250102,B+,Permanent,2026-01-01," + csvDir + "\\abs.png");
         BatchValidator.ResolvePaths(rows, csvDir);
 
         Assert.Equal(Path.GetFullPath(Path.Combine(csvDir, "photos", "p1.png")), rows[0].PhotoPath);
         Assert.True(Path.IsPathRooted(rows[0].PhotoPath));
         Assert.Equal(Path.Combine(csvDir, "abs.png"), rows[1].PhotoPath); // rooted untouched
-        Assert.Null(BatchValidator.Parse("20250103,C,,Nurse,,,,").First().PhotoPath); // empty stays empty
+        Assert.Null(BatchValidator.Parse("Cara,Nurse,20250103,A+,Permanent,,,").First().PhotoPath); // empty stays empty
         try { Directory.Delete(csvDir, true); } catch { }
     }
 }

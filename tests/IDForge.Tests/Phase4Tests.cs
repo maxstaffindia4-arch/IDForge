@@ -57,7 +57,11 @@ public class Phase4Tests
                 foreach (var tag in new[] { "all", "attention", "review", "issued", "reissue" })
                     Assert.NotNull(FilterRadio(w, tag));
                 Assert.Throws<InvalidOperationException>(() => FilterRadio(w, "approved")); // chip removed
-                Assert.Null(w.FindName("BtnIssueBatch"));          // batch issuing removed
+                // Override 5: Issue batch lives in the header, gated until every
+                // content row is approved or skipped.
+                var issueBtn = (Button)w.FindName("BtnIssueBatch")!;
+                w.UpdateBatchSummary();
+                Assert.False(issueBtn.IsEnabled);
                 Assert.NotNull(w.FindName("TxtBatchCounts"));
                 Assert.NotNull(w.FindName("BtnReview"));
                 Assert.NotNull(w.FindName("TxtReviewReason"));

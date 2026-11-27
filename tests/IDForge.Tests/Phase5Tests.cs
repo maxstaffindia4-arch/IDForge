@@ -162,7 +162,7 @@ public class Phase5Tests
             var win = NewReview(w, Row("80000051", "Buttons", id: 51));
             try
             {
-                foreach (var label in new[] { "◄ Previous", "Save draft", "Skip", "Approve & Issue", "Next ►" })
+                foreach (var label in new[] { "◄ Previous", "Save draft", "Skip", "Approve & next", "Issue this card", "Next ►" })
                     Assert.NotNull(FindButton(win, label));
             }
             finally { win.Close(); w.Close(); }
@@ -271,7 +271,7 @@ public class Phase5Tests
             try
             {
                 // No photo → validation stops before approve/issue: nothing changes.
-                var btn = FindButton(win, "Approve & Issue")!;
+                var btn = FindButton(win, "Issue this card")!;
                 btn.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
                 Assert.Equal("NeedsReview", row.Status);
                 Assert.False(row.Approved);
