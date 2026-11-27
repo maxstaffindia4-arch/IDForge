@@ -205,16 +205,14 @@
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="0"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+            <!-- Both children share the single cell: NavCol floats over
+                 PagesHost (Panel.ZIndex) instead of sitting in a column.
+                 A zero-width column used to clip NavCol to 0 px — WPF's
+                 layout clip follows the arrange slot, not the explicit
+                 Width — which is why the rail rendered empty. -->
 
             <!-- ============ LEFT NAV ============ -->
-            <!-- Zero-width column + explicit Width: the rail floats over the
-                 pages (overlay) instead of pushing them when expanded at a
-                 narrow window width. -->
-            <Border x:Name="NavCol" Grid.Column="0" Width="208" Panel.ZIndex="5"
+            <Border x:Name="NavCol" Width="208" Panel.ZIndex="5"
                     HorizontalAlignment="Left"
                     Background="{StaticResource SidebarBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
@@ -386,7 +384,7 @@
             </Border>
 
             <!-- ============ PAGES ============ -->
-            <Grid x:Name="PagesHost" Grid.Column="1">
+            <Grid x:Name="PagesHost">
 
                 <!-- ===== NEW CARD ===== -->
                 <Grid x:Name="PageNewCard">

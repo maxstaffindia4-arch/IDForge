@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -381,6 +382,18 @@ public class NewCardParityTests
                     $"rail rect {navRect} starts off-window");
                 Assert.True(navRect.Right <= win.ActualWidth + 0.5,
                     $"rail rect {navRect} extends past window {win.ActualWidth:F0}");
+
+                // Regression: WPF's layout clip follows the arrange slot, not
+                // the element's explicit Width. A zero-width Grid column used
+                // to clip the rail to 0 px while ActualWidth/IsVisible still
+                // reported 208/true — so assert the clip itself is absent or
+                // wide enough for the rail.
+                var clip = LayoutInformation.GetLayoutClip(nav);
+                if (clip is RectangleGeometry clipRect)
+                {
+                    Assert.True(clipRect.Rect.Width >= 56 - 0.5,
+                        $"layout clip {clipRect.Rect} squeezes rail below 56 px");
+                }
 
                 var pagesRect = BoundsIn(pages, win);
                 // Pages must not slide under the rail: page left edge is at or
