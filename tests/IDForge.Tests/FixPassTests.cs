@@ -103,8 +103,10 @@ public class FixPassTests
 
                     var issue = (Button)main.FindName("BtnSave")!;
                     Assert.False(issue.IsEnabled);
-                    Assert.Equal(Visibility.Visible,
-                        ((TextBlock)main.FindName("TxtIssueBlocked")!).Visibility);
+                    // FIX 3: the blocked reason lives on the Issue button's
+                    // tooltip — the footer no longer repeats it as text.
+                    Assert.Contains("already exists",
+                        issue.ToolTip?.ToString() ?? "");
 
                     // "Open record" switches to Records with the row selected.
                     main.OpenRecord_Click(null!, null!);
@@ -194,7 +196,7 @@ public class FixPassTests
                     // 3 · Duplicate ID → details amber, ID chip red with reason.
                     uid.Text = dupUid;
                     Assert.Equal(ResColor(main, "WarningBrush"), ChipColor(main, "TxtChipDetails"));
-                    Assert.Equal("Employee ID already exists",
+                    Assert.Equal("Employee ID exists",
                         ((TextBlock)main.FindName("TxtChipUidNew")!).Text);
                     Assert.Equal(ResColor(main, "ErrorBrush"), ChipColor(main, "TxtChipUidNew"));
                     Assert.Equal(ResColor(main, "SuccessBrush"), ChipColor(main, "TxtChipPhoto"));

@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using IDForge;
+using IDForge.Core.Data;
 
 namespace IDForge.Tests;
 
@@ -571,6 +572,59 @@ public class NewCardParityTests
                 enc.Frames.Add(BitmapFrame.Create(crop));
                 using (var fs = File.Create(Path.Combine(dir, "newcard-footer.png")))
                     enc.Save(fs);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    /// <summary>FIX 5 regression: after Clear all data the UID verdict must be
+    /// recomputed — no stale "already exists" under the field, in the chip,
+    /// or on the Issue button. Runs against the temp data dir (FIX 1).</summary>
+    [Fact]
+    public void Clear_All_Data_Leaves_No_Stale_Uid_State()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = FixPassTests.NewWindow();
+            win.Show();
+            win.ShowArea("newcard");
+            try
+            {
+                var store = win.Svc.Store;
+                var uid = "99887766554";   // valid UID, temp DB starts empty
+                var emp = new Employee
+                {
+                    Uid = uid, Name = "Stale Check", BloodGroup = "N/A",
+                    Position = "Intern", ContractType = "Permanent"
+                };
+                emp.Id = store.InsertEmployee(emp);
+
+                // Duplicate verdict shows under the field + chip + tooltip.
+                ((TextBox)win.FindName("TxtUid")!).Text = uid;
+                Assert.NotNull(win.UidDuplicate);
+                Assert.Contains("already exists",
+                    ((TextBlock)win.FindName("ErrUid")!).Text);
+                Assert.Equal("Employee ID exists",
+                    ((TextBlock)win.FindName("TxtChipUidNew")!).Text);
+
+                MainWindow.ConfirmClearAll = () => true;
+                try { win.ClearAll_Click(null!, null!); }
+                finally { MainWindow.ConfirmClearAll = null; }
+
+                Assert.Empty(store.AllEmployees());
+                Assert.Null(win.UidDuplicate);
+                Assert.Equal("", ((TextBox)win.FindName("TxtUid")!).Text);
+                Assert.Equal("", ((TextBlock)win.FindName("ErrUid")!).Text);
+                Assert.Equal("Employee ID is new",
+                    ((TextBlock)win.FindName("TxtChipUidNew")!).Text);
+                var tip = ((Button)win.FindName("BtnSave")!).ToolTip?.ToString() ?? "";
+                Assert.DoesNotContain("already exists", tip);
+                // The result went to the transient status-bar message, not
+                // the footer (FIX 2).
+                Assert.Contains("All records deleted",
+                    ((TextBlock)win.FindName("TxtStatusMsg")!).Text);
+                Assert.Equal("",
+                    ((TextBlock)win.FindName("TxtStatus")!).Text);
             }
             finally { SettleThenClose(win); }
         });

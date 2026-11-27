@@ -135,9 +135,8 @@ public class Phase2FixTests
                 string Msg() => ((TextBlock)main.FindName("TxtStatusMsg")!).Text;
                 void AssertBackupMsg(string m)
                 {
-                    Assert.StartsWith("Backup saved — ", m);
-                    Assert.Contains("record", m);
-                    Assert.Matches(@"\d{2}/\d{2}/\d{4} \d{2}:\d{2}$", m);
+                    // FIX 2: file name, count only when above zero.
+                    Assert.Matches(@"^Backup saved: idcard_\d{8}_\d{6}.*\.db( — \d+ cards?)?$", m);
                 }
 
                 // Ctrl+B

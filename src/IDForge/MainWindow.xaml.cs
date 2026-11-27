@@ -714,6 +714,7 @@ public partial class MainWindow : Window
     }
 
     private Employee? _uidDuplicate;
+    internal Employee? UidDuplicate => _uidDuplicate;   // test seam (FIX 5)
 
     /// <summary>Issue card is enabled when details are valid and a photo is
     /// present. Photo approval is gone — issuing is the only approval step
@@ -725,10 +726,10 @@ public partial class MainWindow : Window
         var detailsOk = f.name.Length >= 2 && Core.Uid.IsValid(f.uid)
             && Config.Positions.Contains(f.position) && Config.BloodGroups.Contains(f.blood);
         BtnSave.IsEnabled = _cutout != null && _uidDuplicate == null && detailsOk;
-        if (TxtIssueBlocked != null)
-            TxtIssueBlocked.Visibility = _uidDuplicate != null ? Visibility.Visible : Visibility.Collapsed;
+        // FIX 3: no blocked-note text in the footer — the Issue button's
+        // tooltip carries the reason.
         BtnSave.ToolTip = _uidDuplicate != null
-            ? "Employee ID already exists — open the record to re-issue"
+            ? "Employee ID already exists. Open the record to re-issue."
             : _cutout == null ? "Choose a photo to enable issuing"
             : !detailsOk ? "Complete the employee details to enable issuing"
             : "Issue card (Ctrl+Enter)";
@@ -789,9 +790,9 @@ public partial class MainWindow : Window
         // amber when the fields are fine but the ID already exists.
         SetChip(ChipDetails, TxtChipDetails, "Details complete",
             fieldsOk && uidNew ? ChipState.Ok : fieldsOk && dup != null ? ChipState.Warn : ChipState.Idle);
-        // One truthful chip: green "is new", red "already exists", grey otherwise.
+        // One truthful chip: green "is new", red "exists", grey otherwise.
         SetChip(ChipUidNew, TxtChipUidNew,
-            dup != null ? "Employee ID already exists" : "Employee ID is new",
+            dup != null ? "Employee ID exists" : "Employee ID is new",
             uidNew ? ChipState.Ok : dup != null ? ChipState.Err : ChipState.Idle);
         SetChip(ChipPhoto, TxtChipPhoto, "Photo ready",
             _cutout != null ? ChipState.Ok : ChipState.Idle);
@@ -877,7 +878,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Clear form: back to defaults and remove the saved draft.</summary>
-    private void ClearForm_Click(object sender, RoutedEventArgs e)
+    private void ClearForm_Click(object sender, RoutedEventArgs e) => ClearNewCardForm();
+
+    private void ClearNewCardForm()
     {
         _restoringDraft = true;
         try
@@ -1075,6 +1078,9 @@ public partial class MainWindow : Window
     public void ShowArea(string area)
     {
         _area = area;
+        // FIX 3: TxtStatus is New-card form status only — it must not leak
+        // stale messages onto the page when the user navigates away and back.
+        if (area != "newcard") TxtStatus.Text = "";
         PageNewCard.Visibility = area == "newcard" ? Visibility.Visible : Visibility.Collapsed;
         PageBatch.Visibility = area == "batch" ? Visibility.Visible : Visibility.Collapsed;
         PageRecords.Visibility = area == "records" ? Visibility.Visible : Visibility.Collapsed;
@@ -1142,6 +1148,17 @@ public partial class MainWindow : Window
         PnlBackupCompact.ToolTip = AppSettings.LastBackupAt is { } cb
             ? $"Last backup {cb:dd/MM/yyyy HH:mm}. Back up now"
             : "Never backed up. Back up now";
+    }
+
+    /// <summary>FIX 5: after any data-changing action (clear all, restore,
+    /// delete, purge, backup) the UID field, footer chips, Issue button and
+    /// the status-bar count must all reflect the new data — otherwise a
+    /// duplicate verdict computed before the change stays on screen.</summary>
+    private void RefreshDataDependentUi()
+    {
+        UpdateStatusBar();
+        UpdateUidStatus();      // re-checks the UID and clears _uidDuplicate
+        UpdateFooterChips();
     }
 
     private void UpdateBatchBadge()
@@ -1377,10 +1394,13 @@ public partial class MainWindow : Window
     {
         var path = _svc.BackupDatabase();
         AppSettings.LastBackupAt = DateTime.Now;
-        UpdateStatusBar();
+        RefreshDataDependentUi();
         var count = _svc.Store.AllEmployees().Count;
-        var msg = $"Backup saved — {count} record{(count == 1 ? "" : "s")}, {DateTime.Now:dd/MM/yyyy HH:mm}";
-        ShowStatusMessage(msg);
+        // FIX 2: file name only (never a bare "0 cards"); the count appears
+        // only when there is something to count.
+        var msg = $"Backup saved: {Path.GetFileName(path)}" +
+                  (count > 0 ? $" — {count} card{(count == 1 ? "" : "s")}" : "");
+        ShowStatusMessage(msg, folderPath: Path.GetDirectoryName(path));
         return msg;
     }
 
@@ -1389,21 +1409,50 @@ public partial class MainWindow : Window
         try { return BackupNow(); }
         catch (Exception ex)
         {
-            ShowStatusMessage($"Backup failed: {ex.Message}");
+            ShowStatusMessage($"Backup failed: {ex.Message}", isError: true);
             return $"Backup failed: {ex.Message}";
         }
     }
 
     private DispatcherTimer? _statusMsgTimer;
+    private string? _statusMsgFolder;
 
-    private void ShowStatusMessage(string msg)
+    /// <summary>Transient action-result message in the status bar. Success
+    /// auto-hides after 6 s; errors persist until closed. When the message
+    /// refers to a folder, an "Open folder" link is offered instead of
+    /// printing the path as text (FIX 2).</summary>
+    private void ShowStatusMessage(string msg, bool isError = false, string? folderPath = null)
     {
         TxtStatusMsg.Text = msg;
+        TxtStatusMsg.Foreground = (Brush)FindResource(isError ? "ErrorBrush" : "SuccessBrush");
+        _statusMsgFolder = folderPath;
+        BtnStatusMsgFolder.Visibility = folderPath != null ? Visibility.Visible : Visibility.Collapsed;
+        BtnStatusMsgClose.Visibility = isError ? Visibility.Visible : Visibility.Collapsed;
         PnlStatusMsg.Visibility = Visibility.Visible;
         _statusMsgTimer?.Stop();
-        _statusMsgTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
-        _statusMsgTimer.Tick += (_, _) => { PnlStatusMsg.Visibility = Visibility.Collapsed; _statusMsgTimer!.Stop(); };
-        _statusMsgTimer.Start();
+        if (!isError)
+        {
+            _statusMsgTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
+            _statusMsgTimer.Tick += (_, _) => { PnlStatusMsg.Visibility = Visibility.Collapsed; _statusMsgTimer!.Stop(); };
+            _statusMsgTimer.Start();
+        }
+    }
+
+    private void StatusMsgFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_statusMsgFolder == null) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            { FileName = _statusMsgFolder, UseShellExecute = true });
+        }
+        catch { }
+    }
+
+    private void StatusMsgClose_Click(object sender, RoutedEventArgs e)
+    {
+        _statusMsgTimer?.Stop();
+        PnlStatusMsg.Visibility = Visibility.Collapsed;
     }
 
     public void NavBackup_Click(object sender, RoutedEventArgs e) => BackupNowSafe();
@@ -1933,6 +1982,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { IDForge.Dialogs.AppDialog.Error(this, "Undo", "Undo failed", ex.Message); }
         ApplyRecordFilters();
+        RefreshDataDependentUi();
     }
 
     private void Reprint_Click(object sender, RoutedEventArgs e)
@@ -2282,6 +2332,7 @@ public partial class MainWindow : Window
         _selectedIssue = null;
         UpdateRecordButtons(null);
         ApplyRecordFilters();
+        RefreshDataDependentUi();
     }
 
     private void DeletedRecords_Click(object sender, RoutedEventArgs e)
@@ -2331,6 +2382,7 @@ public partial class MainWindow : Window
                     $"{emp.Name} is back in Records.");
                 dlg.Close();
                 ApplyRecordFilters();
+                RefreshDataDependentUi();
             };
             btnPurge.Click += (_, _) =>
             {
@@ -2344,6 +2396,7 @@ public partial class MainWindow : Window
                     $"{emp.Name} permanently removed.");
                 dlg.Close();
                 ApplyRecordFilters();
+                RefreshDataDependentUi();
             };
             row.Children.Add(btn);
             row.Children.Add(btnPurge);
@@ -2416,10 +2469,13 @@ public partial class MainWindow : Window
         {
             var info = _svc.BackupToFile(path, SetIncludeCards.IsChecked == true);
             AppSettings.LastBackupAt = DateTime.Now;
-            UpdateStatusBar();
-            // Phase 7: spec success message goes to the status bar.
-            SetStatus(Messages.BackupSavedStatus(info.RecordCount, DateTime.Now) +
-                $"\nSaved to: {path}");
+            RefreshDataDependentUi();
+            // FIX 2: action results go to the transient status-bar message —
+            // file name only, count only when above zero, folder via link.
+            ShowStatusMessage(
+                $"Backup saved: {Path.GetFileName(path)}" +
+                (info.RecordCount > 0 ? $" — {info.RecordCount} card{(info.RecordCount == 1 ? "" : "s")}" : ""),
+                folderPath: Path.GetDirectoryName(path));
         }
         catch (Exception ex)
         { IDForge.Dialogs.AppDialog.Error(this, "Back up", "Backup failed", ex.Message); }
@@ -2454,6 +2510,7 @@ public partial class MainWindow : Window
             _selectedEmployee = null; _selectedIssue = null;
             RefreshRecords();
             RefreshBatchDerived();
+            RefreshDataDependentUi();
         }
         catch (Exception ex)
         { IDForge.Dialogs.AppDialog.Error(this, "Restore", "Restore failed", ex.Message); }
@@ -2474,25 +2531,33 @@ public partial class MainWindow : Window
 
     private void RestoreDb_Click(object sender, RoutedEventArgs e) => RestoreFromFileCore();
 
-    private void ClearAll_Click(object sender, RoutedEventArgs e)
+    internal static Func<bool>? ConfirmClearAll;
+
+    internal void ClearAll_Click(object sender, RoutedEventArgs e)
     {
         var records = _svc.Store.AllEmployees().Count + _svc.Store.DeletedEmployees().Count;
         var batches = _svc.Store.BatchSessions().Count;
         // Phase 7: destructive — Enter cancels until DELETE ALL is typed.
         var style = (Style)FindResource("DestructiveSolidButton");
-        var ok = IDForge.Dialogs.AppDialog.ConfirmTyped(this, "Clear all data",
-            Messages.ClearAllHeading, Messages.ClearAllBody(records, batches),
-            Messages.ClearAllTypePrompt, Messages.DeleteAllPhrase,
-            "Clear all data", style);
+        var ok = ConfirmClearAll?.Invoke()
+            ?? IDForge.Dialogs.AppDialog.ConfirmTyped(this, "Clear all data",
+                Messages.ClearAllHeading, Messages.ClearAllBody(records, batches),
+                Messages.ClearAllTypePrompt, Messages.DeleteAllPhrase,
+                "Clear all data", style);
         if (!ok) return;
         try
         {
             var backup = _svc.BackupDatabase();
             _svc.Store.ClearAll();
             _svc.Store.LogAudit(null, "clear-all", $"Deleted all records by {Environment.UserName}; backup: {backup}");
-            SetStatus(Messages.BackupSavedStatus(0, DateTime.Now) + $"\nAll records deleted. Backup: {backup}");
+            ShowStatusMessage($"All records deleted — backup: {Path.GetFileName(backup)}",
+                folderPath: Path.GetDirectoryName(backup));
             _selectedEmployee = null; _selectedIssue = null;
             RefreshRecords();
+            // FIX 3/5: the form referenced records that no longer exist —
+            // reset it and revalidate so no stale duplicate state survives.
+            ClearNewCardForm();
+            RefreshDataDependentUi();
         }
         catch (Exception ex)
         { IDForge.Dialogs.AppDialog.Error(this, "Clear all data", "Clear failed", ex.Message); }
