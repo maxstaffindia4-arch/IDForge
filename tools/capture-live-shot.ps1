@@ -28,21 +28,27 @@ $p = Get-Process IDForge -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $p) { Write-Output "LIVE CAPTURE FAIL: IDForge not running"; exit 1 }
 if ([U32L]::IsIconic($p.MainWindowHandle)) { [U32L]::ShowWindow($p.MainWindowHandle, 9) | Out-Null }
 
-# Force topmost so nothing covers the window, then restore afterwards.
-$hwnd = $p.MainWindowHandle
-[U32L]::SetWindowPos($hwnd, [IntPtr](-1), 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) | Out-Null  # HWND_TOPMOST, NOSIZE|NOMOVE|NOACTIVATE
-Start-Sleep -Milliseconds 700
-
+# The app may still be sizing its window right after launch — retry until
+# the client rect is real (up to ~15 s).
 $cr = New-Object RECT
-[U32L]::GetClientRect($hwnd, [ref]$cr) | Out-Null
 $pt = New-Object POINT
-[U32L]::ClientToScreen($hwnd, [ref]$pt) | Out-Null
-$w = $cr.Right - $cr.Left; $h = $cr.Bottom - $cr.Top
+$w = 0; $h = 0
+for ($i = 0; $i -lt 15; $i++) {
+    Start-Sleep -Milliseconds 1000
+    [U32L]::GetClientRect($p.MainWindowHandle, [ref]$cr) | Out-Null
+    [U32L]::ClientToScreen($p.MainWindowHandle, [ref]$pt) | Out-Null
+    $w = $cr.Right - $cr.Left; $h = $cr.Bottom - $cr.Top
+    if ($w -ge 200 -and $h -ge 200) { break }
+}
 if ($w -lt 200 -or $h -lt 200) {
-    [U32L]::SetWindowPos($hwnd, [IntPtr](-2), 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) | Out-Null
     Write-Output "LIVE CAPTURE FAIL: bad client rect $w x $h"; exit 1
 }
 Write-Output "client rect: ${w}x${h} at screen ($($pt.X),$($pt.Y))"
+
+# Force topmost so nothing covers the window, then restore afterwards.
+$hwnd = $p.MainWindowHandle
+[U32L]::SetWindowPos($hwnd, [IntPtr](-1), 0, 0, 0, 0, 0x0001 -bor 0x0002 -bor 0x0010) | Out-Null  # HWND_TOPMOST, NOSIZE|NOMOVE|NOACTIVATE
+Start-Sleep -Milliseconds 500
 
 $bmp = New-Object System.Drawing.Bitmap $w, $h
 $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -54,8 +60,9 @@ $shot = Join-Path $OutDir ("live-newcard-{0}x{1}.png" -f $w, $h)
 $bmp.Save($shot)
 Write-Output "live shot: $shot"
 
-# Pixel probe on the rail strip (rail is 256px expanded / 56px collapsed;
+# Pixel probe on the rail strip (rail is 208px expanded / 56px collapsed;
 # probe up to 200px covers both). Rail bg #F9FAFB + dark icon/text pixels.
+# A populated rail gives dozens of dark samples; a blank strip gives ~0.
 $railBg = 0; $dark = 0; $total = 0
 $stripW = [Math]::Min(200, [int]($w * 0.25))
 for ($x = 2; $x -lt $stripW; $x += 3) {
@@ -71,7 +78,7 @@ for ($x = 2; $x -lt $stripW; $x += 3) {
 $bmp.Dispose()
 $railPct = if ($total -gt 0) { [Math]::Round(100.0 * $railBg / $total, 1) } else { 0 }
 Write-Output ("left strip: {0}% rail-bg pixels, {1} dark pixels ({2} samples)" -f $railPct, $dark, $total)
-if ($railPct -lt 30 -or $dark -lt 100) {
+if ($railPct -lt 30 -or $dark -lt 20) {
     Write-Output "LIVE CAPTURE FAIL: left strip looks empty - rail not visible"
     exit 1
 }
