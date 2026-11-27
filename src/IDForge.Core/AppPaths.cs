@@ -16,6 +16,16 @@ public static class AppPaths
 
     private static string ResolveDataDir()
     {
+        // IDFORGE_DATA_DIR redirects all mutable state — used by the test
+        // suite (never touch the owner's real data) and for running a
+        // portable/scratch instance.
+        var env = Environment.GetEnvironmentVariable("IDFORGE_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(env))
+        {
+            var dir0 = Path.GetFullPath(env);
+            Directory.CreateDirectory(dir0);
+            return dir0;
+        }
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "IDForge");
