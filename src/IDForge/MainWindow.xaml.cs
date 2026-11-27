@@ -1269,6 +1269,21 @@ public partial class MainWindow : Window
             if (FindName(name) is FrameworkElement dv) dv.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
         PnlBackupFull.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         PnlBackupCompact.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
+        // Rail toggle: « collapse when expanded, » expand when collapsed;
+        // centred in the 56 px rail, right-aligned in the 208 px rail.
+        BtnNavToggle.Content = collapsed ? "\uF054" : "\uF053";
+        BtnNavToggle.ToolTip = collapsed ? "Expand navigation" : "Collapse navigation";
+        BtnNavToggle.HorizontalAlignment = collapsed
+            ? HorizontalAlignment.Center : HorizontalAlignment.Right;
+        BtnNavToggle.Margin = collapsed ? new Thickness(0, 0, 0, 4) : new Thickness(0, 0, 12, 4);
+    }
+
+    /// <summary>FIX 3: the only nav toggle now that the menu bar is gone —
+    /// manual choice wins over auto-collapse until the next resize rule.</summary>
+    private void NavToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _navManual = true;
+        SetNavCollapsed(!_navCollapsed);
     }
 
     /// <summary>Area shortcuts + New Card editing shortcuts. Returns true when handled.</summary>

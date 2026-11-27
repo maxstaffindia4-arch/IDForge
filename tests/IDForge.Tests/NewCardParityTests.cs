@@ -282,6 +282,71 @@ public class NewCardParityTests
         });
     }
 
+    /// <summary>FIX 3: rail expanded by default ≥1280 (labels, shortcuts,
+    /// backup card), collapsed &lt;1100, visible toggle at all sizes.</summary>
+    [Fact]
+    public void Nav_Rail_1280_Expanded_860_Collapsed_Toggle_Works()
+    {
+        WpfSta.Run(() =>
+        {
+            var dir = ShotsDir();
+            Directory.CreateDirectory(dir);
+            string[] expandedNames = { "NavLblNewCard", "NavKeyNewCard", "NavLblBatch",
+                "NavKeyBatch", "NavLblRecords", "NavKeyRecords", "NavLblSettings",
+                "NavKeySettings", "LblIssueCards", "LblManage" };
+
+            // --- 1280 × 800: expanded by default ---
+            var win = NewShownNewCard(1280, 800);
+            try
+            {
+                var navCol = (FrameworkElement)win.FindName("NavCol")!;
+                Assert.False(win.TestNavCollapsed, "rail should start expanded at 1280");
+                Assert.Equal(208, navCol.ActualWidth);
+                foreach (var n in expandedNames)
+                    Assert.Equal(Visibility.Visible,
+                        ((FrameworkElement)win.FindName(n)!).Visibility);
+                Assert.Equal(Visibility.Visible,
+                    ((FrameworkElement)win.FindName("PnlBackupFull")!).Visibility);
+
+                var toggle = (FrameworkElement)win.FindName("BtnNavToggle")!;
+                Assert.True(toggle.IsVisible && toggle.ActualWidth > 0,
+                    "nav toggle must be visible at 1280");
+                var tb = BoundsIn(toggle, navCol);
+                Assert.True(tb.Left >= -0.5 && tb.Right <= navCol.ActualWidth + 0.5,
+                    $"toggle {tb} outside rail");
+
+                SaveWindow(win, Path.Combine(dir, "nav-expanded-1280x800.png"));
+
+                // Toggle collapses, toggle again expands.
+                toggle.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                win.UpdateLayout();
+                Assert.True(win.TestNavCollapsed);
+                Assert.Equal(56, navCol.ActualWidth);
+                toggle.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                win.UpdateLayout();
+                Assert.False(win.TestNavCollapsed);
+                Assert.Equal(208, navCol.ActualWidth);
+            }
+            finally { SettleThenClose(win); }
+
+            // --- 860 × 620: collapsed by default, toggle still visible ---
+            var win2 = NewShownNewCard(860, 620);
+            try
+            {
+                var navCol2 = (FrameworkElement)win2.FindName("NavCol")!;
+                Assert.True(win2.TestNavCollapsed, "rail should auto-collapse below 1100");
+                Assert.Equal(56, navCol2.ActualWidth);
+                Assert.Equal(Visibility.Visible,
+                    ((FrameworkElement)win2.FindName("PnlBackupCompact")!).Visibility);
+                var toggle2 = (FrameworkElement)win2.FindName("BtnNavToggle")!;
+                Assert.True(toggle2.IsVisible && toggle2.ActualWidth > 0,
+                    "nav toggle must be visible at 860");
+                SaveWindow(win2, Path.Combine(dir, "nav-collapsed-860x620.png"));
+            }
+            finally { SettleThenClose(win2); }
+        });
+    }
+
     /// <summary>Regression: the resume-batch prompt used to run inside the
     /// MainWindow ctor, where AppDialog's Owner assignment threw
     /// ("Window that has not been shown previously") and the app failed to

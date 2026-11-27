@@ -218,6 +218,13 @@
                     Background="{StaticResource SidebarBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <DockPanel Margin="0,12">
+                    <!-- FIX 3: visible rail toggle at all sizes (menu bar is gone) -->
+                    <Button x:Name="BtnNavToggle" DockPanel.Dock="Top"
+                            Style="{StaticResource GhostButton}" Height="28" Padding="10,0"
+                            HorizontalAlignment="Right" Margin="0,0,12,4"
+                            FontFamily="{StaticResource IconFont}" FontSize="12"
+                            Content="&#xF053;" ToolTip="Collapse navigation"
+                            Click="NavToggle_Click"/>
                     <!-- Backup card: full when expanded, shield icon when collapsed (§4.1) -->
                     <Border x:Name="PnlBackupFull" DockPanel.Dock="Bottom" Margin="12,8" Padding="12" CornerRadius="4"
                             Background="{StaticResource BackgroundBrush}"
