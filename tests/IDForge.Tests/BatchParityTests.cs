@@ -54,6 +54,16 @@ public class BatchParityTests
         enc.Save(fs);
     }
 
+    private static IEnumerable<DependencyObject> VisualDescendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var d in VisualDescendants(child)) yield return d;
+        }
+    }
+
     private static T Find<T>(Window win, string name) where T : FrameworkElement
         => (T)win.FindName(name)!;
 
@@ -257,6 +267,192 @@ public class BatchParityTests
                 Assert.Contains("Batch:", win.Title);
             }
             finally { SettleThenClose(win); }
+        });
+    }
+
+    // ---------- Part B: toolbar + filter chips (§2.3-2.4) ----------
+
+    [Fact]
+    public void Batch_Toolbar_And_Chips_Inside_Window_At_All_Sizes()
+    {
+        WpfSta.Run(() =>
+        {
+            foreach (var (w, h) in new[] { (1280, 800), (1100, 700), (860, 620) })
+            {
+                var win = NewShownBatch(w, h);
+                AddRow(win, "76000001", "Toolbar Person", "NeedsReview");
+                win.UpdateLayout();
+                try
+                {
+                    foreach (var name in new[]
+                    {
+                        "PnlBatchToolbar", "PnlBatchButtons", "TxtBatchSearch",
+                        "PnlBatchChips", "ChkFilterAll", "ChkFilterAttention",
+                        "ChkFilterReview", "ChkFilterIssued", "ChkFilterReissue",
+                        "BtnAddRow", "BtnDupRow", "BtnPasteRows", "BtnImportCsv",
+                        "BtnExportCsv", "BtnPreparePhotos", "BtnRemoveSelected"
+                    })
+                    {
+                        var el = win.FindName(name) as FrameworkElement;
+                        Assert.True(el != null, $"{name} missing at {w}x{h}");
+                        Assert.True(el!.IsVisible, $"{name} not visible at {w}x{h}");
+                        var r = OnScreenRect(el, win);
+                        Assert.True(r.Width > 0 && r.Height > 0, $"{name} empty rect at {w}x{h}");
+                        Assert.True(r.Right <= win.Width + 1 && r.Bottom <= win.Height + 1,
+                            $"{name} outside window at {w}x{h}: {r}");
+                    }
+                    // no toolbar button text clipped: the inner TextBlock must fit
+                    // inside the button's content box (width - padding - border)
+                    foreach (var name in new[] { "BtnAddRow", "BtnDupRow", "BtnPasteRows",
+                        "BtnImportCsv", "BtnExportCsv", "BtnPreparePhotos", "BtnRemoveSelected" })
+                    {
+                        var b = (Button)win.FindName(name)!;
+                        var tb = VisualDescendants(b).OfType<TextBlock>().FirstOrDefault();
+                        Assert.True(tb != null, $"{name} has no text at {w}x{h}");
+                        var avail = b.ActualWidth - 26; // ToolButton padding 12+12 + border 1+1
+                        Assert.True(tb!.DesiredSize.Width <= avail + 0.5,
+                            $"{name} text clipped at {w}x{h}: text={tb.DesiredSize.Width} avail={avail}");
+                    }
+                }
+                finally { SettleThenClose(win); }
+            }
+        });
+    }
+
+    [Fact]
+    public void Batch_Chips_Counts_Match_Grid()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                AddRow(win, "77000001", "One", "Issued");
+                AddRow(win, "77000002", "Two", "NeedsReview");
+                AddRow(win, "77000003", "Three", "Failed");
+                AddRow(win, "77000004", "Four", "NeedsPhoto");
+                win.BatchRows[3].PhotoPath = null;
+                win.UpdateLayout();
+
+                Assert.Equal("All 4", (string)Find<RadioButton>(win, "ChkFilterAll").Content);
+                Assert.Equal("Needs attention 2", (string)Find<RadioButton>(win, "ChkFilterAttention").Content);
+                Assert.Equal("Ready to review 1", (string)Find<RadioButton>(win, "ChkFilterReview").Content);
+                Assert.Equal("Issued 1", (string)Find<RadioButton>(win, "ChkFilterIssued").Content);
+
+                // attention chip shows Failed + NeedsPhoto rows
+                var att = Find<RadioButton>(win, "ChkFilterAttention");
+                att.IsChecked = true;
+                win.UpdateLayout();
+                var view = System.Windows.Data.CollectionViewSource.GetDefaultView(win.BatchRows);
+                Assert.Equal(2, view.Cast<BatchRow>().Count());
+                Assert.Equal("Showing 2 of 4", Find<TextBlock>(win, "TxtBatchShowing").Text);
+
+                // issued chip
+                Find<RadioButton>(win, "ChkFilterIssued").IsChecked = true;
+                win.UpdateLayout();
+                Assert.Single(view.Cast<BatchRow>().ToList());
+                Assert.Equal("Showing 1 of 4", Find<TextBlock>(win, "TxtBatchShowing").Text);
+
+                // back to All: no "Showing" unless selection exists
+                Find<RadioButton>(win, "ChkFilterAll").IsChecked = true;
+                win.UpdateLayout();
+                Assert.Equal("", Find<TextBlock>(win, "TxtBatchShowing").Text);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Search_Filters_Grid_And_CtrlF()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                AddRow(win, "78000001", "Rahim Uddin", "NeedsReview");
+                AddRow(win, "78000002", "Karim Ahmed", "NeedsReview");
+                win.UpdateLayout();
+
+                var search = Find<TextBox>(win, "TxtBatchSearch");
+                search.Text = "rahim";
+                win.UpdateLayout();
+                var view = System.Windows.Data.CollectionViewSource.GetDefaultView(win.BatchRows);
+                Assert.Single(view.Cast<BatchRow>().ToList());
+                Assert.Equal("Showing 1 of 2", Find<TextBlock>(win, "TxtBatchShowing").Text);
+
+                // Ctrl+F focuses the search box
+                Assert.True(win.TryHandleShortcut(System.Windows.Input.Key.F,
+                    System.Windows.Input.ModifierKeys.Control));
+                Assert.True(search.IsKeyboardFocusWithin || search.IsFocused
+                    || System.Windows.Input.Keyboard.FocusedElement == search);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Toolbar_Shortcuts_Add_Dup_Paste()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                var before = win.BatchRows.Count;
+                Assert.True(win.TryHandleShortcut(System.Windows.Input.Key.N,
+                    System.Windows.Input.ModifierKeys.Control));
+                Assert.Equal(before + 1, win.BatchRows.Count);
+
+                var dg = Find<DataGrid>(win, "DgBatch");
+                dg.SelectedItem = win.BatchRows[^1];
+                Assert.True(win.TryHandleShortcut(System.Windows.Input.Key.D,
+                    System.Windows.Input.ModifierKeys.Control));
+                Assert.Equal(before + 2, win.BatchRows.Count);
+
+                // Ctrl+V with empty clipboard shows info, not crash — give it rows
+                System.Windows.Clipboard.SetText("Paste Name,Pos,77000099,O+,JE,N/A,Permanent,01/12/2026");
+                Assert.True(win.TryHandleShortcut(System.Windows.Input.Key.V,
+                    System.Windows.Input.ModifierKeys.Control));
+                Assert.Equal(before + 3, win.BatchRows.Count);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Toolbar_And_Filter_Screenshots()
+    {
+        WpfSta.Run(() =>
+        {
+            Directory.CreateDirectory(ShotsDir());
+            var win = NewShownBatch(1280, 800);
+            BatchSession? sess = null;
+            try
+            {
+                AddRow(win, "79000001", "Aisha Rahman", "Issued");
+                AddRow(win, "79000002", "Karim Uddin", "NeedsReview");
+                AddRow(win, "79000003", "Fatema Khan", "Failed");
+                AddRow(win, "79000004", "Hasan Ali", "NeedsPhoto");
+                win.BatchRows[3].Error = "photo missing";
+                win.UpdateLayout();
+                SaveWindow(win, Path.Combine(ShotsDir(), "batch-toolbar-1280x800.png"));
+            }
+            finally { SettleThenClose(win); }
+
+            var win2 = NewShownBatch(1280, 800);
+            try
+            {
+                AddRow(win2, "79000011", "Nusrat Jahan", "Failed");
+                AddRow(win2, "79000012", "Tanvir Hasan", "NeedsPhoto");
+                AddRow(win2, "79000013", "Mim Akter", "NeedsReview");
+                win2.BatchRows[0].Error = "bad uid";
+                win2.BatchRows[1].Error = "photo missing";
+                Find<RadioButton>(win2, "ChkFilterAttention").IsChecked = true;
+                win2.UpdateLayout();
+                SaveWindow(win2, Path.Combine(ShotsDir(), "batch-filter-attention-1280x800.png"));
+            }
+            finally { SettleThenClose(win2); }
         });
     }
 

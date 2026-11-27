@@ -195,6 +195,47 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- ===== Batch filter chips (§2.4) ===== -->
+        <Style x:Key="FilterChip" TargetType="RadioButton">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" CornerRadius="14" BorderThickness="1"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                Background="{StaticResource BackgroundBrush}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource TextBrush}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="FilterChipAttention" TargetType="RadioButton" BasedOn="{StaticResource FilterChip}">
+            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+            <Setter Property="BorderBrush" Value="#66EF4444"/>
+            <Setter Property="Background" Value="#0DEF4444"/>
+        </Style>
+        <Style x:Key="FilterChipReissue" TargetType="RadioButton" BasedOn="{StaticResource FilterChip}">
+            <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+            <Setter Property="BorderBrush" Value="#66D97706"/>
+            <Setter Property="Background" Value="#0DD97706"/>
+        </Style>
     </Window.Resources>
     <!-- FIX 4: menu bar removed entirely — shortcuts keep working,
          Help/About live in the nav rail. -->
@@ -1163,7 +1204,7 @@
                                 <Button x:Name="BtnReview" Style="{StaticResource PrimaryButton}"
                                         Click="BatchReview_Click">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xF4AC;" FontFamily="{StaticResource IconFont}"
+                                        <TextBlock Text="&#xF06E;" FontFamily="{StaticResource IconFont}"
                                                    Margin="0,0,8,0"/>
                                         <TextBlock Text="Review cards"/>
                                         <TextBlock Text="Ctrl+R" FontSize="11" FontWeight="Normal"
@@ -1205,28 +1246,112 @@
                     <!-- compat status line (old bottom bar text) -->
                     <TextBlock x:Name="TxtBatchStatus" Grid.Row="5" Visibility="Collapsed"/>
 
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="8,0,8,4">
-                        <RadioButton Content="All" Tag="all" GroupName="BatchFilters" IsChecked="True"
-                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed"/>
-                        <RadioButton Content="Needs attention" Tag="attention" GroupName="BatchFilters"
-                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
-                        <RadioButton Content="Ready to review" Tag="review" GroupName="BatchFilters"
-                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
-                        <RadioButton Content="Re-issues" Tag="reissue" GroupName="BatchFilters"
-                                     Style="{StaticResource BatchFilterChip}" Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
-                    </StackPanel>
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="8,0,8,6">
-                        <Button Content="Add row" Click="BatchAddRow_Click" Height="30"/>
-                        <Button Content="Duplicate" Click="BatchDupRow_Click" Margin="6,0,0,0" Height="30"/>
-                        <Button Content="Paste from Excel" Click="BatchPaste_Click" Margin="6,0,0,0" Height="30"
-                                ToolTip="Paste tab or comma separated rows from Excel/CSV"/>
-                        <Button Content="Import CSV..." Click="BatchImport_Click" Margin="6,0,0,0" Height="30"/>
-                        <Button Content="Export CSV..." Click="BatchExportCsv_Click" Margin="6,0,0,0" Height="30"/>
-                        <Button Content="Prepare photos (F5)" Click="StartBatch_Click" x:Name="BtnStartBatch"
-                                Margin="14,0,0,0" Height="30"
-                                ToolTip="Runs background removal + auto-positioning. Nothing is approved or issued."/>
-                        <Button Content="Remove selected (Del)" Click="BatchDelRow_Click" Margin="6,0,0,0" Height="30"/>
-                    </StackPanel>
+                    <!-- ===== BATCH TOOLBAR (§2.3) ===== -->
+                    <Grid x:Name="PnlBatchToolbar" Grid.Row="3" Margin="24,0,24,8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <WrapPanel x:Name="PnlBatchButtons" Grid.Row="0" Grid.Column="0"
+                                   VerticalAlignment="Center">
+                            <Button x:Name="BtnAddRow" Style="{StaticResource ToolButton}"
+                                    Click="BatchAddRow_Click" ToolTip="Add row (Ctrl+N)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xF067;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="11" Foreground="{StaticResource PrimaryBrush}"
+                                               Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Add row" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Ctrl+N" FontSize="10" VerticalAlignment="Center"
+                                               Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="BtnDupRow" Style="{StaticResource ToolButton}"
+                                    Click="BatchDupRow_Click" Margin="6,0,0,0" ToolTip="Duplicate (Ctrl+D)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Duplicate" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Ctrl+D" FontSize="10" VerticalAlignment="Center"
+                                               Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="BtnPasteRows" Style="{StaticResource ToolButton}"
+                                    Click="BatchPaste_Click" Margin="6,0,0,0"
+                                    ToolTip="Paste tab or comma separated rows from Excel/CSV (Ctrl+V)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Paste from Excel" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Ctrl+V" FontSize="10" VerticalAlignment="Center"
+                                               Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Border Width="1" Height="20" Margin="10,0" VerticalAlignment="Center"
+                                    Background="{StaticResource BorderBrush}"/>
+                            <Button x:Name="BtnImportCsv" Style="{StaticResource ToolButton}"
+                                    Click="BatchImport_Click" Margin="0,0,6,0">Import CSV…</Button>
+                            <Button x:Name="BtnExportCsv" Style="{StaticResource ToolButton}"
+                                    Click="BatchExportCsv_Click">Export CSV…</Button>
+                            <Border Width="1" Height="20" Margin="10,0" VerticalAlignment="Center"
+                                    Background="{StaticResource BorderBrush}"/>
+                            <Button x:Name="BtnPreparePhotos" Style="{StaticResource ToolButton}"
+                                    Click="StartBatch_Click"
+                                    ToolTip="Runs background removal + auto-positioning. Nothing is approved or issued. (F5)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xF0D0;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Prepare photos" VerticalAlignment="Center"/>
+                                    <TextBlock Text="F5" FontSize="10" VerticalAlignment="Center"
+                                               Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="BtnRemoveSelected" Style="{StaticResource ToolButtonDanger}"
+                                    Click="BatchDelRow_Click" Margin="6,0,0,0"
+                                    ToolTip="Remove selected rows (Del)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="TxtRemoveLabel" Text="Remove selected"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="Del" FontSize="10" VerticalAlignment="Center"
+                                               Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <!-- search: right side at wide widths, drops to row 1 when narrow -->
+                        <Grid x:Name="PnlBatchSearch" Grid.Row="0" Grid.Column="1"
+                              Width="256" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBox x:Name="TxtBatchSearch" Height="32" FontSize="12"
+                                     BorderBrush="{StaticResource InputBrush}" BorderThickness="1"
+                                     Background="{StaticResource BackgroundBrush}" Padding="30,0,8,0"
+                                     VerticalContentAlignment="Center"
+                                     TextChanged="TxtBatchSearch_TextChanged"
+                                     KeyDown="TxtBatchSearch_KeyDown"/>
+                            <StackPanel x:Name="TxtSearchHint" Orientation="Horizontal" Margin="10,0,0,0"
+                                        VerticalAlignment="Center" IsHitTestVisible="False">
+                                <TextBlock Text="&#xF002;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Text="Find name or Employee ID  (Ctrl+F)" FontSize="12"
+                                           Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ===== BATCH FILTER CHIPS (§2.4) ===== -->
+                    <WrapPanel x:Name="PnlBatchChips" Grid.Row="2" Margin="24,0,24,8">
+                        <RadioButton x:Name="ChkFilterAll" Tag="all" GroupName="BatchFilters" IsChecked="True"
+                                     Style="{StaticResource FilterChip}" Checked="BatchFilter_Changed"/>
+                        <RadioButton x:Name="ChkFilterAttention" Tag="attention" GroupName="BatchFilters"
+                                     Style="{StaticResource FilterChipAttention}"
+                                     Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
+                        <RadioButton x:Name="ChkFilterReview" Tag="review" GroupName="BatchFilters"
+                                     Style="{StaticResource FilterChip}"
+                                     Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
+                        <RadioButton x:Name="ChkFilterIssued" Tag="issued" GroupName="BatchFilters"
+                                     Style="{StaticResource FilterChip}"
+                                     Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
+                        <RadioButton x:Name="ChkFilterReissue" Tag="reissue" GroupName="BatchFilters"
+                                     Style="{StaticResource FilterChipReissue}"
+                                     Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
+                    </WrapPanel>
                     <DataGrid x:Name="DgBatch" Grid.Row="4" Margin="8,0,8,0" AutoGenerateColumns="False"
                               RowHeight="40"
                               CanUserAddRows="False" SelectionMode="Single" CellStyle="{StaticResource BatchCell}"
@@ -1337,6 +1462,8 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="8,6,8,4" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtBatchShowing" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,12,0"/>
                         <Button Content="Cancel" Click="BatchCancel_Click" Margin="14,0,0,0" IsEnabled="False" x:Name="BtnBatchCancel"/>
                         <Button Content="Open output" Click="BatchOpenOutput_Click" Margin="8,0,0,0"/>
                         <ProgressBar x:Name="BatchProgress" Width="200" Height="14" Margin="16,0,0,0"

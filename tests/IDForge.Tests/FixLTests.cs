@@ -30,11 +30,12 @@ public class FixLTests
 
     private static Button? FindButton(Window win, string content)
         => Descendants(win).OfType<Button>()
-            .FirstOrDefault(b => b.Content as string == content);
+            .FirstOrDefault(b => b.Content as string == content
+                || b.Name == content);
 
     private static void Click(Window win, string content)
     {
-        var btn = FindButton(win, content);
+        var btn = FindButton(win, content) ?? win.FindName(content) as Button;
         Assert.NotNull(btn);
         btn!.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
     }
@@ -79,8 +80,8 @@ public class FixLTests
                 var badge = (FrameworkElement)win.FindName("NavBatchBadge")!;
 
                 // --- add two rows through the real button ---
-                Click(win, "Add row");
-                Click(win, "Add row");
+                Click(win, "BtnAddRow");
+                Click(win, "BtnAddRow");
                 Assert.Equal(2, dg.Items.Count);
                 Assert.Equal("2", Txt(win, "TxtNavBatchCount").Text);
                 Assert.Equal(Visibility.Visible, badge.Visibility);
@@ -88,7 +89,7 @@ public class FixLTests
 
                 // --- delete row 1 with "Remove selected (Del)" ---
                 dg.SelectedItem = dg.Items[0];
-                Click(win, "Remove selected (Del)");
+                Click(win, "BtnRemoveSelected");
                 Assert.Equal(1, dg.Items.Count);
                 Assert.Equal("1", Txt(win, "TxtNavBatchCount").Text);
                 Assert.Equal(Visibility.Visible, badge.Visibility);

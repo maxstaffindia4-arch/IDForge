@@ -92,6 +92,8 @@ public partial class MainWindow : Window
         // collection mutations; in-place edits still go through
         // PersistBatchRow, which calls it for non-collection changes.
         _batchRows.CollectionChanged += (_, _) => UpdateBatchSummary();
+        DgBatch.SelectionChanged += (_, _) => UpdateBatchFooter();
+        PnlBatchToolbar.SizeChanged += (_, _) => UpdateBatchToolbarLayout();
         TxtName.TextChanged += (_, _) => UpdateNameHint();
         InitShell();
 
@@ -1308,6 +1310,11 @@ public partial class MainWindow : Window
         SetNavCollapsed(!_navCollapsed);
     }
 
+    /// <summary>True while a grid cell editor/combo has focus — batch editing
+    /// shortcuts must not hijack keys typed into a cell.</summary>
+    private static bool BatchEditFocus()
+        => Keyboard.FocusedElement is TextBoxBase or ComboBox;
+
     /// <summary>Area shortcuts + New Card editing shortcuts. Returns true when handled.</summary>
     public bool TryHandleShortcut(Key key, ModifierKeys modifiers)
     {
@@ -1325,6 +1332,16 @@ public partial class MainWindow : Window
             case Key.B when !shift: NavBackup_Click(this, null!); break;
             case Key.F when _area == "records" && !shift:
                 TxtSearch.Focus(); TxtSearch.SelectAll(); break;
+            case Key.F when _area == "batch" && !shift:
+                TxtBatchSearch.Focus(); TxtBatchSearch.SelectAll(); break;
+            case Key.N when _area == "batch" && !shift:
+                if (!BatchEditFocus()) BatchAddRow_Click(this, null!); break;
+            case Key.D when _area == "batch" && !shift:
+                if (!BatchEditFocus()) BatchDupRow_Click(this, null!); break;
+            case Key.V when _area == "batch" && !shift:
+                if (!BatchEditFocus()) BatchPaste_Click(this, null!); break;
+            case Key.R when _area == "batch" && !shift:
+                BatchReview_Click(this, null!); break;
             case Key.P when _area == "records" && !shift:
                 if (BtnReprint.IsEnabled) Reprint_Click(this, null!); break;
             case Key.R when _area == "records" && shift:
@@ -2977,6 +2994,8 @@ public partial class MainWindow : Window
         TxtBatchName.Text = BatchDisplayName;
         TxtBatchCounts.Text = BatchCountsText();
         TxtEmployeeCount.Text = $"{active.Count} employee{(active.Count == 1 ? "" : "s")}";
+        UpdateBatchChips();
+        UpdateBatchFooter();
         UpdateProgressCard(active);
         UpdateTitle();
         RefreshBatchDerived();
@@ -3062,16 +3081,97 @@ public partial class MainWindow : Window
             : name;
     }
 
+    private string _batchSearch = "";
+
     private bool BatchRowFilter(object o)
     {
         if (o is not BatchRow r) return false;
-        return _batchFilter switch
+        var chip = _batchFilter switch
         {
             "attention" => r.Status is "Failed" or "NeedsPhoto",
             "review" => r.Status == "NeedsReview",
+            "issued" => r.Status == "Issued",
             "reissue" => r.CardType == "Re-issue",
             _ => true,
         };
+        if (!chip) return false;
+        if (_batchSearch.Length > 0)
+        {
+            var q = _batchSearch;
+            var hit = (r.Name?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (r.Uid?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false);
+            if (!hit) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Chip labels carry live counts that match the grid (§2.4).</summary>
+    private void UpdateBatchChips()
+    {
+        int Count(Func<BatchRow, bool> pred) => _batchRows.Count(pred);
+        ChkFilterAll.Content = $"All {_batchRows.Count}";
+        ChkFilterAttention.Content = $"Needs attention {Count(r => r.Status is "Failed" or "NeedsPhoto")}";
+        ChkFilterReview.Content = $"Ready to review {Count(r => r.Status == "NeedsReview")}";
+        ChkFilterIssued.Content = $"Issued {Count(r => r.Status == "Issued")}";
+        ChkFilterReissue.Content = $"Re-issues {Count(r => r.CardType == "Re-issue")}";
+    }
+
+    private void TxtBatchSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _batchSearch = TxtBatchSearch.Text.Trim();
+        TxtSearchHint.Visibility = _batchSearch.Length == 0
+            ? Visibility.Visible : Visibility.Collapsed;
+        CollectionViewSource.GetDefaultView(_batchRows)?.Refresh();
+        UpdateBatchFooter();
+    }
+
+    private void TxtBatchSearch_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            TxtBatchSearch.Text = "";
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Footer line (§2.9): "Showing N of M · K selected" only while a
+    /// filter chip other than All or a search is active; otherwise the
+    /// selected count alone, or nothing.</summary>
+    private void UpdateBatchFooter()
+    {
+        if (TxtBatchShowing == null) return;   // fires during InitializeComponent
+        var filtered = _batchFilter != "all" || _batchSearch.Length > 0;
+        var view = CollectionViewSource.GetDefaultView(_batchRows);
+        var shown = filtered ? view?.Cast<BatchRow>().Count() ?? 0 : 0;
+        var sel = DgBatch.SelectedItems.Count;
+        var parts = new List<string>();
+        if (filtered) parts.Add($"Showing {shown} of {_batchRows.Count}");
+        if (sel > 0) parts.Add($"{sel} selected");
+        TxtBatchShowing.Text = string.Join(" · ", parts);
+        TxtRemoveLabel.Text = sel > 0 ? $"Remove {sel} selected" : "Remove selected";
+        BtnRemoveSelected.IsEnabled = sel > 0;
+    }
+
+    /// <summary>§3: the search box drops below the buttons at narrow widths.</summary>
+    private void UpdateBatchToolbarLayout()
+    {
+        var narrow = PnlBatchToolbar.ActualWidth < 1050;
+        if (narrow)
+        {
+            Grid.SetRow(PnlBatchSearch, 1);
+            Grid.SetColumn(PnlBatchSearch, 0);
+            Grid.SetColumnSpan(PnlBatchSearch, 2);
+            PnlBatchSearch.HorizontalAlignment = HorizontalAlignment.Left;
+            PnlBatchSearch.Margin = new Thickness(0, 8, 0, 0);
+        }
+        else
+        {
+            Grid.SetRow(PnlBatchSearch, 0);
+            Grid.SetColumn(PnlBatchSearch, 1);
+            Grid.SetColumnSpan(PnlBatchSearch, 1);
+            PnlBatchSearch.HorizontalAlignment = HorizontalAlignment.Stretch;
+            PnlBatchSearch.Margin = new Thickness(12, 0, 0, 0);
+        }
     }
 
     private void BatchFilter_Changed(object sender, RoutedEventArgs e)
@@ -3081,6 +3181,7 @@ public partial class MainWindow : Window
             _batchFilter = tag;
             // Checked can fire during InitializeComponent before the view exists.
             CollectionViewSource.GetDefaultView(_batchRows)?.Refresh();
+            UpdateBatchFooter();
         }
     }
 
@@ -3171,7 +3272,7 @@ public partial class MainWindow : Window
         _batchLog.Clear();
         _batchLog.Add($"Photo processing started {DateTime.Now:yyyy-MM-dd HH:mm:ss} — {withPhoto.Count} rows");
         _batchCts = new CancellationTokenSource();
-        BtnStartBatch.IsEnabled = false;
+        BtnPreparePhotos.IsEnabled = false;
         BtnBatchCancel.IsEnabled = true;
         BatchProgress.Visibility = Visibility.Visible;
         TxtBatchStatus.Text = $"Preparing photos for {withPhoto.Count} row(s)...";
@@ -3188,7 +3289,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            BtnStartBatch.IsEnabled = true;
+            BtnPreparePhotos.IsEnabled = true;
             BtnBatchCancel.IsEnabled = false;
             BatchProgress.Visibility = Visibility.Collapsed;
             WriteBatchLog();
