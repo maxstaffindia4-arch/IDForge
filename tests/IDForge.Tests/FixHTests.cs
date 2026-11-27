@@ -121,7 +121,7 @@ public class FixHTests
         {
             foreach (var d in Descendants(row))
             {
-                if (d is not FrameworkElement fe || fe.Visibility == Visibility.Collapsed) continue;
+                if (d is not FrameworkElement fe || !fe.IsVisible) continue;
                 if (fe is DataGridRow or DataGridCellsPresenter or ScrollViewer or Border { Name: "bd" }) continue;
                 // skip elements whose parent is a ScrollViewer viewport (by design)
                 if (IsSizeClipped(fe))

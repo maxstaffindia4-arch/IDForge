@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using IDForge;
+using IDForge.Core;
 using IDForge.Core.Data;
 
 namespace IDForge.Tests;
@@ -80,6 +81,7 @@ public class BatchParityTests
         var row = new BatchRow { Uid = uid, Name = name, Status = status,
             Position = "JE", Contract = "Permanent",
             PrintDateText = "2026-12-01" };
+        win.WatchBatchRow(row);
         win.BatchRows.Add(row);
         return row;
     }
@@ -453,6 +455,264 @@ public class BatchParityTests
                 SaveWindow(win2, Path.Combine(ShotsDir(), "batch-filter-attention-1280x800.png"));
             }
             finally { SettleThenClose(win2); }
+        });
+    }
+
+    // ---------- Part C: grid, thumbnails, pills, selected row (§2.5-2.8) ----------
+
+    [Fact]
+    public void Batch_Grid_Columns_Order_Matches_Plan()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                var dg = Find<DataGrid>(win, "DgBatch");
+                var headers = dg.Columns.Select(c => c.Header?.ToString()).ToArray();
+                Assert.Equal(new[] { "", "#", "Employee", "Employee ID", "Blood group",
+                    "Position", "Contract", "Print date", "Card type", "Status", "Message" },
+                    headers);
+                // no Photo column, no plain-text Status column (§2.6/D3)
+                Assert.DoesNotContain("Photo", headers);
+                Assert.True(dg.MinWidth >= 1080);
+                Assert.Equal(44, dg.RowHeight);
+                Assert.Equal(ScrollBarVisibility.Auto,
+                    dg.GetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty));
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Status_Pills_Per_State()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                var expected = new Dictionary<string, (string label, string icon, bool spin)>
+                {
+                    ["Issued"] = ("Issued", "\uF00C", false),
+                    ["NeedsReview"] = ("Ready to review", "\uF06E", false),
+                    ["Failed"] = ("Needs attention", "\uF06A", false),
+                    ["NeedsPhoto"] = ("Needs photo", "\uF06A", false),
+                    ["Processing"] = ("Processing", "\uF110", true),
+                    ["Approved"] = ("Issuing…", "\uF110", true),
+                    ["Skipped"] = ("Skipped", "\uF056", false),
+                    ["Draft"] = ("Draft", "\uF15B", false),
+                };
+                foreach (var (status, (label, icon, spin)) in expected)
+                {
+                    var row = new BatchRow { Uid = "88000001", Name = "P", Status = status };
+                    Assert.Equal(label, row.StatusPillLabel);
+                    Assert.Equal(icon, row.StatusPillIcon);
+                    Assert.Equal(spin, row.StatusPillSpinning);
+                    Assert.NotNull(row.StatusPillBg);
+                    Assert.NotNull(row.StatusPillFg);
+                }
+                // card-type pills
+                var re = new BatchRow { CardType = "Re-issue" };
+                Assert.True(re.CardTypeIsReissue);
+                Assert.Equal("\uF2F1", re.CardTypePillIcon);
+                var fresh = new BatchRow();
+                Assert.False(fresh.CardTypeIsReissue);
+                Assert.Equal("\uF067", fresh.CardTypePillIcon);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Uid_Invalid_Red_Border_And_Message()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                var row = AddRow(win, "12", "Short ID", "Draft");   // 2 digits -> invalid
+                win.UpdateLayout();
+                Assert.True(row.UidInvalid);
+                var brush = Assert.IsType<SolidColorBrush>(row.UidInvalidBrush);
+                Assert.Equal(Color.FromRgb(0xEF, 0x44, 0x44), brush.Color);
+                Assert.True(row.MessageIsError);
+                Assert.Contains("4–15 digits", row.Message);
+
+                // valid uid clears it
+                row.Uid = "88000002";
+                win.UpdateLayout();
+                Assert.False(row.UidInvalid);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Photo_Placeholder_And_Thumbnail()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            string? png = null;
+            try
+            {
+                // real tiny PNG for the thumbnail path
+                using (var bmp = new SkiaSharp.SKBitmap(40, 48))
+                {
+                    bmp.Erase(SkiaSharp.SKColors.SteelBlue);
+                    using var img = SkiaSharp.SKImage.FromBitmap(bmp);
+                    using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+                    png = Path.Combine(Path.GetTempPath(), $"batchthumb_{Guid.NewGuid():N}.png");
+                    using (var fs = File.Create(png)) data.SaveTo(fs);
+                }
+
+                var needsPhoto = AddRow(win, "89000001", "Needs Photo", "NeedsPhoto");
+                var draft = AddRow(win, "89000002", "", "Draft");
+                var issued = AddRow(win, "89000003", "Issued Row", "Issued");
+                var withPhoto = AddRow(win, "89000004", "Has Photo", "Draft");
+                withPhoto.PhotoPath = png;
+                win.UpdateBatchSummary();
+                win.UpdateLayout();
+
+                Assert.Equal(1, needsPhoto.PhotoPlaceholderKind);
+                Assert.True(needsPhoto.ShowPhotoPlaceholderRed);
+                Assert.True(needsPhoto.ShowAddPhotoLink);
+
+                Assert.Equal(2, draft.PhotoPlaceholderKind);
+                Assert.True(draft.ShowPhotoPlaceholderGrey);
+
+                Assert.Equal(0, issued.PhotoPlaceholderKind);
+                Assert.False(issued.ShowPhotoPlaceholderRed || issued.ShowPhotoPlaceholderGrey);
+
+                Assert.True(withPhoto.ShowThumb);
+                Assert.NotNull(withPhoto.Thumb);
+                Assert.Equal(0, withPhoto.PhotoPlaceholderKind);
+            }
+            finally
+            {
+                SettleThenClose(win);
+                if (png != null) try { File.Delete(png); } catch { }
+            }
+        });
+    }
+
+    [Fact]
+    public void Batch_Selection_Checkbox_Syncs_Grid()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                AddRow(win, "90000001", "One", "Draft");
+                AddRow(win, "90000002", "Two", "Draft");
+                var dg = Find<DataGrid>(win, "DgBatch");
+                win.UpdateLayout();
+
+                dg.SelectedItem = win.BatchRows[0];
+                Assert.True(win.BatchRows[0].IsSelected);
+                Assert.False(win.BatchRows[1].IsSelected);
+                Assert.Equal("1 selected", Find<TextBlock>(win, "TxtBatchShowing").Text);
+
+                // checkbox toggles selection state without moving grid selection
+                win.BatchRows[1].IsSelected = true;
+                Assert.Equal("2 selected", Find<TextBlock>(win, "TxtBatchShowing").Text);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Reissue_Message_Shows_Previous_And_New_Dates()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownBatch(1280, 800);
+            try
+            {
+                var emp = new Employee
+                {
+                    Uid = "91000001", Name = "Re Issue Person", BloodGroup = "O+",
+                    Position = "Nurse", ContractType = "Permanent"
+                };
+                var empId = win.Svc.Store.InsertEmployee(emp);
+                var issueDate = new DateTimeOffset(2026, 3, 10, 0, 0, 0, TimeSpan.Zero);
+                win.Svc.Store.InsertIssue(new CardIssue
+                {
+                    EmployeeId = empId, Version = 1,
+                    PrintDate = new DateOnly(2026, 3, 10),
+                    ValidUntil = new DateOnly(2027, 3, 10), IssuedAt = issueDate
+                });
+
+                var row = AddRow(win, "91000001", "Re Issue Person", "NeedsReview");
+                row.PrintDateText = "2026-12-01";
+                row.Contract = "Contractual";
+                win.UpdateBatchSummary();
+
+                Assert.Equal("Re-issue", row.CardType);
+                var expected = $"Replaces card issued 10/03/2026. New validity until " +
+                    $"{Validity.CalculateValidUntil(row.PrintDate, row.Contract):dd/MM/yyyy}.";
+                Assert.Equal(expected, row.ReplacesText);
+                Assert.Contains(row.ReplacesText, row.Message);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    [Fact]
+    public void Batch_Grid_Screenshots()
+    {
+        WpfSta.Run(() =>
+        {
+            Directory.CreateDirectory(ShotsDir());
+            string? png = null;
+            try
+            {
+                using (var bmp = new SkiaSharp.SKBitmap(60, 72))
+                {
+                    bmp.Erase(SkiaSharp.SKColors.SeaGreen);
+                    using var img = SkiaSharp.SKImage.FromBitmap(bmp);
+                    using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+                    png = Path.Combine(Path.GetTempPath(), $"batchgrid_{Guid.NewGuid():N}.png");
+                    using (var fs = File.Create(png)) data.SaveTo(fs);
+                }
+
+                var win = NewShownBatch(1280, 800);
+                try
+                {
+                    var r1 = AddRow(win, "92000001", "Aisha Rahman", "Issued");
+                    var r2 = AddRow(win, "92000002", "Karim Uddin", "NeedsReview");
+                    var r3 = AddRow(win, "92000003", "Fatema Khan", "Failed");
+                    r3.Error = "bad uid";
+                    var r4 = AddRow(win, "92000004", "Hasan Ali", "NeedsPhoto");
+                    r4.Error = "photo missing";
+                    var r5 = AddRow(win, "92000005", "Nusrat Jahan", "Draft");
+                    r5.PhotoPath = png;
+                    var r6 = AddRow(win, "92000006", "Tanvir Hasan", "Skipped");
+                    win.UpdateBatchSummary();
+                    win.UpdateLayout();
+                    SaveWindow(win, Path.Combine(ShotsDir(), "batch-grid-1280x800.png"));
+                }
+                finally { SettleThenClose(win); }
+
+                var win2 = NewShownBatch(1100, 700);
+                try
+                {
+                    for (int i = 0; i < 8; i++)
+                        AddRow(win2, $"9300000{i}", $"Person Number {i + 1}",
+                            i % 3 == 0 ? "NeedsReview" : i % 3 == 1 ? "Draft" : "Issued");
+                    win2.UpdateBatchSummary();
+                    win2.UpdateLayout();
+                    SaveWindow(win2, Path.Combine(ShotsDir(), "batch-grid-1100x700.png"));
+                }
+                finally { SettleThenClose(win2); }
+            }
+            finally
+            {
+                if (png != null) try { File.Delete(png); } catch { }
+            }
         });
     }
 

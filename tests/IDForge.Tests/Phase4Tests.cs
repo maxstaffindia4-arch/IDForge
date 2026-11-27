@@ -52,9 +52,9 @@ public class Phase4Tests
             try
             {
                 var headers = ColumnHeaders(w);
-                Assert.Equal(new[] { "#", "Employee", "Employee ID", "Blood group", "Position",
-                    "Contract", "Print date", "Card type", "Photo", "Status", "Message" }, headers);
-                foreach (var tag in new[] { "all", "attention", "review", "reissue" })
+                Assert.Equal(new[] { "", "#", "Employee", "Employee ID", "Blood group", "Position",
+                    "Contract", "Print date", "Card type", "Status", "Message" }, headers);
+                foreach (var tag in new[] { "all", "attention", "review", "issued", "reissue" })
                     Assert.NotNull(FilterRadio(w, tag));
                 Assert.Throws<InvalidOperationException>(() => FilterRadio(w, "approved")); // chip removed
                 Assert.Null(w.FindName("BtnIssueBatch"));          // batch issuing removed
@@ -240,8 +240,8 @@ public class Phase4Tests
             try
             {
                 var headers = ColumnHeaders(w);
-                Assert.Equal("Blood group", headers[3]);
-                Assert.Equal("Position", headers[4]);
+                Assert.Equal("Blood group", headers[4]);
+                Assert.Equal("Position", headers[5]);
             }
             finally { w.Close(); }
         });
@@ -505,12 +505,9 @@ public class Phase4Tests
                 var dg = (DataGrid)w.FindName("DgBatch")!;
                 var employee = dg.Columns.First(c => (string)c.Header! == "Employee");
                 var message = dg.Columns.First(c => (string)c.Header! == "Message");
-                Assert.False(employee.Width.IsStar);          // fixed sensible minimum
-                Assert.True(message.Width.IsStar);            // absorbs the rest
-                var msgStyle = (Style)((DataGridTextColumn)message).ElementStyle;
-                var trimming = (TextTrimming)msgStyle.Setters
-                    .OfType<Setter>().First(s => s.Property == TextBlock.TextTrimmingProperty).Value;
-                Assert.Equal(TextTrimming.CharacterEllipsis, trimming);
+                // §2.6: Employee and Message are both star columns (mins 220/200).
+                Assert.True(employee.Width.IsStar);
+                Assert.True(message.Width.IsStar);
             }
             finally { w.Close(); }
         });

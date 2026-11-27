@@ -8,12 +8,13 @@
         <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         <Setter Property="Height" Value="32"/>
         <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
                     <Border x:Name="bd" CornerRadius="6" Background="{StaticResource WhiteBrush}"
-                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
                             SnapsToDevicePixels="True">
                         <ScrollViewer x:Name="PART_ContentHost" Margin="0"/>
                     </Border>

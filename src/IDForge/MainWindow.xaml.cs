@@ -92,7 +92,19 @@ public partial class MainWindow : Window
         // collection mutations; in-place edits still go through
         // PersistBatchRow, which calls it for non-collection changes.
         _batchRows.CollectionChanged += (_, _) => UpdateBatchSummary();
-        DgBatch.SelectionChanged += (_, _) => UpdateBatchFooter();
+        // §2.7: status-pill spinners rotate via a render timer (a Storyboard
+        // inside the virtualized cell template caused a layout loop).
+        _spinnerTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
+        _spinnerTimer.Tick += (_, _) => SpinBatchIcons();
+        DgBatch.SelectionChanged += (_, _) =>
+        {
+            // Grid selection is the single-select source; the Select checkbox
+            // mirrors it. Checking boxes directly does not move grid selection.
+            var sel = DgBatch.SelectedItem as BatchRow;
+            foreach (var r in _batchRows)
+                if (r.IsSelected != ReferenceEquals(r, sel)) r.IsSelected = ReferenceEquals(r, sel);
+            UpdateBatchFooter();
+        };
         PnlBatchToolbar.SizeChanged += (_, _) => UpdateBatchToolbarLayout();
         TxtName.TextChanged += (_, _) => UpdateNameHint();
         InitShell();
@@ -138,6 +150,9 @@ public partial class MainWindow : Window
     /// <summary>Display name for the batch header/title (stored names are "Batch yyyy-MM-dd HH:mm").</summary>
     private string BatchDisplayName =>
         string.IsNullOrWhiteSpace(_batchSessionName) ? "Batch" : FormatBatchName(_batchSessionName);
+
+    /// <summary>Test seam: attaches the same per-row change hooks the add paths use.</summary>
+    internal void WatchBatchRow(BatchRow row) => HookRow(row);
 
     /// <summary>Persists a row's current state to BatchRows (called on every change).</summary>
     internal void PersistBatchRow(BatchRow row)
@@ -1436,6 +1451,34 @@ public partial class MainWindow : Window
         {
             ShowStatusMessage($"Backup failed: {ex.Message}", isError: true);
             return $"Backup failed: {ex.Message}";
+        }
+    }
+
+    private readonly DispatcherTimer _spinnerTimer;
+    private bool _batchSpinning;
+
+    /// <summary>Rotates the status-pill icons of rows that are Processing/Approved (§2.7).</summary>
+    private void SpinBatchIcons()
+    {
+        foreach (var tb in VisualDescendants(DgBatch).OfType<TextBlock>()
+                     .Where(t => (t.Tag as string) == "BatchSpinner"))
+        {
+            var rt = tb.RenderTransform as RotateTransform;
+            if (rt == null) continue;
+            if (tb.DataContext is BatchRow { StatusPillSpinning: true })
+                rt.Angle = (rt.Angle + 24) % 360;
+            else
+                rt.Angle = 0;
+        }
+    }
+
+    private static IEnumerable<DependencyObject> VisualDescendants(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var d in VisualDescendants(child)) yield return d;
         }
     }
 
@@ -2805,13 +2848,46 @@ public partial class MainWindow : Window
             Uid = row.Uid, Name = row.Name, Blood = row.Blood, Position = row.Position,
             Contract = row.Contract, PrintDateText = row.PrintDateText, PhotoPath = row.PhotoPath
         };
+        HookRow(copy);
         _batchRows.Insert(idx + 1, copy);
         PersistBatchRow(copy);
     }
 
-    private void BatchBrowse_Click(object sender, RoutedEventArgs e)
+    /// <summary>"Remove N selected" — deletes every checked row (§2.9).</summary>
+    private void BatchRemoveSelected_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not BatchRow row) return;
+        var targets = _batchRows.Where(r => r.IsSelected).ToList();
+        if (targets.Count == 0) { BatchDelRow_Click(sender, e); return; }
+        foreach (var row in targets)
+        {
+            if (BatchRowHasContent(row) && !ConfirmRowRemoval(row)) continue;
+            if (row.RowId != 0)
+            {
+                try { _svc.Store.DeleteBatchRow(row.RowId); } catch { }
+            }
+            row.Cutout?.Dispose(); row.WindowImage?.Dispose();
+            _batchRows.Remove(row);
+        }
+    }
+
+    /// <summary>Placeholder click opens the file picker — nothing else does (§2.6).</summary>
+    private void BatchPlaceholder_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as FrameworkElement)?.DataContext is BatchRow row)
+            OpenPhotoPickerFor(row);
+    }
+
+    /// <summary>"Add photo…" link in the Message column opens the same picker.</summary>
+    private void BatchAddPhotoLink_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as FrameworkElement)?.DataContext is BatchRow row)
+            OpenPhotoPickerFor(row);
+    }
+
+    private void OpenPhotoPickerFor(BatchRow row)
+    {
         var dlg = new OpenFileDialog { Filter = "Images|*.jpg;*.jpeg;*.png", Title = "Select staff photo" };
         if (dlg.ShowDialog() == true)
         {
@@ -2819,6 +2895,12 @@ public partial class MainWindow : Window
             row.Status = "Draft"; row.Error = "";
             PersistBatchRow(row);
         }
+    }
+
+    private void BatchBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not BatchRow row) return;
+        OpenPhotoPickerFor(row);
     }
 
     /// <summary>Parses pasted/imported text into rows. TSV or CSV, optional header.</summary>
@@ -2998,6 +3080,7 @@ public partial class MainWindow : Window
         UpdateBatchFooter();
         UpdateProgressCard(active);
         UpdateTitle();
+        RefreshBatchThumbs();
         RefreshBatchDerived();
         UpdateReviewButton();
         // Auto-complete the session when every content row reached a terminal state.
@@ -3007,6 +3090,70 @@ public partial class MainWindow : Window
             try { _svc.Store.CompleteBatchSession(_batchSessionId); _batchSessionId = 0; } catch { }
         }
         UpdateBatchBadge();
+        // §2.7: keep the pill spinner turning only while a row is processing.
+        var spinning = active.Any(r => r.StatusPillSpinning);
+        if (spinning != _batchSpinning)
+        {
+            _batchSpinning = spinning;
+            if (spinning) _spinnerTimer.Start(); else _spinnerTimer.Stop();
+        }
+    }
+
+    /// <summary>
+    /// Employee-cell thumbnails (§2.6): window image > cutout > cutout file >
+    /// photo file, decoded once per (paths, bitmaps) key and cached on the row.
+    /// </summary>
+    private void RefreshBatchThumbs()
+    {
+        foreach (var row in _batchRows)
+        {
+            var key = (row.PhotoPath, row.CutoutPath, row.WindowImage, row.Cutout);
+            if (key == row.ThumbKey) continue;
+            row.ThumbKey = key;
+            SKBitmap? bmp = row.WindowImage ?? row.Cutout;
+            if (bmp == null && !string.IsNullOrWhiteSpace(row.CutoutPath))
+            {
+                try { bmp = SKBitmap.Decode(row.CutoutPath); } catch { }
+            }
+            if (bmp == null && !string.IsNullOrWhiteSpace(row.PhotoPath))
+            {
+                try { bmp = SKBitmap.Decode(row.PhotoPath); } catch { }
+            }
+            row.SetThumb(SKBitmapToThumb(bmp));
+        }
+    }
+
+    private static System.Windows.Media.ImageSource? SKBitmapToThumb(SKBitmap? bmp)
+    {
+        if (bmp == null) return null;
+        SKBitmap? resized = null;
+        try
+        {
+            var use = bmp;
+            var max = Math.Max(bmp.Width, bmp.Height);
+            if (max > 112)   // 28x32 @2x + headroom
+            {
+                var s = 112.0 / max;
+                resized = bmp.Resize(new SKImageInfo(
+                    Math.Max(1, (int)(bmp.Width * s)), Math.Max(1, (int)(bmp.Height * s))),
+                    SKSamplingOptions.Default);
+                if (resized != null) use = resized;
+            }
+            using var img = SKImage.FromBitmap(use);
+            using var data = img.Encode(SKEncodedImageFormat.Png, 80);
+            using var ms = new MemoryStream();
+            data.SaveTo(ms);
+            ms.Position = 0;
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.StreamSource = ms;
+            bi.EndInit();
+            bi.Freeze();
+            return bi;
+        }
+        catch { return null; }
+        finally { resized?.Dispose(); }
     }
 
     /// <summary>
@@ -3047,11 +3194,15 @@ public partial class MainWindow : Window
             var emp = EmpFor(r.Uid);
             r.CardType = emp != null ? "Re-issue" : "New card";
             var issue = emp != null ? _svc.Store.LatestIssue(emp.Id) : null;
+            // §2.8 / decision 12: re-issue shows previous and new validity dates.
             r.ReplacesText = issue != null
-                ? $"Replaces card issued {issue.IssuedAt.ToString("dd/MM/yyyy")}" : "";
+                ? $"Replaces card issued {issue.IssuedAt:dd/MM/yyyy}. " +
+                  $"New validity until {Validity.CalculateValidUntil(r.PrintDate, r.Contract):dd/MM/yyyy}."
+                : "";
             // Draft/NeedsPhoto rows list what is still missing instead of an error.
             // H-B: a row with no content at all shows no Message.
             var lead = r.Error;
+            if (r.UidInvalid) lead = "Employee ID can only contain numbers (4–15 digits).";
             if (BatchRowHasContent(r) && r.Status is "Draft" or "NeedsPhoto")
             {
                 var missing = new List<string>();
@@ -3059,7 +3210,8 @@ public partial class MainWindow : Window
                 if (string.IsNullOrWhiteSpace(r.Uid)) missing.Add("ID");
                 if (string.IsNullOrWhiteSpace(r.Position)) missing.Add("position");
                 if (string.IsNullOrWhiteSpace(r.PhotoPath)) missing.Add("photo");
-                if (missing.Count > 0) lead = $"Missing: {string.Join(", ", missing)}";
+                if (missing.Count > 0 && string.IsNullOrEmpty(lead))
+                    lead = $"Missing: {string.Join(", ", missing)}";
             }
             var parts = new List<string>();
             if (!string.IsNullOrEmpty(lead)) parts.Add(lead);
@@ -3067,6 +3219,15 @@ public partial class MainWindow : Window
             if (r.ReplacesText.Length > 0) parts.Add(r.ReplacesText);
             if (dupOf.TryGetValue(r, out var first)) parts.Add($"Duplicate of row {first}");
             r.Message = string.Join(" · ", parts);
+
+            // Employee-cell photo placeholder (§2.6): red dashed when the row
+            // needs a photo, grey for Draft rows, none once a thumb exists.
+            var kind = r.ShowThumb ? 0
+                : r.Status is "Issued" or "Skipped" ? 0
+                : r.Status == "Draft" ? 2
+                : 1;
+            r.SetPhotoPlaceholderKind(kind);
+            r.SetShowAddPhotoLink(kind == 1);
         }
     }
 
@@ -3143,7 +3304,7 @@ public partial class MainWindow : Window
         var filtered = _batchFilter != "all" || _batchSearch.Length > 0;
         var view = CollectionViewSource.GetDefaultView(_batchRows);
         var shown = filtered ? view?.Cast<BatchRow>().Count() ?? 0 : 0;
-        var sel = DgBatch.SelectedItems.Count;
+        var sel = _batchRows.Count(r => r.IsSelected);
         var parts = new List<string>();
         if (filtered) parts.Add($"Showing {shown} of {_batchRows.Count}");
         if (sel > 0) parts.Add($"{sel} selected");
@@ -3229,6 +3390,7 @@ public partial class MainWindow : Window
     {
         row.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName == "IsSelected") { UpdateBatchFooter(); return; }
             if (e.PropertyName is not ("Uid" or "Name" or "Blood" or "Position"
                 or "Contract" or "PrintDateText" or "PhotoPath")) return;
             if (row.RowId == 0) return;   // not yet persisted — PersistBatchRow assigns RowId

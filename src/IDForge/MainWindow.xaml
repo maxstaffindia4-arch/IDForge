@@ -170,30 +170,36 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="BatchFilterChip" TargetType="RadioButton">
-            <Setter Property="Padding" Value="12,5"/>
+        <!-- ===== Batch grid styles (§2.5-2.7) ===== -->
+        <Style x:Key="BatchHeader" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{StaticResource PanelLightBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="bd" CornerRadius="14" Padding="{TemplateBinding Padding}"
-                                Background="{StaticResource PanelLightBrush}" BorderThickness="1"
-                                BorderBrush="{StaticResource BorderBrush}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
-                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource PanelBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        </Style>
+        <Style x:Key="BatchRow" TargetType="DataGridRow">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PanelLightBrush}"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryTintBrush}"/>
+                    <Setter Property="BorderBrush" Value="#663B82F6"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <!-- Always-visible grid input: 1 px InputBrush border, 32 px row height. -->
+        <Style x:Key="GridInput" TargetType="TextBox" BasedOn="{StaticResource InputTextBox}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="BorderBrush" Value="{StaticResource InputBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="Transparent"/>
         </Style>
 
         <!-- ===== Batch filter chips (§2.4) ===== -->
@@ -1306,7 +1312,7 @@
                                 </StackPanel>
                             </Button>
                             <Button x:Name="BtnRemoveSelected" Style="{StaticResource ToolButtonDanger}"
-                                    Click="BatchDelRow_Click" Margin="6,0,0,0"
+                                    Click="BatchRemoveSelected_Click" Margin="6,0,0,0"
                                     ToolTip="Remove selected rows (Del)">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock x:Name="TxtRemoveLabel" Text="Remove selected"
@@ -1352,45 +1358,110 @@
                                      Style="{StaticResource FilterChipReissue}"
                                      Checked="BatchFilter_Changed" Margin="6,0,0,0"/>
                     </WrapPanel>
-                    <DataGrid x:Name="DgBatch" Grid.Row="4" Margin="8,0,8,0" AutoGenerateColumns="False"
-                              RowHeight="40"
-                              CanUserAddRows="False" SelectionMode="Single" CellStyle="{StaticResource BatchCell}"
+                    <!-- ===== BATCH GRID (§2.5-2.8) ===== -->
+                    <Border Grid.Row="4" Margin="24,0,24,12" CornerRadius="6"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            Background="{StaticResource BackgroundBrush}" ClipToBounds="True">
+                    <DataGrid x:Name="DgBatch" AutoGenerateColumns="False"
+                              RowHeight="44" MinHeight="200" MinWidth="1080"
+                              CanUserAddRows="False" CanUserResizeRows="False" SelectionMode="Single"
+                              CellStyle="{StaticResource BatchCell}"
                               HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{StaticResource BorderBrush}"
+                              ColumnHeaderStyle="{StaticResource BatchHeader}"
+                              RowStyle="{StaticResource BatchRow}"
+                              BorderThickness="0"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
                               CellEditEnding="DgBatch_CellEditEnding">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="36" IsReadOnly="True"/>
-                            <DataGridTemplateColumn Header="Employee" Width="108">
+                            <DataGridTemplateColumn Header="" Width="36">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid>
-                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                     Background="Transparent" Padding="5,0" FontSize="12"
-                                                     VerticalContentAlignment="Center" CaretBrush="{StaticResource TextBrush}"
-                                                     KeyDown="BatchText_KeyDown"/>
-                                            <TextBlock Text="Full name" FontStyle="Italic"
-                                                       Foreground="{StaticResource MutedBrush}"
-                                                       Margin="8,0,0,0" VerticalAlignment="Center"
-                                                       IsHitTestVisible="False"
-                                                       Visibility="{Binding NameEmpty, Converter={StaticResource BoolToVis}}"/>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="40" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Employee" Width="*" MinWidth="220">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid Grid.Column="0" Width="28" Height="32" Margin="0,0,10,0">
+                                                <!-- thumbnail (photo/cutout present) -->
+                                                <Border CornerRadius="4" ClipToBounds="True"
+                                                        Opacity="{Binding ThumbOpacity}"
+                                                        Visibility="{Binding ShowThumb, Converter={StaticResource BoolToVis}}"
+                                                        Background="{StaticResource PanelLightBrush}">
+                                                    <Image Source="{Binding Thumb}" Stretch="UniformToFill"/>
+                                                </Border>
+                                                <!-- red dashed "needs photo" placeholder: click opens Browse only -->
+                                                <Grid Cursor="Hand" ToolTip="Click to add a photo"
+                                                      MouseLeftButtonUp="BatchPlaceholder_Click"
+                                                      Visibility="{Binding ShowPhotoPlaceholderRed, Converter={StaticResource BoolToVis}}">
+                                                    <Rectangle Stroke="{StaticResource ErrorBrush}" StrokeThickness="1"
+                                                               StrokeDashArray="3 2" Fill="#0DEF4444" RadiusX="4" RadiusY="4"/>
+                                                    <TextBlock Text="&#xF007;" FontFamily="{StaticResource IconFont}" FontSize="10"
+                                                               Foreground="{StaticResource ErrorBrush}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <!-- grey draft placeholder -->
+                                                <Grid Cursor="Hand" ToolTip="Click to add a photo"
+                                                      MouseLeftButtonUp="BatchPlaceholder_Click"
+                                                      Visibility="{Binding ShowPhotoPlaceholderGrey, Converter={StaticResource BoolToVis}}">
+                                                    <Rectangle Stroke="{StaticResource BorderBrush}" StrokeThickness="1"
+                                                               Fill="{StaticResource SecondaryBrush}" RadiusX="4" RadiusY="4"/>
+                                                    <TextBlock Text="&#xF007;" FontFamily="{StaticResource IconFont}" FontSize="10"
+                                                               Foreground="{StaticResource MutedBrush}"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Grid>
+                                            <Grid Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBox x:Name="NameInput"
+                                                         Style="{StaticResource GridInput}"
+                                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                         FontSize="13" FontWeight="SemiBold"
+                                                         VerticalContentAlignment="Center"
+                                                         CaretBrush="{StaticResource TextBrush}"
+                                                         KeyDown="BatchText_KeyDown"/>
+                                                <TextBlock Text="Full name" FontStyle="Italic"
+                                                           Foreground="{StaticResource MutedBrush}"
+                                                           VerticalAlignment="Center"
+                                                           IsHitTestVisible="False"
+                                                           Visibility="{Binding NameEmpty, Converter={StaticResource BoolToVis}}"/>
+                                            </Grid>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Employee ID" Width="100">
+                            <DataGridTemplateColumn Header="Employee ID" Width="130">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
                                             <TextBox x:Name="UidInput"
+                                                     Style="{StaticResource GridInput}"
                                                      Text="{Binding Uid, UpdateSourceTrigger=PropertyChanged}"
-                                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                     Background="Transparent" Padding="5,0" FontSize="12"
-                                                     VerticalContentAlignment="Center" CaretBrush="{StaticResource TextBrush}"
+                                                     FontFamily="Consolas" FontSize="12"
+                                                     BorderBrush="{Binding UidInvalidBrush}"
+                                                     VerticalContentAlignment="Center"
+                                                     CaretBrush="{StaticResource TextBrush}"
                                                      KeyDown="BatchText_KeyDown"
                                                      LostFocus="BatchUid_LostFocus"/>
                                             <TextBlock Text="Employee ID" FontStyle="Italic"
                                                        Foreground="{StaticResource MutedBrush}"
-                                                       Margin="8,0,0,0" VerticalAlignment="Center"
+                                                       Margin="10,0,0,0" VerticalAlignment="Center"
                                                        IsHitTestVisible="False"
                                                        Visibility="{Binding UidEmpty, Converter={StaticResource BoolToVis}}"/>
                                             <TextBlock Text="{Binding UidCounterText}" FontSize="10"
@@ -1402,7 +1473,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Blood group" Width="105">
+                            <DataGridTemplateColumn Header="Blood group" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox ItemsSource="{Binding Source={x:Static core:Config.BloodGroups}}"
@@ -1412,7 +1483,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Position" Width="140">
+                            <DataGridTemplateColumn Header="Position" Width="200">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
@@ -1440,27 +1511,81 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Print date" Binding="{Binding PrintDateDisplay}" Width="90"/>
-                            <DataGridTextColumn Header="Card type" Binding="{Binding CardType}" Width="80" IsReadOnly="True"/>
-                            <DataGridTemplateColumn Header="Photo" Width="70">
+                            <DataGridTemplateColumn Header="Print date" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Button Content="Browse" Click="BatchBrowse_Click" Padding="8,2"
-                                                ToolTip="{Binding PhotoPath}"/>
+                                        <TextBox Style="{StaticResource GridInput}"
+                                                 Text="{Binding PrintDateDisplay, UpdateSourceTrigger=PropertyChanged}"
+                                                 VerticalContentAlignment="Center"
+                                                 CaretBrush="{StaticResource TextBrush}"
+                                                 KeyDown="BatchText_KeyDown"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" IsReadOnly="True">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                        <Setter Property="ToolTip" Value="{Binding Message}"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Card type" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="10" Padding="8,2"
+                                                Background="{Binding CardTypePillBg}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding CardTypePillIcon}"
+                                                           FontFamily="{StaticResource IconFont}"
+                                                           FontSize="9" Foreground="{Binding CardTypePillFg}"
+                                                           VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                <TextBlock Text="{Binding CardType}" FontSize="11"
+                                                           Foreground="{Binding CardTypePillFg}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Status" Width="130">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="10" Padding="8,2" BorderThickness="1"
+                                                Background="{Binding StatusPillBg}"
+                                                BorderBrush="{Binding StatusPillBorder}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding StatusPillIcon}"
+                                                           FontFamily="{StaticResource IconFont}"
+                                                           FontSize="9" Foreground="{Binding StatusPillFg}"
+                                                           Tag="BatchSpinner"
+                                                           VerticalAlignment="Center" Margin="0,0,5,0">
+                                                    <TextBlock.RenderTransform>
+                                                        <RotateTransform CenterX="4.5" CenterY="4.5"/>
+                                                    </TextBlock.RenderTransform>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding StatusPillLabel}" FontSize="11"
+                                                           Foreground="{Binding StatusPillFg}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Message" Width="*" MinWidth="200">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Message}" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{Binding MessageBrush}"
+                                                       ToolTip="{Binding Message}"/>
+                                            <TextBlock Text="Add photo…" FontSize="12" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" Cursor="Hand"
+                                                       TextDecorations="Underline"
+                                                       Foreground="{StaticResource PrimaryBrush}"
+                                                       MouseLeftButtonUp="BatchAddPhotoLink_Click"
+                                                       Visibility="{Binding ShowAddPhotoLink, Converter={StaticResource BoolToVis}}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+                    </Border>
                     <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="8,6,8,4" VerticalAlignment="Center">
                         <TextBlock x:Name="TxtBatchShowing" VerticalAlignment="Center" FontSize="12"
                                    Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,12,0"/>
