@@ -148,8 +148,8 @@
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="bbd" Background="Transparent">
-                                            <TextBlock Text="&#xE787;"
-                                                       FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                            <TextBlock Text="&#xF133;"
+                                                       FontFamily="{StaticResource IconFont}" FontSize="13"
                                                        Foreground="{StaticResource MutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"/>

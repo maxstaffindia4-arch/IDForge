@@ -24,7 +24,7 @@
     <Resource Include="..\..\assets\fonts\Inter-Medium.ttf" Link="Fonts\Inter-Medium.ttf" />
     <Resource Include="..\..\assets\fonts\Inter-SemiBold.ttf" Link="Fonts\Inter-SemiBold.ttf" />
     <Resource Include="..\..\assets\fonts\JetBrainsMono-Regular.ttf" Link="Fonts\JetBrainsMono-Regular.ttf" />
-    <Resource Include="..\..\assets\fonts\fa-solid-900.ttf" Link="Fonts\fa-solid-900.ttf" />
+    <Resource Include="..\..\assets\fonts\fa-solid-900.ttf" Link="assets\fonts\fa-solid-900.ttf" />
     <None Include="..\..\assets\fonts\OFL-Inter.txt" Link="Fonts\OFL-Inter.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\fonts\OFL-JetBrainsMono.txt" Link="Fonts\OFL-JetBrainsMono.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\fonts\OFL-FontAwesome.txt" Link="Fonts\OFL-FontAwesome.txt" CopyToOutputDirectory="PreserveNewest" />

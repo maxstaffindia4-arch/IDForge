@@ -118,6 +118,20 @@ public class NewCardParityTests
         });
     }
 
+    /// <summary>FIX 1: dedicated shot proving every icon renders (no tofu).</summary>
+    [Fact]
+    public void NewCard_Icons_Render_Screenshot()
+    {
+        WpfSta.Run(() =>
+        {
+            var dir = ShotsDir();
+            Directory.CreateDirectory(dir);
+            var win = NewShownNewCard(1280, 800);
+            try { SaveWindow(win, Path.Combine(dir, "newcard-icons-1280x800.png")); }
+            finally { SettleThenClose(win); }
+        });
+    }
+
     [Fact]
     public void Nav_Collapsed_And_Expanded_States()
     {

@@ -5,7 +5,7 @@
     <FontFamily x:Key="AppFontFamily">pack://application:,,,/IDForge;component/Fonts/#Inter</FontFamily>
     <FontFamily x:Key="MonoFontFamily">pack://application:,,,/IDForge;component/Fonts/#JetBrains Mono</FontFamily>
     <!-- Font Awesome 6 Free Solid — UI icons (parity plan §3.3) -->
-    <FontFamily x:Key="IconFont">pack://application:,,,/IDForge;component/Fonts/#Font Awesome 6 Free</FontFamily>
+    <FontFamily x:Key="IconFont">pack://application:,,,/IDForge;component/assets/fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid</FontFamily>
 
     <Style x:Key="BodyText" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
