@@ -124,14 +124,18 @@ public partial class MainWindow : Window
     internal CardService Svc => _svc;
     internal string OutputDir => AppPaths.OutputDir;
     internal System.Collections.ObjectModel.ObservableCollection<BatchRow> BatchRows => _batchRows;
-    private void EnsureBatchSession()
+    private void EnsureBatchSession(string? name = null)
     {
         if (_batchSessionId == 0)
         {
-            _batchSessionName = $"Batch {DateTime.Now:yyyy-MM-dd HH:mm}";
+            _batchSessionName = name ?? $"Batch {DateTime.Now:yyyy-MM-dd HH:mm}";
             _batchSessionId = _svc.Store.CreateBatchSession(_batchSessionName);
         }
     }
+
+    /// <summary>Display name for the batch header/title (stored names are "Batch yyyy-MM-dd HH:mm").</summary>
+    private string BatchDisplayName =>
+        string.IsNullOrWhiteSpace(_batchSessionName) ? "Batch" : FormatBatchName(_batchSessionName);
 
     /// <summary>Persists a row's current state to BatchRows (called on every change).</summary>
     internal void PersistBatchRow(BatchRow row)
@@ -141,6 +145,7 @@ public partial class MainWindow : Window
             EnsureBatchSession();
             row.SessionId = _batchSessionId;
             row.RowId = _svc.Store.SaveBatchRow(row.ToEntry());
+            MarkBatchSaved();
             UpdateBatchSummary();
         }
         catch (Exception ex)
@@ -1095,8 +1100,11 @@ public partial class MainWindow : Window
     }
 
     private void UpdateTitle()
-        => Title = $"IDForge — {AreaLabel(_area)}" +
-           (_area == "newcard" && _draftPending ? " • saving…" : "");
+        => Title = _area == "batch"
+            ? $"IDForge — Batch: {BatchDisplayName}" +
+              (_draftPending ? " • saving…" : "")
+            : $"IDForge — {AreaLabel(_area)}" +
+              (_area == "newcard" && _draftPending ? " • saving…" : "");
 
     private static string AreaLabel(string a) => a switch
     {
@@ -1147,7 +1155,7 @@ public partial class MainWindow : Window
         // Collapsed rail: icon only, single-line tooltip per spec.
         PnlBackupCompact.ToolTip = AppSettings.LastBackupAt is { } cb
             ? $"Last backup {cb:dd/MM/yyyy HH:mm}. Back up now"
-            : "Never backed up. Back up now";
+            : "No backup yet. Back up now";
     }
 
     /// <summary>FIX 5: after any data-changing action (clear all, restore,
@@ -2567,6 +2575,169 @@ public partial class MainWindow : Window
     // Stages (plan §2): import -> process photos -> review -> issue (per row).
     // Nothing is approved or issued without an operator action in ReviewWindow.
 
+    // ---- header / saved batches / progress card (§2.1-2.2) ----
+
+    /// <summary>"Saved HH:mm" — refreshed on every persisted change.</summary>
+    private void MarkBatchSaved()
+        => TxtSaved.Text = $"Saved {DateTime.Now:HH:mm}";
+
+    /// <summary>Progress card: counts, 4-segment bar, legend (§2.2).
+    /// Draft rows are legend-only; the bar shows Issued / Ready to review /
+    /// Needs attention / Processing.</summary>
+    private void UpdateProgressCard(List<BatchRow> active)
+    {
+        int issued = active.Count(r => r.Status == "Issued");
+        int review = active.Count(r => r.Status == "NeedsReview");
+        int attention = active.Count(r => r.Status is "Failed" or "NeedsPhoto");
+        int processing = active.Count(r => r.Status == "Processing");
+        int draft = active.Count(r => r.Status == "Draft");
+        int skipped = active.Count(r => r.Status == "Skipped");
+
+        if (active.Count == 0)
+        {
+            TxtIssuedCount.Text = "No rows yet";
+            TxtRemaining.Text = "";
+            PnlBatchLegend.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            TxtIssuedCount.Text = $"{issued} of {active.Count} issued";
+            var toReview = active.Count(r => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto");
+            TxtRemaining.Text = toReview > 0 ? $"— {toReview} to review" : "";
+            PnlBatchLegend.Visibility = Visibility.Visible;
+        }
+
+        // star-width segments; a zero count collapses its column
+        ColIssued.Width = new GridLength(issued, GridUnitType.Star);
+        ColReview.Width = new GridLength(review, GridUnitType.Star);
+        ColAttention.Width = new GridLength(attention, GridUnitType.Star);
+        ColProcessing.Width = new GridLength(processing, GridUnitType.Star);
+
+        PnlBatchLegend.Children.Clear();
+        AddLegendItem("Issued", issued, "SuccessBrush");
+        AddLegendItem("Ready to review", review, "PrimaryBrush");
+        AddLegendItem("Needs attention", attention, "ErrorBrush");
+        AddLegendItem("Processing photo", processing, "WarningBrush");
+        AddLegendItem("Draft", draft, "SecondaryBrush", bordered: true);
+
+        void AddLegendItem(string label, int count, string brushKey, bool bordered = false)
+        {
+            var sw = new StackPanel { Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 14, 4) };
+            var dot = new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(2),
+                Background = (Brush)FindResource(brushKey),
+                BorderBrush = bordered ? (Brush)FindResource("BorderBrush") : null,
+                BorderThickness = bordered ? new Thickness(1) : new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
+            sw.Children.Add(dot);
+            sw.Children.Add(new TextBlock
+            {
+                Text = $"{label} {count}", FontSize = 11,
+                Foreground = (Brush)FindResource("SecondaryTextBrush"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            PnlBatchLegend.Children.Add(sw);
+        }
+    }
+
+    /// <summary>Injectable name prompt for tests (rename / new batch).</summary>
+    internal static Func<string, string, string?>? BatchNamePrompt;
+
+    private string? PromptBatchName(string heading, string prompt, string initial)
+        => BatchNamePrompt?.Invoke(heading, initial)
+           ?? IDForge.Dialogs.AppDialog.PromptText(this, heading, heading, prompt, initial);
+
+    private void BtnRenameBatch_Click(object sender, RoutedEventArgs e)
+    {
+        var name = PromptBatchName("Rename batch", "Batch name:", BatchDisplayName);
+        if (string.IsNullOrWhiteSpace(name)) return;
+        _batchSessionName = name.Trim();
+        if (_batchSessionId == 0)
+            EnsureBatchSession(_batchSessionName);
+        try { _svc.Store.RenameBatchSession(_batchSessionId, _batchSessionName); }
+        catch (Exception ex) { App.LogCrash(ex, notify: false); }
+        UpdateBatchSummary();
+    }
+
+    private void BtnNewBatch_Click(object sender, RoutedEventArgs e)
+    {
+        var name = PromptBatchName("New batch", "Name this batch:", $"Batch {DateTime.Now:dd/MM/yyyy}");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        // Archive the current session, then start a fresh named one.
+        if (_batchSessionId != 0)
+        {
+            try { _svc.Store.CompleteBatchSession(_batchSessionId); } catch { }
+            _batchSessionId = 0;
+        }
+        ClearBatchRows();
+        _batchSessionName = name.Trim();
+        // create the session row now so the name is saved even with zero rows
+        try { _batchSessionId = _svc.Store.CreateBatchSession(_batchSessionName); }
+        catch (Exception ex) { App.LogCrash(ex, notify: false); }
+        UpdateBatchSummary();
+    }
+
+    private void BtnBatches_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        List<IDForge.Core.Data.BatchSession> sessions;
+        try { sessions = _svc.Store.BatchSessionSummaries(); }
+        catch (Exception ex) { App.LogCrash(ex, notify: false); return; }
+        var menu = new ContextMenu();
+        if (sessions.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "No saved batches", IsEnabled = false });
+        }
+        foreach (var s in sessions)
+        {
+            var item = new MenuItem
+            {
+                Header = $"{s.Name} — {s.RowCount} row{(s.RowCount == 1 ? "" : "s")} · {s.CreatedAt.LocalDateTime:dd/MM/yyyy HH:mm}",
+                Tag = s.Id,
+                IsEnabled = s.Id != _batchSessionId
+            };
+            if (s.Status != "Open") item.Header = item.Header + " (completed)";
+            item.Click += (_, _) => OpenBatchSession((long)item.Tag!);
+            menu.Items.Add(item);
+        }
+        menu.Items.Add(new Separator());
+        var rename = new MenuItem { Header = "Rename batch…" };
+        rename.Click += (_, _) => BtnRenameBatch_Click(this, null!);
+        menu.Items.Add(rename);
+        var output = new MenuItem { Header = "Open output folder" };
+        output.Click += (_, _) => BatchOpenOutput_Click(this, null!);
+        menu.Items.Add(output);
+        menu.PlacementTarget = btn;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    /// <summary>Loads a saved batch session into the grid (Batches dropdown).</summary>
+    internal void OpenBatchSession(long sessionId)
+    {
+        if (sessionId == _batchSessionId) return;
+        var sess = _svc.Store.BatchSession(sessionId);
+        if (sess == null) return;
+        ClearBatchRows();
+        _batchSessionId = sess.Id;
+        _batchSessionName = sess.Name;
+        foreach (var entry in _svc.Store.BatchRows(sess.Id))
+        {
+            var row = BatchRow.FromEntry(entry);
+            HookRow(row);
+            _batchRows.Add(row);
+        }
+        DgBatch.Items.Refresh();
+        UpdateBatchSummary();
+    }
+
+    /// <summary>Removes all rows (disposing photo bitmaps) without touching the store.</summary>
+    private void ClearBatchRows()
+    {
+        foreach (var r in _batchRows) { r.Cutout?.Dispose(); r.WindowImage?.Dispose(); }
+        _batchRows.Clear();
+    }
+
     // ---- grid row ops ----
 
     private void BatchAddRow_Click(object sender, RoutedEventArgs e)
@@ -2803,8 +2974,11 @@ public partial class MainWindow : Window
         int skipped = active.Count(r => r.Status == "Skipped");
         TxtBatchStatus.Text = $"Ready to review: {review}, Issued: {issued}, Failed: {failed}" +
             (skipped > 0 ? $", Skipped: {skipped}" : "");
-        TxtBatchName.Text = FormatBatchName(_batchSessionName);
+        TxtBatchName.Text = BatchDisplayName;
         TxtBatchCounts.Text = BatchCountsText();
+        TxtEmployeeCount.Text = $"{active.Count} employee{(active.Count == 1 ? "" : "s")}";
+        UpdateProgressCard(active);
+        UpdateTitle();
         RefreshBatchDerived();
         UpdateReviewButton();
         // Auto-complete the session when every content row reached a terminal state.
@@ -2935,7 +3109,10 @@ public partial class MainWindow : Window
     {
         var first = _batchRows.FirstOrDefault(r => BatchRowHasContent(r) && NeedsReview(r));
         BtnReview.IsEnabled = first != null;
-        TxtReviewReason.Text = first != null ? "" : _batchRows.Count == 0 ? "Add rows to begin" : "No rows to review";
+        // §2.2: enabled hint explains what the button does; disabled shows why.
+        TxtReviewReason.Text = first != null
+            ? "Opens the first card that needs review"
+            : _batchRows.Count == 0 ? "Add rows to begin" : "No rows to review";
 
         static bool NeedsReview(BatchRow r) => r.Status is "NeedsReview" or "Draft" or "NeedsPhoto";
     }

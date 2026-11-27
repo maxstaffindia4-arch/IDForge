@@ -1,0 +1,89 @@
+# Batch visual parity — traceability
+
+Spec: `docs/redesign/BATCH_VISUAL_PARITY_PLAN.md` + prompt overrides (prompt wins).
+One row per plan section/decision. "Shot" = committed PNG under `docs/redesign/shots/`.
+Status: ✅ done · 🚧 in progress · ⬜ not done.
+
+## Decisions (plan §1)
+
+| # | Requirement | Implementation | Test | Shot | Status |
+|---|---|---|---|---|---|
+| D1 | Cards issued one at a time from Review; no grid issue actions (superseded by override 5 header Issue batch) | `ReviewWindow.ApproveIssue_Click`; `BtnIssueBatch` header only | `Batch_Issue_Only_From_Header_And_Review` | batch-locked/unlocked | 🚧 |
+| D2 | Saved named batches; Batches dropdown lists them; "+ New batch" asks for a name; replaces V14 | `BtnBatches_Click` menu, `BtnNewBatch_Click`, `CardStore.RenameBatchSession`, `OpenBatchSession` | `Batch_Saved_Batches_List_And_Switch` | batch-header | 🚧 |
+| D3 | Photo column removed; thumbnail in Employee cell; placeholder opens Browse | `DgBatch` Employee column template (`ImgRowThumb`, placeholders) | `Batch_Employee_Cell_Thumb_Placeholder` | batch-grid | 🚧 |
+| D4 | Blood group kept as column after Employee ID | `DgBatch` column order | `Batch_Columns_Order_And_Widths` | batch-grid | 🚧 |
+| D5 | Chips: All, Needs attention, Ready to review, Issued, Re-issues; All dark when selected (override 6) | `FilterChip*` styles, `ChkFilter*` radios, counts | `Batch_Chips_Counts_Match_Rows` | batch-toolbar, batch-filter-attention | 🚧 |
+| D6 | Grid scrolls, no paging; "Showing N of M" only while filter/search active | `TxtBatchShowing`, `BatchRowFilter`, `TxtBatchSearch` | `Batch_Footer_Showing_Only_When_Filtered` | batch-footer | 🚧 |
+| D7 | Paste/CSV order: Name, Position, Employee ID, Blood, Contract, Print date; CSV photo column after | `BatchValidator.Parse` | `Batch_Paste_Order_And_Csv_Photo` | — (behaviour) | 🚧 |
+| D8 | Batch badge blue when Batch active, grey w/ count otherwise | `UpdateBatchBadge` (existing) | `Nav_Batch_Badge_Blue_When_Active` | batch-header | ✅ exists |
+| D9 | Search "Find name or Employee ID (Ctrl+F)" at right of toolbar | `TxtBatchSearch`, Ctrl+F in `TryHandleShortcut` | `Batch_Search_Filters_And_CtrlF` | batch-toolbar | 🚧 |
+| D10 | Status bar "Preparing photos: N of M" + spinner while processing; cancel beside | `PnlStatusPhotos`, `TxtStatusPhotos`, `BtnCancelPhotos` | `Batch_StatusBar_Photo_Progress` | batch-header (state) | 🚧 |
+| D11 | Window title "IDForge — Batch: <name>" | `UpdateWindowTitle` on `ShowArea`/rename | `Batch_Window_Title` | — | 🚧 |
+| D12 | Re-issue message "Replaces card issued dd/MM/yyyy. New validity until dd/MM/yyyy." | `RefreshBatchDerived` | `Batch_Reissue_Message_Wording` | batch-grid | 🚧 |
+
+## Layout (§2)
+
+| Section | Requirement | Implementation | Test | Shot | Status |
+|---|---|---|---|---|---|
+| §2.1 | Header: title+rename+pencil, employee-count badge, subtitle, Saved HH:mm, Batches, New batch; 24px margins | `PageBatch` row 0 | `BatchHeader_*` bounds tests @3 sizes | batch-header-1280x800, batch-header-860x620 | 🚧 |
+| §2.2 | Progress card: issued count, remaining, 4-segment bar, legend (Issued/Ready/Attention/Processing/Draft), Review cards btn + hint; empty = "No rows yet" | `PnlBatchProgress`, `GridProgress`, `ColIssued/ColReview/ColAttention/ColProcessing`, `TxtIssuedCount`, `TxtRemaining`, legend | `Batch_Progress_Bar_Matches_Counts` | batch-header | 🚧 |
+| §2.3 | Toolbar: Add row/Duplicate/Paste/Import/Export/Prepare photos/Remove N selected; shortcuts; danger style; 256px search right | `PnlBatchToolbar`, `BtnTool*`, `TxtBatchSearch` | `Batch_Toolbar_Wraps_No_Clip` @3 sizes | batch-toolbar-1280x800 | 🚧 |
+| §2.4 | Filter chips w/ counts, red/amber variants, single-check | `WrapPanel` chips row | chip bounds + count tests | batch-filter-attention | 🚧 |
+| §2.5 | Grid in 1px border, 6px radius, own scroll, MinWidth 1080; header/row styles; selected row accent+40% border | `BorderDgBatch`, `BatchHeader`, `BatchRow` styles | `Batch_Grid_Scrolls_Inside_Border` | batch-grid-1280x800, batch-grid-1100x700 | 🚧 |
+| §2.6 | Columns: Select/#/Employee(star,min220)/EmployeeID 130/Blood 90/Position 200/Contract 120/Print date 110/Card type pill 110/Status pill 130/Message(star,min200); red ID border when invalid | `DgBatch` columns, `GridInput` style | `Batch_Invalid_Uid_Red_Border_And_Message` | batch-grid | 🚧 |
+| §2.7 | Status pills per state (icon+label+colours); card-type pills; processing spinner | `PnlStatusPill` template, `TxtRowStatus*` | `Batch_Status_Pills_Per_State` | batch-grid | 🚧 |
+| §2.8 | Message column: secondary text, red errors w/ links, re-issue wording, "Duplicate of row N", "Missing: …", empty rows blank | `TxtRowMessage`, `RefreshBatchDerived` | `Batch_Message_Column_Rules` | batch-grid | 🚧 |
+| §2.9 | Footer "Showing N of M · K selected" / tip right; status bar photo progress; "Open output" into Batches menu | `PnlBatchFooter`, `TxtBatchTip`; `BtnOpenOutput` in Batches menu | `Batch_Footer_And_Tip` | batch-footer-860x620 | 🚧 |
+
+## Responsive (§3)
+
+| Rule | Implementation | Test | Shot | Status |
+|---|---|---|---|---|
+| Min 860×620; grid only sideways scroller | `MinWidth=1080` inside border | bounds tests @860 | batch-header-860x620, batch-footer-860x620 | 🚧 |
+| Toolbar wraps before clipping; search drops below | `WrapPanel` toolbar | `Batch_Toolbar_Wraps_No_Clip` | batch-toolbar | 🚧 |
+| Progress card stacks Review under counts <1100px | `UpdateProgressLayout` size handler | `Batch_Progress_Stacks_Under_1100` | batch-header-860x620 | 🚧 |
+| Status bar version+About at every size | existing shell | existing tests | all shots | ✅ |
+
+## Overrides (prompt)
+
+| # | Requirement | Implementation | Test | Status |
+|---|---|---|---|---|
+| O1 | No menu bar | already removed | existing | ✅ |
+| O2 | No Save draft/Ctrl+S | autosave | existing | ✅ |
+| O3 | About in nav rail | existing | existing | ✅ |
+| O4 | Clear all only in Settings | existing | existing | ✅ |
+| O5 | Approve & next / Issue this card only in Review; Issue batch (N) Ctrl+Shift+I gated, hint "Approve or skip N more to unlock", one transaction+confirm | `BtnIssueBatch`, `TxtIssueBatchHint`, `IssueApprovedRowsAsync`, Review `BtnApproveNext`/`BtnIssueThis` | `Batch_Issue_Batch_Gate_And_Transaction` | 🚧 |
+| O6 | Chips per D5 (not Review dropdown) | chips | `Batch_Chips_*` | 🚧 |
+| O7 | Version number only | `AppInfo.Version` | existing | ✅ |
+| O8 | Review cards (Ctrl+R) opens ReviewWindow if exists; exists → enabled; disabled+tooltip otherwise | `BtnReviewCards`, `TryHandleShortcut` Ctrl+R | `Batch_Review_CtrlR` | 🚧 |
+
+## Behaviour list (prompt)
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| Saved batches dropdown/new/rename/Saved HH:mm/auto-save | `PnlBatchesMenu`, `TxtSaved`, `MarkBatchSaved` | `Batch_Saved_Batches_*` | 🚧 |
+| Paste order | `BatchValidator.Parse` | `Batch_Paste_Order_*` | 🚧 |
+| Row states + pills; empty rows not counted | `BatchRow.Status`, pill template, `BatchRowHasContent` | `Batch_Row_States_*` | 🚧 |
+| Batch issue header-only, gated | `BtnIssueBatch` | `Batch_Issue_Batch_*` | 🚧 |
+| Re-issue message prev+new dates | `RefreshBatchDerived` | `Batch_Reissue_Message_*` | 🚧 |
+| Double-click selects only | `DgBatch` (no open handler) | `Batch_DoubleClick_Selects_Only` | 🚧 |
+| Ctrl+F search | `TryHandleShortcut` | `Batch_Search_*` | 🚧 |
+| Batch badge blue when active | `UpdateBatchBadge` | `Nav_Batch_Badge_*` | ✅ |
+| Window title | `UpdateWindowTitle` | `Batch_Window_Title` | 🚧 |
+| Status bar photo progress | `PnlStatusPhotos` | `Batch_StatusBar_Photo_Progress` | 🚧 |
+| "Showing N of M" only when filtered | `UpdateBatchFooter` | `Batch_Footer_*` | 🚧 |
+| Grid scrolls not pages | DataGrid scroll | layout tests | 🚧 |
+
+## Screenshots required
+
+| Shot | Shows | Status |
+|---|---|---|
+| batch-header-1280x800.png | header+progress card | ⬜ |
+| batch-header-860x620.png | responsive header | ⬜ |
+| batch-toolbar-1280x800.png | toolbar+chips+search | ⬜ |
+| batch-grid-1280x800.png | grid/pills/thumbs/messages | ⬜ |
+| batch-grid-1100x700.png | grid at mid width | ⬜ |
+| batch-footer-860x620.png | footer/status bar | ⬜ |
+| batch-locked-1280x800.png | Issue batch locked + hint | ⬜ |
+| batch-unlocked-1280x800.png | Issue batch enabled | ⬜ |
+| batch-filter-attention-1280x800.png | Needs attention chip + Showing N of M | ⬜ |

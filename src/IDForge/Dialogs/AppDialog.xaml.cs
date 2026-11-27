@@ -161,4 +161,31 @@ public partial class AppDialog : Window
         txt.TextChanged += (_, _) => ok.IsEnabled = txt.Text == requiredPhrase;
         return dlg;
     }
+
+    /// <summary>Single-line text prompt (batch rename / new batch name).
+    /// Returns the entered text, or null on cancel/empty.</summary>
+    public static string? PromptText(Window? owner, string windowTitle, string heading,
+        string prompt, string initial = "")
+    {
+        var dlg = BuildText(owner, windowTitle, heading, prompt, initial);
+        dlg.ShowDialog();
+        return dlg.Result as string;
+    }
+
+    /// <summary>Builds the text prompt without showing it (tests drive it).</summary>
+    internal static AppDialog BuildText(Window? owner, string windowTitle, string heading,
+        string prompt, string initial = "")
+    {
+        var dlg = new AppDialog { Owner = SafeOwner(owner), Title = windowTitle, Heading = heading };
+        var panel = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        panel.Children.Add(new TextBlock { Text = prompt, Margin = new Thickness(0, 0, 0, 4) });
+        var txt = new TextBox { Width = 260, Text = initial };
+        panel.Children.Add(txt);
+        dlg.ConfirmInput = txt;
+        dlg.SetBody(panel);
+        dlg.AddButton(Messages.CancelLabel, isCancel: true, isDefault: true);
+        dlg.AddButton("OK", () => dlg.CloseWith(txt.Text.Trim()), isDefault: false);
+        txt.SelectAll();
+        return dlg;
+    }
 }

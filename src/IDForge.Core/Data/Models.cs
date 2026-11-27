@@ -66,6 +66,8 @@ public sealed class BatchSession
     /// <summary>Open or Completed.</summary>
     public string Status { get; set; } = "Open";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    /// <summary>Row count for the Batches dropdown (not a column).</summary>
+    public int RowCount { get; set; }
 }
 
 /// <summary>A persisted batch row — survives app restarts (plan §8).</summary>

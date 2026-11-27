@@ -662,6 +662,51 @@ public sealed class CardStore : IDisposable
         return list;
     }
 
+    /// <summary>All sessions with their row counts, for the Batches dropdown.</summary>
+    public List<BatchSession> BatchSessionSummaries()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT s.*, (SELECT COUNT(*) FROM BatchRows br WHERE br.SessionId = s.Id) AS RowCount
+            FROM BatchSessions s ORDER BY s.Id DESC
+            """;
+        var list = new List<BatchSession>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new BatchSession
+            {
+                Id = r.GetInt64(0), Name = r.GetString(1), Status = r.GetString(2),
+                CreatedAt = DateTimeOffset.Parse(r.GetString(3)),
+                RowCount = r.GetInt32(r.GetOrdinal("RowCount"))
+            });
+        return list;
+    }
+
+    /// <summary>Single session by id (any status), for the Batches dropdown.</summary>
+    public BatchSession? BatchSession(long id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM BatchSessions WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return new BatchSession
+        {
+            Id = r.GetInt64(0), Name = r.GetString(1), Status = r.GetString(2),
+            CreatedAt = DateTimeOffset.Parse(r.GetString(3))
+        };
+    }
+
+    /// <summary>Renames a saved batch (header pencil / Batches menu).</summary>
+    public void RenameBatchSession(long id, string name)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE BatchSessions SET Name=$n WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$n", name);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
     /// <summary>Inserts or updates a batch row by Id (Id==0 inserts).</summary>
     public long SaveBatchRow(BatchRowEntry row)
     {

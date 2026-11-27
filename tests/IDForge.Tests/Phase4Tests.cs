@@ -84,7 +84,8 @@ public class Phase4Tests
                 var btn = (Button)w.FindName("BtnReview")!;
                 var reason = ((TextBlock)w.FindName("TxtReviewReason")!).Text;
                 Assert.True(btn.IsEnabled);
-                Assert.Equal("", reason);
+                // §2.2: enabled state shows what the button opens.
+                Assert.Equal("Opens the first card that needs review", reason);
 
                 foreach (var r in w.BatchRows) { r.Status = "Issued"; }
                 w.UpdateBatchSummary();
