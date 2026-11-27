@@ -954,6 +954,36 @@ public partial class MainWindow : Window
 
     private void PreviewArea_SizeChanged(object sender, SizeChangedEventArgs e) => ApplyPreviewZoom();
 
+    /// <summary>FIX 2: when the preview header is too narrow for title +
+    /// controls on one line, the controls drop to a second row — text is
+    /// never clipped. Deferred so DesiredSize is measured after layout.</summary>
+    private void PreviewHeader_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() => UpdatePreviewHeaderWrap(), DispatcherPriority.Loaded);
+    }
+
+    private void UpdatePreviewHeaderWrap()
+    {
+        if (PnlPreviewHeader == null || PnlPreviewControls == null ||
+            PnlPreviewTitle == null || PnlPreviewHeader.ActualWidth <= 0) return;
+        var titleW = PnlPreviewTitle.DesiredSize.Width;
+        var ctrlW = PnlPreviewControls.DesiredSize.Width;
+        var avail = PnlPreviewHeader.ActualWidth - 40;   // Padding 20 left+right
+        var wrap = titleW + ctrlW > avail - 8;
+        if (wrap)
+        {
+            Grid.SetRow(PnlPreviewControls, 1);
+            Grid.SetColumn(PnlPreviewControls, 0);
+            Grid.SetColumnSpan(PnlPreviewControls, 2);
+        }
+        else
+        {
+            Grid.SetRow(PnlPreviewControls, 0);
+            Grid.SetColumn(PnlPreviewControls, 1);
+            Grid.SetColumnSpan(PnlPreviewControls, 1);
+        }
+    }
+
     /// <summary>Ctrl+wheel steps the preview zoom, same as the −/+ buttons.</summary>
     private void Preview_MouseWheel(object sender, MouseWheelEventArgs e)
     {

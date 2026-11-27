@@ -118,6 +118,92 @@ public class NewCardParityTests
         });
     }
 
+    /// <summary>FIX 2: preview header elements never overlap or clip —
+    /// the controls wrap to a second line instead of covering the title.</summary>
+    [Theory]
+    [InlineData(860, 620)]
+    [InlineData(1100, 700)]
+    [InlineData(1280, 800)]
+    public void PreviewHeader_No_Overlap_Or_Clip(int w, int h)
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownNewCard(w, h);
+            try
+            {
+                // Let the deferred wrap decision run.
+                for (int i = 0; i < 10; i++)
+                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Loaded);
+                win.UpdateLayout();
+
+                var names = new[] { "TxtLivePreview", "PnlLiveBadge",
+                                    "ChkPrintEdges", "PnlPreviewControls" };
+                var rects = new Dictionary<string, Rect>();
+                foreach (var n in names)
+                {
+                    var fe = (FrameworkElement)win.FindName(n)!;
+                    Assert.True(fe.IsVisible, $"{n} not visible");
+                    rects[n] = BoundsIn(fe, win);
+                    // DesiredSize includes Margin in this WPF version — compare
+                    // the arranged width against desired minus the margins.
+                    var needW = fe.DesiredSize.Width - fe.Margin.Left - fe.Margin.Right;
+                    Assert.True(fe.ActualWidth >= needW - 0.5,
+                        $"{n} clipped: actual {fe.ActualWidth:F1} < desired-minus-margin {needW:F1}");
+                }
+                foreach (var a in names)
+                    foreach (var b in names)
+                    {
+                        if (a == b) continue;
+                        var ea = (DependencyObject)win.FindName(a)!;
+                        var eb = (DependencyObject)win.FindName(b)!;
+                        // Parent/child pairs overlap by definition — skip them.
+                        if (IsAncestor(ea, eb) || IsAncestor(eb, ea)) continue;
+                        var ra = rects[a]; var rb = rects[b];
+                        var inter = Rect.Intersect(ra, rb);
+                        Assert.True(inter.IsEmpty || inter.Width < 0.5 || inter.Height < 0.5,
+                            $"{a} {ra} overlaps {b} {rb}");
+                    }
+                // Every header child must stay inside the window horizontally.
+                var header = (FrameworkElement)win.FindName("PnlPreviewHeader")!;
+                var hr = BoundsIn(header, win);
+                Assert.True(hr.Right <= win.ActualWidth + 0.5,
+                    $"preview header right {hr.Right:F1} beyond window {win.ActualWidth:F1}");
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    private static bool IsAncestor(DependencyObject ancestor, DependencyObject node)
+    {
+        for (var p = VisualTreeHelper.GetParent(node); p != null;
+             p = VisualTreeHelper.GetParent(p))
+            if (ReferenceEquals(p, ancestor)) return true;
+        return false;
+    }
+
+    /// <summary>FIX 2: footer must keep Issue card inside the window at every size.</summary>
+    [Theory]
+    [InlineData(860, 620)]
+    [InlineData(1100, 700)]
+    [InlineData(1280, 800)]
+    public void Footer_Issue_Button_Inside_Window(int w, int h)
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownNewCard(w, h);
+            try
+            {
+                var btn = (FrameworkElement)win.FindName("BtnSave")!;
+                var b = BoundsIn(btn, win);
+                Assert.True(b.Right <= win.ActualWidth + 0.5,
+                    $"BtnSave right {b.Right:F1} beyond window {win.ActualWidth:F1}");
+                Assert.True(b.Left >= 0,
+                    $"BtnSave left {b.Left:F1} before window edge");
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
     /// <summary>FIX 1: dedicated shot proving every icon renders (no tofu).</summary>
     [Fact]
     public void NewCard_Icons_Render_Screenshot()

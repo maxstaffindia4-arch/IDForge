@@ -807,21 +807,38 @@
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <Border Grid.Row="0" Height="44" Padding="20,0"
+                                <!-- FIX 2: MinHeight (not fixed 44) so the controls
+                                     can drop to a second line at narrow widths. -->
+                                <Border x:Name="PnlPreviewHeader" MinHeight="44" Padding="20,4"
                                         Background="{StaticResource BackgroundBrush}"
                                         BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="0,0,0,1">
-                                    <DockPanel>
-                                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                                            <TextBlock Text="Live preview" FontSize="13"
-                                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                            <Border Margin="8,0,0,0" Padding="8,2" CornerRadius="10"
+                                        BorderThickness="0,0,0,1"
+                                        SizeChanged="PreviewHeader_SizeChanged">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel x:Name="PnlPreviewTitle" Grid.Row="0" Grid.Column="0"
+                                                    Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TxtLivePreview" Text="Live preview"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"/>
+                                            <Border x:Name="PnlLiveBadge" Margin="8,0,0,0" Padding="8,2"
+                                                    CornerRadius="10"
                                                     Background="{StaticResource AccentBrush}">
                                                 <TextBlock Text="Updates as you type" FontSize="11"
                                                            Foreground="{StaticResource AccentTextBrush}"/>
                                             </Border>
                                         </StackPanel>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                        <!-- checkbox + Fit controls; wraps to row 1 when
+                                             the header is too narrow (code-behind) -->
+                                        <StackPanel x:Name="PnlPreviewControls" Grid.Row="0" Grid.Column="1"
+                                                    Orientation="Horizontal"
                                                     HorizontalAlignment="Right" VerticalAlignment="Center">
                                             <CheckBox x:Name="ChkPrintEdges" Content="Show print edges"
                                                       Style="{StaticResource DesignCheckBox}"
@@ -839,7 +856,7 @@
                                                     ToolTip="Zoom in" Margin="-1,0,0,0"
                                                     Click="PreviewZoomIn_Click"/>
                                         </StackPanel>
-                                    </DockPanel>
+                                    </Grid>
                                 </Border>
                                 <Border x:Name="PreviewArea" Grid.Row="1" Margin="12,0,12,4"
                                         CornerRadius="6" Background="{StaticResource PanelBrush}"
@@ -974,13 +991,17 @@
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
+                                <!-- FIX 2: col0 is star-sized so the WrapPanel is
+                                     width-constrained and wraps instead of pushing
+                                     the Issue card off-window. -->
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <!-- chips: check icon + plain text, no pill borders -->
-                            <StackPanel Grid.Column="0" Orientation="Horizontal"
-                                        VerticalAlignment="Center">
+                            <!-- chips: check icon + plain text, no pill borders.
+                                 WrapPanel (FIX 2): chips wrap to a second line at
+                                 narrow widths instead of pushing Issue card off-window. -->
+                            <WrapPanel Grid.Column="0" VerticalAlignment="Center">
                                 <StackPanel x:Name="ChipDetails" Orientation="Horizontal"
                                             Margin="0,0,16,0">
                                     <TextBlock Text="&#xF058;" FontFamily="{StaticResource IconFont}"
@@ -1007,7 +1028,7 @@
                                 <TextBlock x:Name="TxtStatus" Margin="16,0,0,0"
                                            VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="380"
                                            Foreground="{StaticResource TextBrush}" FontSize="12"/>
-                            </StackPanel>
+                            </WrapPanel>
                             <StackPanel Grid.Column="2" Orientation="Horizontal"
                                         HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <TextBlock x:Name="TxtIssueBlocked"
