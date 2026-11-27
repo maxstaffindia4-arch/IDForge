@@ -1,0 +1,30 @@
+<Window x:Class="IDForge.Dialogs.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Help" Width="640" Height="460"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
+        Background="{StaticResource PanelLightBrush}">
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="190"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+            <TextBlock Text="Help" Style="{StaticResource DialogTitle}"/>
+            <ListBox x:Name="LstTopics" Margin="0,10,0,0" BorderThickness="0"
+                     Background="Transparent" SelectedIndex="0">
+                <ListBoxItem Content="Keyboard shortcuts"/>
+                <ListBoxItem Content="Quick guide"/>
+                <ListBoxItem Content="Troubleshooting"/>
+            </ListBox>
+        </StackPanel>
+        <Border Grid.Column="1" Margin="16,0,0,0" Padding="16" CornerRadius="4"
+                Background="White" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="TxtBody" Style="{StaticResource DialogBody}"
+                           TextWrapping="Wrap"/>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>

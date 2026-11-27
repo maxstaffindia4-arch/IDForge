@@ -87,9 +87,8 @@ public class FixKPartATests
 
                 foreach (var dlg in new Window[]
                 {
-                    main.BuildHelpDialog("Keyboard shortcuts", "F1 Help"),
-                    main.BuildHelpDialog("Quick guide", "steps"),
-                    main.BuildHelpDialog("Troubleshooting", "tips"),
+                    // FIX 4: help topics moved into the Help window.
+                    new IDForge.Dialogs.HelpWindow { Owner = main },
                     main.BuildAboutDialog(),
                     // Phase 7: the shared dialog template + XAML re-issue dialog
                     new IDForge.Dialogs.AppDialog { Owner = main, Title = "Confirm", Heading = "Sure?" },

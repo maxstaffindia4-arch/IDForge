@@ -347,6 +347,63 @@ public class NewCardParityTests
         });
     }
 
+    /// <summary>FIX 4 owner decisions: no menu bar, no Save draft button or
+    /// Ctrl+S, Help/About only in the nav rail, status bar keeps version
+    /// text (no About link).</summary>
+    [Fact]
+    public void Owner_Decisions_No_Menu_No_SaveDraft_Help_About_In_Rail()
+    {
+        WpfSta.Run(() =>
+        {
+            var win = NewShownNewCard(1280, 800);
+            try
+            {
+                // No Menu anywhere in the visual tree.
+                Assert.Null(FindVisualOfType<Menu>(win));
+
+                // No "Save draft" text or button anywhere.
+                Assert.Null(FindTextBlockWithText(win, "Save draft"));
+                Assert.False(win.TryHandleShortcut(
+                    System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control),
+                    "Ctrl+S should no longer be bound");
+
+                // Help + About exist only in the nav rail.
+                Assert.NotNull(win.FindName("NavHelp"));
+                Assert.NotNull(win.FindName("NavAbout"));
+                Assert.Null(win.FindName("BtnStatusAbout"));
+
+                // Status bar: version text, right-aligned, no About suffix.
+                var ver = (TextBlock)win.FindName("TxtStatusVersion")!;
+                Assert.Equal($"IDForge {AppInfo.Version}", ver.Text);
+            }
+            finally { SettleThenClose(win); }
+        });
+    }
+
+    private static T? FindVisualOfType<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T t) return t;
+        int n = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < n; i++)
+        {
+            var r = FindVisualOfType<T>(VisualTreeHelper.GetChild(root, i));
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    private static TextBlock? FindTextBlockWithText(DependencyObject root, string text)
+    {
+        if (root is TextBlock tb && tb.Text == text) return tb;
+        int n = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < n; i++)
+        {
+            var r = FindTextBlockWithText(VisualTreeHelper.GetChild(root, i), text);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
     /// <summary>Regression: the resume-batch prompt used to run inside the
     /// MainWindow ctor, where AppDialog's Owner assignment threw
     /// ("Window that has not been shown previously") and the app failed to

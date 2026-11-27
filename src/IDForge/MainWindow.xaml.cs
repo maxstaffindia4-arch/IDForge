@@ -64,7 +64,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         FitWindowToWorkArea();
         Closed += (_, _) => AppSettings.WindowBounds = (Left, Top, Width, Height);
-        Title = $"IDForge v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
+        Title = $"IDForge v{AppInfo.Version}";
         _svc = new CardService();
         _previewDebounce.Tick += (_, _) => { _previewDebounce.Stop(); _ = UpdatePreviewAsync(); };
         _bannerTimer.Tick += BannerTimer_Tick;
@@ -831,7 +831,7 @@ public partial class MainWindow : Window
         if (_draftPending) { _draftPending = false; UpdateTitle(); }
     }
 
-    private void SaveDraft_Click(object sender, RoutedEventArgs e) => SaveDraftNow();
+    // FIX 4: SaveDraft_Click + Ctrl+S removed — the draft timer autosaves.
 
     /// <summary>Draft note sits beside the header buttons; hidden when empty.</summary>
     private void SetDraftNote(string text)
@@ -1130,14 +1130,9 @@ public partial class MainWindow : Window
             TxtStatusBackup.Foreground = (Brush)FindResource("MutedBrush");
             TxtBackupAgeWarn.Visibility = Visibility.Collapsed;
         }
-        // §4.4/decision 8: version comes from the build (InformationalVersion),
-        // "About" opens the About dialog.
-        var asm = System.Reflection.Assembly.GetExecutingAssembly();
-        var infoVer = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
-            is System.Reflection.AssemblyInformationalVersionAttribute[] attrs && attrs.Length > 0
-            ? attrs[0].InformationalVersion : null;
-        var ver = infoVer ?? asm.GetName().Version?.ToString(3) ?? "?";
-        TxtStatusVersion.Text = $"IDForge {ver} · About";
+        // §4.4/decision 8 + FIX 4: one build version everywhere; About moved
+        // to the nav rail so the status bar is plain text, right-aligned.
+        TxtStatusVersion.Text = $"IDForge {AppInfo.Version}";
         UpdateBatchBadge();
         var backupTip = AppSettings.LastBackupAt is { } bt
             ? $"Last backup {bt:dd/MM/yyyy} at {bt:HH:mm}\nClick to back up now (Ctrl+B)"
@@ -1228,6 +1223,7 @@ public partial class MainWindow : Window
         UpdateNavInset();
         foreach (var name in new[] { "NavLblNewCard", "NavKeyNewCard", "NavLblBatch", "NavKeyBatch",
                      "NavLblRecords", "NavKeyRecords", "NavLblSettings", "NavKeySettings",
+                     "NavLblHelp", "NavKeyHelp", "NavLblAbout",
                      "LblIssueCards", "LblManage" })
         {
             if (FindName(name) is FrameworkElement fe) fe.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
@@ -1235,9 +1231,10 @@ public partial class MainWindow : Window
         // Collapsed: 40 px icon buttons centred in the 56 px rail — the label
         // and shortcut texts are hidden above, so the content grid shrinks to
         // the 20 px icon column and centres in the button.
-        foreach (var (rb, pnl) in new (RadioButton, FrameworkElement)[]
+        foreach (var (rb, pnl) in new (Control, FrameworkElement)[]
                  { (NavNewCard, NavPnlNewCard), (NavBatch, NavPnlBatch),
-                   (NavRecords, NavPnlRecords), (NavSettings, NavPnlSettings) })
+                   (NavRecords, NavPnlRecords), (NavSettings, NavPnlSettings),
+                   (NavHelp, NavPnlHelp), (NavAbout, NavPnlAbout) })
         {
             if (collapsed)
             {
@@ -1310,7 +1307,7 @@ public partial class MainWindow : Window
             case Key.O when inNewCard && !shift: BrowsePhoto_Click(this, null!); break;
             case Key.D0 when inNewCard && !shift:
             case Key.NumPad0 when inNewCard && !shift: ResetPhotoPosition(); break;
-            case Key.S when inNewCard && !shift: SaveDraftNow(); break;
+            // FIX 4: Ctrl+S draft binding removed — autosave covers it.
             case Key.Enter when inNewCard && !shift: Save_Click(this, null!); break;
             default: return false;
         }
@@ -1342,23 +1339,35 @@ public partial class MainWindow : Window
     {
         if (key == Key.F1)
         {
-            MenuHelp.IsSubmenuOpen = true;
+            ShowHelp();
             return true;
         }
         return false;
+    }
+
+    /// <summary>FIX 4: Help lives in the nav rail; F1 opens the same window.
+    /// Modeless (help shouldn't block work) and single-instance.</summary>
+    private IDForge.Dialogs.HelpWindow? _helpWindow;
+
+    private void ShowHelp()
+    {
+        if (_helpWindow is { IsLoaded: true })
+        {
+            _helpWindow.Activate();
+            return;
+        }
+        _helpWindow = new IDForge.Dialogs.HelpWindow { Owner = this };
+        _helpWindow.Closed += (_, _) => _helpWindow = null;
+        _helpWindow.Show();
     }
 
     private void NavNewCard_Click(object sender, RoutedEventArgs e) => ShowArea("newcard");
     private void NavBatch_Click(object sender, RoutedEventArgs e) => ShowArea("batch");
     private void NavRecords_Click(object sender, RoutedEventArgs e) => ShowArea("records");
     private void NavSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
+    private void NavHelp_Click(object sender, RoutedEventArgs e) => ShowHelp();
+    private void NavAbout_Click(object sender, RoutedEventArgs e) => BuildAboutDialog().ShowDialog();
     private void GoSettings_Click(object sender, RoutedEventArgs e) => ShowArea("settings");
-    private void MenuToggleNav_Click(object sender, RoutedEventArgs e)
-    {
-        _navManual = true;
-        SetNavCollapsed(!_navCollapsed);
-    }
-    private void MenuExit_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
     /// Single backup path used by the nav card, Tools menu, and Ctrl+B:
@@ -1941,47 +1950,9 @@ public partial class MainWindow : Window
         catch (Exception ex) { IDForge.Dialogs.AppDialog.Error(this, "Reprint", "Reprint failed", ex.Message); }
     }
 
-    internal Window BuildHelpDialog(string title, string text)
-    {
-        var dlg = new IDForge.Dialogs.AppDialog { Owner = this, Title = title, Heading = title };
-        dlg.SetBodyText(text);
-        dlg.AddButton("Close", isDefault: true, isCancel: true);
-        return dlg;
-    }
-
-    private void ShowHelpDialog(string title, string text) =>
-        BuildHelpDialog(title, text).ShowDialog();
-
-    private void HelpShortcuts_Click(object sender, RoutedEventArgs e) =>
-        ShowHelpDialog("Keyboard shortcuts",
-            "Ctrl+1  New card\nCtrl+2  Batch\nCtrl+3  Records\nCtrl+,  Settings\n" +
-            "Ctrl+B  Back up now\nCtrl+F  Search records\nCtrl+Enter  Issue card\n" +
-            "F2  Edit record\nDel  Delete row / record\nF5  Start batch\nF1  Help");
-
-    private void HelpQuickGuide_Click(object sender, RoutedEventArgs e) =>
-        ShowHelpDialog("Quick guide",
-            "Issuing a card: fill in the New card form (or pick a photo), " +
-            "then click Issue card or press Ctrl+Enter. The card image and " +
-            "PDF are saved to the folder chosen in Settings.\n\n" +
-            "Batch: add rows on the Batch page, fill in name, ID, position " +
-            "and photo for each, then click Approve & Issue to issue them all.\n\n" +
-            "Backup and restore: use Tools > Back up now or Settings > " +
-            "Back up to file… / Restore from file….");
-
-    private void HelpTroubleshooting_Click(object sender, RoutedEventArgs e) =>
-        ShowHelpDialog("Troubleshooting",
-            "Missing output folder: issue is blocked until the \"Save cards " +
-            "to\" folder in Settings exists and is writable. Choose a valid " +
-            "folder there.\n\n" +
-            "Dates: enter dates as DD/MM/YYYY or pick them from the calendar.\n\n" +
-            "Backup: automatic backups are kept in the backup folder " +
-            "(Settings > Open backup folder). Restore replaces all card data " +
-            "after backing up the current data first.");
-
     internal Window BuildAboutDialog()
     {
-        var version = System.Reflection.Assembly.GetExecutingAssembly()
-            .GetName().Version?.ToString(3) ?? "?";
+        var version = AppInfo.Version;
         var dlg = new IDForge.Dialogs.AppDialog
         {
             Owner = this, Title = "About IDForge", Heading = "IDForge",
@@ -1995,9 +1966,6 @@ public partial class MainWindow : Window
         dlg.AddButton("Close", isDefault: true, isCancel: true);
         return dlg;
     }
-
-    private void About_Click(object sender, RoutedEventArgs e) =>
-        BuildAboutDialog().ShowDialog();
 
     /// <summary>
     /// Sizes the window to the primary work area (taskbar excluded) and restores

@@ -90,6 +90,34 @@
             </Setter>
         </Style>
 
+        <!-- FIX 4: same look as NavItem but for action buttons (Help, About)
+             — no checked state. -->
+        <Style x:Key="NavAction" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Margin" Value="8,2"/>
+            <Setter Property="Padding" Value="12,0,12,0"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource NavFocusRing}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Bg" CornerRadius="4" Background="Transparent"/>
+                            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource SecondaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Segmented contract-type choice (Permanent / Contractual) -->
         <Style x:Key="SegmentedRadio" TargetType="RadioButton">
             <Setter Property="Cursor" Value="Hand"/>
@@ -168,42 +196,15 @@
             </Setter>
         </Style>
     </Window.Resources>
+    <!-- FIX 4: menu bar removed entirely — shortcuts keep working,
+         Help/About live in the nav rail. -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ============ MENU BAR ============ -->
-        <Menu Grid.Row="0" Background="{StaticResource PanelLightBrush}">
-            <MenuItem Header="_File">
-                <MenuItem Header="E_xit" Click="MenuExit_Click"/>
-            </MenuItem>
-            <MenuItem Header="_Edit">
-                <MenuItem Header="(no actions yet)" IsEnabled="False"/>
-            </MenuItem>
-            <MenuItem Header="_View">
-                <MenuItem Header="_Toggle navigation" Click="MenuToggleNav_Click"/>
-            </MenuItem>
-            <MenuItem Header="_Records">
-                <MenuItem Header="_Go to Records  Ctrl+3" Click="NavRecords_Click"/>
-            </MenuItem>
-            <MenuItem Header="_Tools">
-                <MenuItem Header="_Back up now  Ctrl+B" Click="NavBackup_Click"/>
-            </MenuItem>
-            <MenuItem x:Name="MenuHelp" Header="_Help">
-                <MenuItem Header="_Keyboard shortcuts" Click="HelpShortcuts_Click"/>
-                <MenuItem Header="_Quick guide: issuing a card, using Batch, backup and restore"
-                          Click="HelpQuickGuide_Click"/>
-                <MenuItem Header="_Troubleshooting: missing output folder, dates, backup"
-                          Click="HelpTroubleshooting_Click"/>
-                <Separator/>
-                <MenuItem Header="_About IDForge…" Click="About_Click"/>
-            </MenuItem>
-        </Menu>
-
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="0"/>
                 <ColumnDefinition Width="*"/>
@@ -257,6 +258,41 @@
                                    Foreground="{StaticResource SuccessBrush}"
                                    VerticalAlignment="Center" HorizontalAlignment="Center"/>
                     </Border>
+                    <!-- FIX 4: Help + About sit directly above the backup card -->
+                    <StackPanel x:Name="PnlNavHelpAbout" DockPanel.Dock="Bottom" Margin="0,0,0,8">
+                        <Button x:Name="NavHelp" Style="{StaticResource NavAction}"
+                                Click="NavHelp_Click" ToolTip="Help (F1)">
+                            <Grid x:Name="NavPnlHelp">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="&#xF059;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="14" Foreground="{StaticResource SecondaryTextBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLblHelp" Grid.Column="1" Text="Help"
+                                           Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavKeyHelp" Grid.Column="2" Text="F1" FontSize="11"
+                                           Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="NavAbout" Style="{StaticResource NavAction}"
+                                Click="NavAbout_Click" ToolTip="About IDForge">
+                            <Grid x:Name="NavPnlAbout">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="&#xF05A;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="14" Foreground="{StaticResource SecondaryTextBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="NavLblAbout" Grid.Column="1" Text="About"
+                                           Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
                     <StackPanel x:Name="PnlNavItems" Margin="0">
                         <TextBlock x:Name="LblIssueCards" Text="ISSUE CARDS" FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource MutedBrush}" Margin="16,0,0,8"/>
@@ -613,14 +649,7 @@
                                            VerticalAlignment="Center"/>
                             </StackPanel>
                             <Button Content="Clear form" Click="ClearForm_Click" Margin="0,0,8,0"/>
-                            <Button Click="SaveDraft_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Save draft"/>
-                                    <TextBlock Text="Ctrl+S" FontSize="11"
-                                               Foreground="{StaticResource MutedBrush}"
-                                               Margin="6,0,0,0" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
+                            <!-- FIX 4: Save draft button removed — edits autosave. -->
                         </StackPanel>
                     </Grid>
 
@@ -1000,9 +1029,11 @@
                             <Grid.ColumnDefinitions>
                                 <!-- FIX 2: col0 is star-sized so the WrapPanel is
                                      width-constrained and wraps instead of pushing
-                                     the Issue card off-window. -->
+                                     the Issue card off-window. Col1 is a zero-width
+                                     spacer — giving it star share halved the space
+                                     the chips actually get. -->
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <!-- chips: check icon + plain text, no pill borders.
@@ -1042,7 +1073,7 @@
                                            Text="Employee ID already exists. Open the record to re-issue."
                                            FontSize="11" Foreground="{StaticResource ErrorBrush}"
                                            VerticalAlignment="Center" Margin="0,0,10,0"
-                                           TextWrapping="Wrap" MaxWidth="280" Visibility="Collapsed"/>
+                                           TextWrapping="Wrap" MaxWidth="200" Visibility="Collapsed"/>
                                 <TextBlock x:Name="TxtOutputText" FontSize="12"
                                            Foreground="{StaticResource MutedBrush}"
                                            VerticalAlignment="Center">
@@ -1487,21 +1518,14 @@
         </Grid>
 
         <!-- ============ STATUS BAR (§4.4) ============ -->
-        <Border Grid.Row="2" Height="28" Background="{StaticResource SidebarBrush}"
+        <Border Grid.Row="1" Height="28" Background="{StaticResource SidebarBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <DockPanel Margin="12,0">
-                <Button DockPanel.Dock="Right" x:Name="BtnStatusAbout" Click="About_Click"
-                        Background="Transparent" BorderThickness="0" Padding="6,0" Cursor="Hand"
-                        VerticalAlignment="Center" ToolTip="About IDForge">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xF059;" FontFamily="{StaticResource IconFont}" FontSize="11"
-                                   Foreground="{StaticResource MutedBrush}" Margin="0,0,6,0"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock x:Name="TxtStatusVersion" FontSize="11"
-                                   Foreground="{StaticResource SecondaryTextBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
+                <!-- FIX 4: About link removed — version text is right-aligned,
+                     no longer a button. -->
+                <TextBlock x:Name="TxtStatusVersion" DockPanel.Dock="Right"
+                           FontSize="11" VerticalAlignment="Center"
+                           Foreground="{StaticResource SecondaryTextBrush}"/>
                 <StackPanel x:Name="PnlStatusLeft" Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <Ellipse Width="6" Height="6" Fill="{StaticResource SuccessBrush}"

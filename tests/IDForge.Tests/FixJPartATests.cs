@@ -104,45 +104,58 @@ public class FixJPartATests
         return null;
     }
 
+    /// <summary>FIX 4: Help + About moved into the nav rail, directly above
+    /// the backup card (menu bar removed).</summary>
     [Fact]
-    public void Help_Menu_Has_Items_And_About_Last()
+    public void Help_And_About_In_Nav_Rail_Above_Backup()
     {
         WpfSta.Run(() =>
         {
             var win = NewWindow();
-            var help = win.FindName("MenuHelp") as MenuItem;
+            var host = win.FindName("PnlNavHelpAbout") as FrameworkElement;
+            Assert.NotNull(host);
+            var help = win.FindName("NavHelp") as Button;
+            var about = win.FindName("NavAbout") as Button;
             Assert.NotNull(help);
+            Assert.NotNull(about);
+            Assert.True(help.IsVisible && about.IsVisible);
 
-            var headers = help.Items.Cast<object>()
-                .Select(o => o is MenuItem mi ? mi.Header as string
-                           : o is Separator ? "---" : o?.ToString())
-                .ToList();
-
-            Assert.Contains(headers, h => h != null && h.Contains("Keyboard shortcuts"));
-            Assert.Contains(headers, h => h != null && h.Contains("Quick guide"));
-            Assert.Contains(headers, h => h != null && h.Contains("Troubleshooting"));
-            Assert.Equal("---", headers[^2]);
-            Assert.Contains("About", headers[^1]);
+            // Both sit directly above the backup card: their bottom edge is at
+            // or above the backup panel's top edge.
+            var backup = win.FindName("PnlBackupFull") as FrameworkElement;
+            Assert.NotNull(backup);
+            var hb = new Rect(help.TranslatePoint(new Point(0, 0), win),
+                              new Size(help.ActualWidth, help.ActualHeight));
+            var ab = new Rect(about.TranslatePoint(new Point(0, 0), win),
+                              new Size(about.ActualWidth, about.ActualHeight));
+            var bb = new Rect(backup.TranslatePoint(new Point(0, 0), win),
+                              new Size(backup.ActualWidth, backup.ActualHeight));
+            Assert.True(hb.Bottom <= bb.Top + 0.5, $"Help {hb.Bottom} not above backup {bb.Top}");
+            Assert.True(ab.Bottom <= bb.Top + 0.5, $"About {ab.Bottom} not above backup {bb.Top}");
+            Assert.True(hb.Top < ab.Top, "Help should sit above About");
         });
     }
 
     [Fact]
-    public void F1_Opens_Help_Menu()
+    public void F1_Opens_Help_Window()
     {
         WpfSta.Run(() =>
         {
             var win = NewWindow();
             win.Activate();
-            var help = win.FindName("MenuHelp") as MenuItem;
-            Assert.NotNull(help);
-            Assert.False(help.IsSubmenuOpen);
-
-            // IsSubmenuOpen can't be observed headless (WPF coerces it back
-            // when the window isn't active), so verify the wiring: F1 is
-            // handled by the app-level Help path and other keys are not.
-            Assert.True(win.TryHandleAppKey(Key.F1), "F1 was not handled");
-            Assert.False(win.TryHandleAppKey(Key.F2), "F2 should not hit the Help path");
-            Assert.False(win.TryHandleAppKey(Key.Z), "plain keys should not hit the Help path");
+            try
+            {
+                // F1 is handled by the app-level Help path and other keys are not.
+                Assert.True(win.TryHandleAppKey(Key.F1), "F1 was not handled");
+                // Modeless Help window opened — close it again.
+                var helpWin = Application.Current.Windows.OfType<IDForge.Dialogs.HelpWindow>()
+                    .FirstOrDefault(w => w.IsLoaded);
+                Assert.NotNull(helpWin);
+                helpWin!.Close();
+                Assert.False(win.TryHandleAppKey(Key.F2), "F2 should not hit the Help path");
+                Assert.False(win.TryHandleAppKey(Key.Z), "plain keys should not hit the Help path");
+            }
+            finally { win.Close(); }
         });
     }
 
@@ -182,17 +195,12 @@ public class FixJPartATests
             {
                 win.Activate();
 
-                // --- Help menu open: render the popup's visual tree ---
-                var help = win.FindName("MenuHelp") as MenuItem;
-                Assert.NotNull(help);
-                help.IsSubmenuOpen = true;
-                win.UpdateLayout();
-                var popup = help.Template.FindName("PART_Popup", help) as Popup;
-                Assert.NotNull(popup);
-                Assert.NotNull(popup!.Child);
-                popup.Child.UpdateLayout();
-                SavePng(popup.Child, System.IO.Path.Combine(ShotDir, "help-menu-open.png"));
-                help.IsSubmenuOpen = false;
+                // --- Help window (FIX 4: menu bar removed, Help is a window) ---
+                var helpWin = new IDForge.Dialogs.HelpWindow { Owner = win };
+                helpWin.Show();
+                helpWin.UpdateLayout();
+                SavePng(helpWin, System.IO.Path.Combine(ShotDir, "help-window.png"));
+                helpWin.Close();
 
                 // --- Nav with mouse-selected item (no focus ring) ---
                 // Render the whole window: the FocusVisualStyle adorner lives

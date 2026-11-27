@@ -46,13 +46,13 @@ public class FixPassTests
             try
             {
                 var bar = ((FrameworkElement)main.FindName("PnlStatusLeft")!).Parent!;
-                // offline | count | backup = 3 separators; version lives in the
-                // About button on the right (§4.4).
+                // offline | count | backup = 3 separators; the version is plain
+                // right-aligned text — the About link moved to the nav rail (FIX 4).
                 Assert.True(CountSeparators(bar) >= 3,
                     $"expected >=3 separators, found {CountSeparators(bar)}");
                 var version = (TextBlock)main.FindName("TxtStatusVersion")!;
                 Assert.StartsWith("IDForge ", version.Text);
-                Assert.EndsWith("· About", version.Text);
+                Assert.DoesNotContain("About", version.Text);
             }
             finally { main.Close(); }
             return true;
